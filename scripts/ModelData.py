@@ -112,8 +112,8 @@ vaxes,vel = sep.read_file("vel")
 vel = vel.reshape(vaxes.n,order='F')
 vel = vel.astype('float32')
 # Convert to km/s if needed
-nx = vaxes.n[0]; dx = vaxes.d[0];
-nz = vaxes.n[1]; dz = vaxes.d[1];
+nz = vaxes.n[0]; dz = vaxes.d[0];
+nx = vaxes.n[1]; dx = vaxes.d[1];
 # Read in source
 saxes,src = sep.read_file("src")
 src = src.astype('float32')
@@ -161,7 +161,7 @@ if(verb): print("Final source position: %d"%(srcs[-1]))
 if(plotacq):
     vmin = np.min(velp); vmax = np.max(velp)
     plt.figure(1)
-    plt.imshow(velp.T,extent=[0,nxp,nzp,0],vmin=vmin,vmax=vmax,cmap='jet')
+    plt.imshow(velp,extent=[0,nzp,nxp,0],vmin=vmin,vmax=vmax,cmap='jet')
     plt.scatter(recs,recdepth)
     plt.scatter(srcs,srcdepth)
     plt.grid()
@@ -173,10 +173,10 @@ fact = int(dt/dtu); ntd = int(ntu/fact)
 oneshot = np.zeros((ntd,nrx),dtype='float32')
 
 # Set up wave propagation object for a single shot
-sca = sca2d.scaas2d(ntd,nxp,nzp,dt,dx,dz,dtu,bx,bz,alpha)
+sca = sca2d.scaas2d(ntd,nzp,nxp,dt,dx,dz,dtu,bx,bz,alpha)
 
 sca.fwdprop_data(src,srcs,srcdepth,nsx,recs,recdepth,nrx,velp,oneshot)
-plt.imshow(oneshot,cmap='gray')
+plt.imshow(oneshot,cmap='gray',vmin=np.min(oneshot),vmax=np.max(oneshot))
 plt.show()
 
 ### Forward modeling

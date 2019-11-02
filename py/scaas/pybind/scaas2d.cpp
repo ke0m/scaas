@@ -27,7 +27,7 @@ void scaas2d::drslc(int *recxs, int *reczs, int nrec, float *wslc, float *dslc) 
   for(int ir = 0; ir < nrec; ++ir) {
     /* Grab at the receiver gridpoints (already interpolated) */
     //printf("recz=%d recx=%d\n",reczs[ir],recxs[ir]);
-    dslc[ir] = wslc[recxs[ir]*_nz + reczs[ir]];
+    dslc[ir] = wslc[reczs[ir]*_nx + recxs[ir]];
   }
 }
 
@@ -35,7 +35,8 @@ void scaas2d::fwdprop_data(float *src, int *srcxs, int *srczs, int nsrc, int *re
 
   //std::vector<float>v {src,src+_ntu};
   //plt::plot(v); plt::show();
-  //plt::imshow((const float*)vel,_nx,_nz,1); plt::show();
+  //plt::imshow((const float*)vel,_nz,_nx,1); plt::show();
+
 
 //  for(int irec = 0; irec < 2*nrec; ++irec) {
 //    dat[irec] = 1;
@@ -51,6 +52,14 @@ void scaas2d::fwdprop_data(float *src, int *srcxs, int *srczs, int nsrc, int *re
   //TODO: This should be done outside
   float *tap = new float[_onestp]();
   build_taper(tap);
+  //float *test1 = new float[_onestp]();
+  //float *test2 = new float[_onestp]();
+  //for(int k = 0; k < _onestp; ++k) test1[k] = 1.0;
+  //apply_taper(tap,test1,test2);
+//  plt::subplot(1,2,1);
+//  plt::imshow((const float*)tap,_nz,_nx,1);
+//  plt::subplot(1,2,2);
+//  plt::imshow((const float*)test1,_nz,_nx,1); plt::show();
 
   /* Allocate memory for wavefield slices */
   //TODO: This could be done outside
@@ -67,7 +76,7 @@ void scaas2d::fwdprop_data(float *src, int *srcxs, int *srczs, int nsrc, int *re
   /* Inject sources */
   for(int isrc = 0; isrc < nsrc; ++isrc) {
     printf("srcz=%d srcx=%d\n",srczs[isrc],srcxs[isrc]);
-    sou1[srcxs[isrc]*_nz + srczs[isrc]] = src[isrc*_ntu + 0]/(_dx*_dz);
+    sou1[srczs[isrc]*_nx + srcxs[isrc]] = src[isrc*_ntu + 0]/(_dx*_dz);
   }
   for(int k = 0; k < _onestp; ++k) { sou1[k] *= v2dt2[k]; };
   apply_taper(tap,sou1,pre);
@@ -80,13 +89,13 @@ void scaas2d::fwdprop_data(float *src, int *srcxs, int *srczs, int nsrc, int *re
   for(int it = 2; it < _ntu; ++it) {
     /* Calculate source term */
     for(int isrc = 0; isrc < nsrc; ++isrc) {
-      sou1[srcxs[isrc]*_nz + srczs[isrc]] = src[isrc*_ntu + it]/(_dx*_dz);
+      sou1[srczs[isrc]*_nx + srcxs[isrc]] = src[isrc*_ntu + it]/(_dx*_dz);
     }
     /* Apply laplacian */
-    //laplacian10(_nz,_nx,_idx2,_idz2,cur,sou2);
-    laplacianFWDISPC(_nx,_nz,_idx2,_idz2,cur,sou2);
+    laplacian10(_nx,_nz,_idx2,_idz2,cur,sou2);
+    //laplacianFWDISPC(_nx,_nz,_idx2,_idz2,cur,sou2);
     //if(it < 10) {
-    //  plt::imshow((const float*)sou2,_nx,_nz,1); plt::show();
+    //  plt::imshow((const float*)sou2,_nz,_nx,1); plt::show();
     //}
     /* Advance wavefields */
     for(int k = 0; k < _onestp; ++k) {
@@ -95,9 +104,9 @@ void scaas2d::fwdprop_data(float *src, int *srcxs, int *srczs, int nsrc, int *re
 //    if(it%100 == 0) {
 //      printf("it=%d\n",it);
 //      plt::subplot(1,2,1);
-//      plt::imshow((const float*)vel,_nx,_nz,1);
+//      plt::imshow((const float*)vel,_nz,_nx,1);
 //      plt::subplot(1,2,2);
-//      plt::imshow((const float*)pre,_nx,_nz,1); plt::show();
+//      plt::imshow((const float*)pre,_nz,_nx,1); plt::show();
 //    }
     /* Apply taper */
     apply_taper(tap,pre,cur);
@@ -128,23 +137,23 @@ void scaas2d::build_taper(float *tap) {
   int ord = 10;
   int shift = ord/2;
 
-  /* Left and Right */
-  for(int ix = shift; ix < _bx+shift; ++ix) {
-    for(int iz = shift; iz < _nz-shift; ++iz) {
-      double tapval = 1.0 * (_bx - (ix - shift))/(_bx);
-      tapval = _alpha + (1.0 - _alpha) * cos(M_PI*tapval);
-      tap[ix        *_nz + iz] = tapval;
-      tap[(_nx-ix-1)*_nz + iz] = tapval;
-    }
-  }
-
   /* Top and Bottom */
   for(int iz = shift; iz < _bz+shift; ++iz) {
     for(int ix = shift; ix < _nx-shift; ++ix) {
       double tapval = 1.0 * (_bz - (iz - shift))/(_bz);
       tapval = _alpha + (1.0 - _alpha) * cos(M_PI*tapval);
-      tap[ix*_nz + iz      ] *= tapval;
-      tap[ix*_nz + _nz-iz-1] *= tapval;
+      tap[iz        *_nx + ix] = tapval;
+      tap[(_nz-iz-1)*_nx + ix] = tapval;
+    }
+  }
+
+  /* Left and Right */
+  for(int ix = shift; ix < _bx+shift; ++ix) {
+    for(int iz = shift; iz < _nz-shift; ++iz) {
+      double tapval = 1.0 * (_bx - (ix - shift))/(_bx);
+      tapval = _alpha + (1.0 - _alpha) * cos(M_PI*tapval);
+      tap[iz*_nx + ix      ] *= tapval;
+      tap[iz*_nx + _nx-ix-1] *= tapval;
     }
   }
 }
@@ -154,24 +163,24 @@ void scaas2d::apply_taper(float *tap, float *cur, float *nex) {
   /* Always use 10th order */
   int ord = 10;
   int shift = ord/2;
-  int nshift = (_nx-_bx-shift)*_nz;
-
-  /* Left and Right application */
-  for(int ileft = shift; ileft < (_bx+shift)*(_nz); ++ileft) {
-    int irite = nshift + ileft;
-    cur[ileft] *= tap[ileft];
-    nex[ileft] *= tap[ileft];
-    cur[irite] *= tap[irite];
-    nex[irite] *= tap[irite];
-  }
+  int nshift = (_nz-_bz-shift)*_nx;
 
   /* Top and Bottom application */
-  for(int ix = _bx+shift; ix < _nx-_bx-shift; ++ix) {
-    for(int iz = shift; iz < _bz+shift; ++iz) {
-      cur[ix*_nz +       iz] *= tap[ix*_nz +       iz];
-      nex[ix*_nz +       iz] *= tap[ix*_nz +       iz];
-      cur[ix*_nz + _nz-iz-1] *= tap[ix*_nz + _nz-iz-1];
-      nex[ix*_nz + _nz-iz-1] *= tap[ix*_nz + _nz-iz-1];
+  for(int itop = shift; itop < (_bz+shift)*(_nx); ++itop) {
+    int ibot = nshift + itop;
+    cur[itop] *= tap[itop];
+    nex[itop] *= tap[itop];
+    cur[ibot] *= tap[ibot];
+    nex[ibot] *= tap[ibot];
+  }
+
+  /* Left and right application */
+  for(int iz = _bz+shift; iz < _nz-_bz-shift; ++iz) {
+    for(int ix = shift; ix < _bx+shift; ++ix) {
+      cur[iz*_nx +       ix] *= tap[iz*_nx +       ix];
+      nex[iz*_nx +       ix] *= tap[iz*_nx +       ix];
+      cur[iz*_nx + _nx-ix-1] *= tap[iz*_nx + _nx-ix-1];
+      nex[iz*_nx + _nx-ix-1] *= tap[iz*_nx + _nx-ix-1];
     }
   }
 

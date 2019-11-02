@@ -8,7 +8,8 @@
 #ifndef SCAAS2D_H
 #define SCAAS2D_H
 extern "C" {
-#include "laplacianFWDISPC.h"
+//#include "laplacianFWDISPC.h"
+#include "laplacian10.h"
 }
 
 class scaas2d {

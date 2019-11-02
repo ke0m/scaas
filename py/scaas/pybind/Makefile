@@ -13,7 +13,7 @@ scaas2d.o: scaas2d.cpp
 #XXX: The -shared is necessary for linking
 scaas2dpy: scaas2d.o laplacian10.o laplacianold.o
 	g++ -O3 -fPIC -ffast-math -std=c++1y -shared -Wall `python3 -m pybind11 --includes` \
-		-g laplacianold.o scaas2d.o scaas2dpy.cpp -o ../scaas2dpy`python3-config --extension-suffix`
+		-g laplacian10.o scaas2d.o scaas2dpy.cpp -o ../scaas2dpy`python3-config --extension-suffix`
 
 testimshow: testimshow.cpp
 	g++ testimshow.cpp -I/opt/anaconda/anaconda3/envs/py35/include/python3.5m/ \

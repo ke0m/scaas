@@ -10,3 +10,7 @@
 __pycache__
 matplotlibcpp.h
 prop_2d_vti.cpp
+*.tex
+*.pdf
+*.aux
+*.m

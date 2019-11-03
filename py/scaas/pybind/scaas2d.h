@@ -8,15 +8,15 @@
 #ifndef SCAAS2D_H
 #define SCAAS2D_H
 extern "C" {
-//#include "laplacianFWDISPC.h"
 #include "laplacian10.h"
 }
 
 class scaas2d {
   public:
     scaas2d(int nt, int nx, int nz, float dt, float dx, float dz, float dtu=0.001, int bx=50, int bz=50, float alpha=0.99);
-    void fwdprop_data(float *src, int *srcxs, int *srczs, int nsrc, int *recxs, int *reczs, int nrec, float *vel, float *dat);
-    void fwdprop_wfld(float *src, int *srcxs, int *srcsz, float *vel, float *psol);
+    void fwdprop_oneshot(float *src, int *srcxs, int *srczs, int nsrc, int *recxs, int *reczs, int nrec, float *vel, float *dat);
+    void fwdprop_multishot(float *src, int *srcxs, int *srczs, int *nsrc, int *recxs, int *reczs, int *nrec, int nex, float *vel, float *dat, int nthrds);
+    void fwdprop_wfld(float *src, int *srcxs, int *srcsz, int nsrc, float *vel, float *psol);
     void gradient(float *asrc);
     void dr(int *recx, int *recz, int nrec, float *wfld, float *dat);
     void drt(int *recx, int *recz, int nrec, float *wfld, float *dat);

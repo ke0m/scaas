@@ -1,6 +1,7 @@
 """
-Models 2D hydrophone data (shot/receiver gathers) using a scalar
-acoustic wave equation
+Models 2D hydrophone data (shot/receiver gathers) in parallel 
+(parallelizes over shot using OpenMP) using a scalar 
+acoustic wave equation.
 
 All inputs and output files must be in SEPlib format.
 While I have the capability of handling both big 
@@ -35,6 +36,7 @@ defaults = {
     "orx": 0,
     "drx": 1,
     "recz": 0,
+    "nthreads": None,
     "plotacq": "n",
     "verb": "n",
     }
@@ -51,7 +53,7 @@ parser = argparse.ArgumentParser(parents=[conf_parser],description=__doc__,
 parser.set_defaults(**defaults)
 # Input files
 parser.add_argument("src=",help="Input source time function (on propagation time grid)")
-parser.add_argument("vel=",help="Input velocity model (nx,nz)")
+parser.add_argument("vel=",help="Input velocity model (nz,nx)")
 parser.add_argument("out=",help="Output hydrophone data (nt,nrx,nsx)")
 # Padding parameters
 paddingArgs = parser.add_argument_group('Padding parameters')
@@ -77,6 +79,9 @@ dataArgs.add_argument("-dt",help='Output data sampling rate step [0.004 s]',type
 qcArgs = parser.add_argument_group('QC parameters')
 qcArgs.add_argument("-plotacq",help='Plot acquisition (y or [n])')
 qcArgs.add_argument("-verb",help="Verbosity flag (y or [n])")
+# Other parameters
+miscArgs = parser.add_argument_group('Miscellaneous parameters')
+miscArgs.add_argument("-nthreads",help='Number of CPU threads to use [nsx]',type=int)
 args = parser.parse_args(remaining_argv)
 
 ## Get arguments
@@ -90,6 +95,9 @@ nrx = args.nrx; orx = args.orx; drx = args.drx; recz = args.recz
 
 # Data
 dt = args.dt
+
+# Threads
+nthreads = args.nthreads
 
 # QC
 verb  = args.verb
@@ -132,59 +140,39 @@ if(nrx == None):
   nrx = nx
 
 # Create receiver coordinates
-if(nrx != 1):
-  recs = np.linspace(orx,orx + (nrx-1)*drx,nrx)
-  # Assumes a fixed receiver depth
-  recdepth = np.zeros(len(recs)) + recz
-else:
-  recs = np.zeros(1)
-  recs[0] = orx
-  recdepth = recz
-# Convert to int
-recs = recs.astype('int32')
-recdepth = recdepth.astype('int32')
-if(verb): print("Final receiver position: %d"%(recs[-1]))
+nrec = np.zeros(nrx,dtype='int32') + nrx
+allrecx = np.zeros([nsx,nrx],dtype='int32')
+allrecz = np.zeros([nsx,nrx],dtype='int32')
+# Create all receiver positions
+recs = np.linspace(orx,orx + (nrx-1)*drx,nrx)
+for isx in range(nsx):
+  allrecx[isx,:] = (recs[:]).astype('int32')
+  allrecz[isx,:] = np.zeros(len(recs),dtype='int32') + recz
 
 # Create source coordinates
-if(nsx != 1):
-  srcs = np.linspace(osx,osx + (nsx-1)*dsx,nsx)
-  # Assumes a fixed source depth
-  srcdepth = np.zeros(len(srcs)) + srcz
-else:
-  srcdepth = np.zeros(1); srcdepth[0] = srcz
-  srcs = np.zeros(1); srcs[0] = osx
-# Convert to int
-srcs = srcs.astype('int32')
-srcdepth = srcdepth.astype('int32')
-if(verb): print("Final source position: %d"%(srcs[-1]))
+nsrc = np.ones(nsx,dtype='int32')
+allsrcx = np.zeros([nsx,1],dtype='int32')
+allsrcz = np.zeros([nsx,1],dtype='int32')
+# All source x positions in one array
+srcs = np.linspace(osx,osx + (nsx-1)*dsx,nsx)
+for isx in range(nsx):
+  allsrcx[isx,0] = int(srcs[isx])
+  allsrcz[isx,0] = int(srcz)
 
-if(plotacq):
-  vmin = np.min(velp); vmax = np.max(velp)
-  plt.figure(1)
-  plt.imshow(velp,extent=[0,nzp,nxp,0],vmin=vmin,vmax=vmax,cmap='jet')
-  plt.scatter(recs,recdepth)
-  plt.scatter(srcs,srcdepth)
-  plt.grid()
-  plt.show()
+# Crete input wavelet array
+allsrcs = np.zeros([nsx,1,ntu],dtype='float32')
+for isx in range(nsx):
+  allsrcs[isx,0,:] = src[:]
 
 # Create output data array
 fact = int(dt/dtu); ntd = int(ntu/fact)
-oneshot = np.zeros((ntd,nrx),dtype='float32')
 allshot = np.zeros((nsx,ntd,nrx),dtype='float32')
 
 # Set up a wave propagation object
 sca = sca2d.scaas2d(ntd,nzp,nxp,dt,dx,dz,dtu,bx,bz,alpha)
 
-# Source coordinates
-isrcx = np.zeros(1,dtype='int32'); isrcz = np.zeros(1,dtype='int32')
-## Forward modeling
-for isx in range(nsx):
-  # Create source coordinates
-  isrcx[0] = srcs[isx]; isrcz[0] = srcdepth[isx]
-  # Forward modeling for one shot
-  sca.fwdprop_oneshot(src,isrcx,isrcz,1,recs,recdepth,nrx,velp,oneshot)
-  # Copy to output shot array
-  allshot[isx,:,:] = oneshot[:,:]
+# Parallel forward modeling
+sca.fwdprop_multishot(allsrcs,allsrcx,allsrcz,nsrc,allrecx,allrecz,nrec,nsx,velp,allshot,nthreads)
 
 ## Write out all shots
 datout = np.transpose(allshot,(1,2,0))

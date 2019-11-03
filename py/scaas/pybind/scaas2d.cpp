@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <cstring>
+#include <omp.h>
 #include "scaas2d.h"
 #include "matplotlibcpp.h"
 
@@ -16,32 +17,18 @@ scaas2d::scaas2d(int nt, int nx, int nz, float dt, float dx, float dz, float dtu
   _bx = bx; _bz = bz; _alpha = alpha;
   /* Propagation vs data length */
   _skip = static_cast<int>(_dt/_dtu); _ntu = _nt*_skip;
-  printf("skip=%d\n",_skip);
 }
 
 void scaas2d::drslc(int *recxs, int *reczs, int nrec, float *wslc, float *dslc) {
 
   /* Loop over all receivers for the time slice */
-  //plt::imshow((const float*)wslc,_nx,_nz,1); plt::show();
-  //printf("nz=%d nx=%d\n",_nz,_nx);
   for(int ir = 0; ir < nrec; ++ir) {
     /* Grab at the receiver gridpoints (already interpolated) */
-    //printf("recz=%d recx=%d\n",reczs[ir],recxs[ir]);
     dslc[ir] = wslc[reczs[ir]*_nx + recxs[ir]];
   }
 }
 
-void scaas2d::fwdprop_data(float *src, int *srcxs, int *srczs, int nsrc, int *recxs, int *reczs, int nrec, float *vel, float *dat) {
-
-  //std::vector<float>v {src,src+_ntu};
-  //plt::plot(v); plt::show();
-  //plt::imshow((const float*)vel,_nz,_nx,1); plt::show();
-
-
-//  for(int irec = 0; irec < 2*nrec; ++irec) {
-//    dat[irec] = 1;
-//  }
-//  plt::imshow((const float*)dat,_nt,nrec,1); plt::show();
+void scaas2d::fwdprop_oneshot(float *src, int *srcxs, int *srczs, int nsrc, int *recxs, int *reczs, int nrec, float *vel, float *dat) {
 
   /* Precompute velocity dt^2 coefficient */
   float *v2dt2 = new float[_onestp]();
@@ -52,14 +39,6 @@ void scaas2d::fwdprop_data(float *src, int *srcxs, int *srczs, int nsrc, int *re
   //TODO: This should be done outside
   float *tap = new float[_onestp]();
   build_taper(tap);
-  //float *test1 = new float[_onestp]();
-  //float *test2 = new float[_onestp]();
-  //for(int k = 0; k < _onestp; ++k) test1[k] = 1.0;
-  //apply_taper(tap,test1,test2);
-//  plt::subplot(1,2,1);
-//  plt::imshow((const float*)tap,_nz,_nx,1);
-//  plt::subplot(1,2,2);
-//  plt::imshow((const float*)test1,_nz,_nx,1); plt::show();
 
   /* Allocate memory for wavefield slices */
   //TODO: This could be done outside
@@ -75,7 +54,6 @@ void scaas2d::fwdprop_data(float *src, int *srcxs, int *srczs, int nsrc, int *re
 
   /* Inject sources */
   for(int isrc = 0; isrc < nsrc; ++isrc) {
-    printf("srcz=%d srcx=%d\n",srczs[isrc],srcxs[isrc]);
     sou1[srczs[isrc]*_nx + srcxs[isrc]] = src[isrc*_ntu + 0]/(_dx*_dz);
   }
   for(int k = 0; k < _onestp; ++k) { sou1[k] *= v2dt2[k]; };
@@ -84,7 +62,6 @@ void scaas2d::fwdprop_data(float *src, int *srcxs, int *srczs, int nsrc, int *re
   memcpy(&dat[nrec],dslc,sizeof(float)*nrec); // p(x,1) = v^2*dt^2*f(0)
   memcpy(cur,sou1,sizeof(float)*_onestp);
 
-  //printf("nx=%d nz=%d\n",_nx,_nz);
   int kt = 1;
   for(int it = 2; it < _ntu; ++it) {
     /* Calculate source term */
@@ -93,21 +70,10 @@ void scaas2d::fwdprop_data(float *src, int *srcxs, int *srczs, int nsrc, int *re
     }
     /* Apply laplacian */
     laplacian10(_nx,_nz,_idx2,_idz2,cur,sou2);
-    //laplacianFWDISPC(_nx,_nz,_idx2,_idz2,cur,sou2);
-    //if(it < 10) {
-    //  plt::imshow((const float*)sou2,_nz,_nx,1); plt::show();
-    //}
     /* Advance wavefields */
     for(int k = 0; k < _onestp; ++k) {
       pre[k] = v2dt2[k]*sou1[k] + 2*cur[k] + v2dt2[k]*sou2[k] - pre[k];
     }
-//    if(it%100 == 0) {
-//      printf("it=%d\n",it);
-//      plt::subplot(1,2,1);
-//      plt::imshow((const float*)vel,_nz,_nx,1);
-//      plt::subplot(1,2,2);
-//      plt::imshow((const float*)pre,_nz,_nx,1); plt::show();
-//    }
     /* Apply taper */
     apply_taper(tap,pre,cur);
     /* Save data on coarse time grid */
@@ -127,6 +93,44 @@ void scaas2d::fwdprop_data(float *src, int *srcxs, int *srczs, int nsrc, int *re
   delete[] pre; delete[] cur; delete[] sou1;
   delete[] sou2; delete[] dslc; delete[] tap;
 
+}
+
+void scaas2d::fwdprop_multishot(float *src, int *srcxs, int *srczs, int *nsrcs, int *recxs, int *reczs, int *nrecs, int nex,
+    float *vel, float *dat, int nthrds) {
+
+  /* Precompute the offsets */
+  int *soffsets = new int[nex](); int *roffsets = new int[nex]();
+  for(int iex = 1; iex < nex; ++iex) {
+    soffsets[iex] = soffsets[iex-1] + nsrcs[iex];
+    roffsets[iex] = roffsets[iex-1] + nrecs[iex];
+  }
+
+  /* Loop over each experiment */
+  omp_set_num_threads(nthrds);
+#pragma omp parallel for default(shared)
+  for(int iex = 0; iex < nex; ++iex) {
+    /* Get number of sources and receivers for this shot */
+    int insrc = nsrcs[iex]; int inrec = nrecs[iex];
+    /* Get the source positions for this shot */
+    int *isrcx = new int[insrc](); int *isrcz = new int[insrc]();
+    memcpy(isrcx,&srcxs[soffsets[iex]],sizeof(int)*insrc); memcpy(isrcz,&srczs[soffsets[iex]],sizeof(int)*insrc);
+    /* Get the receiver positions for this shot */
+    int *irecx = new int[inrec](); int *irecz = new int[inrec]();
+    memcpy(irecx,&recxs[roffsets[iex]],sizeof(int)*inrec); memcpy(irecz,&reczs[roffsets[iex]],sizeof(int)*inrec);
+    /* Get the source wavelets for this shot */
+    float *isrc = new float[_ntu*insrc]();
+    memcpy(isrc,&src[soffsets[iex]*_ntu],sizeof(float)*_ntu*insrc);
+    /* Perform the wave propagation for this shot */
+    float *idat = new float[_nt*inrec]();
+    fwdprop_oneshot(isrc, isrcx, isrcz, insrc, irecx, irecz, inrec, vel, idat);
+    /* Copy to output data array */
+    memcpy(&dat[iex*_nt*inrec],idat,sizeof(float)*_nt*inrec);
+    /* Free memory */
+    delete[] isrcx;  delete[] isrcz;
+    delete[] irecx;  delete[] irecz;
+    delete[] isrc; delete[] idat;
+  }
+  delete[] soffsets; delete[] roffsets;
 }
 
 void scaas2d::build_taper(float *tap) {
@@ -183,7 +187,6 @@ void scaas2d::apply_taper(float *tap, float *cur, float *nex) {
       nex[iz*_nx + _nx-ix-1] *= tap[iz*_nx + _nx-ix-1];
     }
   }
-
 }
 
 void scaas2d::get_info() {

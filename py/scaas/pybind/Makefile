@@ -35,3 +35,13 @@ laplacianoldtest: laplacianoldtest.cpp laplacianold.o
 		-Wl,-rpath=/opt/anaconda/anaconda3/envs/py35/lib \
 		-L/opt/anaconda/anaconda3/envs/py35/lib -lpython3.5m laplacianold.o -o $@ -std=c++11
 
+%.o: %.c
+	g++ -O3 -fPIC -ffast-math -fopenmp -shared -Wall -I. -c -fPIC -o $@ $<
+
+testsincinterp.o: testsincinterp.cpp
+	g++ -O3 -fPIC -ffast-math -fopenmp -shared -Wall -I. -c -fPIC -o $@ $<
+
+testsincinterp: testsincinterp.cpp sincfuncs.o
+	g++ -I. -I${PYPATH}/include/python3.5m -Wl,-rpath=${PYPATH}/lib \
+		-L${PYPATH}/lib -lpython3.5m sincfuncs.o $< -o $@
+

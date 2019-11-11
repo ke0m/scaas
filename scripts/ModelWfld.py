@@ -1,7 +1,7 @@
 """
-Models 2D hydrophone data (shot/receiver gathers) in parallel 
-(parallelizes over shot using OpenMP) using a scalar 
-acoustic wave equation.
+Models 2D pressure wavefield from a point source using a scalar
+acoustic wave equation. Mostly useful for debugging, and
+display purposes
 
 All inputs and output files must be in SEPlib format.
 While I have the capability of handling both big 
@@ -9,7 +9,7 @@ and little endian (xdr_float vs native_float) the code
 for now requires big endian.
 
 @author: Joseph Jennings
-@version: 2019.11.03
+@version: 2019.11.11
 """
 from __future__ import print_function
 import sys, os, argparse, configparser
@@ -28,17 +28,11 @@ defaults = {
     "bz": 50,
     "alpha": 0.99,
     "dt": 0.004,
-    "nsx": 1,
-    "osx": 0,
-    "dsx": 1,
+    "srcx": 0,
     "srcz": 0,
-    "nrx": None,
-    "orx": 0,
-    "drx": 1,
-    "recz": 0,
-    "nthreads": None,
     "plotacq": "n",
     "verb": "n",
+    "figdir": None
     }
 if args.conf_file:
   config = configparser.ConfigParser()
@@ -53,8 +47,8 @@ parser = argparse.ArgumentParser(parents=[conf_parser],description=__doc__,
 parser.set_defaults(**defaults)
 # Input files
 parser.add_argument("src=",help="Input source time function (on propagation time grid)")
-parser.add_argument("vel=",help="Input velocity model (nz,nx)")
-parser.add_argument("out=",help="Output hydrophone data (nt,nrx,nsx)")
+parser.add_argument("vel=",help="Input velocity model (nx,nz)")
+parser.add_argument("out=",help="Output wavefield (nz,nx,nt)")
 # Padding parameters
 paddingArgs = parser.add_argument_group('Padding parameters')
 paddingArgs.add_argument("-bz",help='Top and bottom padding [50 samples]',type=int)
@@ -64,24 +58,15 @@ paddingArgs.add_argument("-tvel",help='Velocity to fill the top after padding [1
 paddingArgs.add_argument("-z1",help="Depth for filling with tvel velocity [51 samples]",type=int)
 # Acquisition parameters
 acquisitionArgs = parser.add_argument_group('Acquisition parameters')
-acquisitionArgs.add_argument("-nsx",help='Number of sources [1]',type=int)
-acquisitionArgs.add_argument("-osx",help='Initial source position [0 sample]',type=int)
-acquisitionArgs.add_argument("-dsx",help='Spacing between sources [10 samples]',type=int)
+acquisitionArgs.add_argument("-srcx",help='Initial source position [0 sample]',type=int)
 acquisitionArgs.add_argument("-srcz",help='Source depth [0 sample]',type=int)
-acquisitionArgs.add_argument("-nrx",help='Number of receivers [all surface points]',type=int)
-acquisitionArgs.add_argument("-orx",help='Initial receiver position [0 sample]',type=int)
-acquisitionArgs.add_argument("-drx",help='Spacing between receivers [1 samples]',type=int)
-acquisitionArgs.add_argument("-recz",help='Receiver depth [0 sample]',type=int)
-# Data parameters
-dataArgs = parser.add_argument_group('Data parameters')
-dataArgs.add_argument("-dt",help='Output data sampling rate step [0.004 s]',type=float)
 # Quality check
 qcArgs = parser.add_argument_group('QC parameters')
 qcArgs.add_argument("-plotacq",help='Plot acquisition (y or [n])')
 qcArgs.add_argument("-verb",help="Verbosity flag (y or [n])")
-# Other parameters
-miscArgs = parser.add_argument_group('Miscellaneous parameters')
-miscArgs.add_argument("-nthreads",help='Number of CPU threads to use [nsx]',type=int)
+qcArgs.add_argument("-figdir",help="Wavefield plotted on velocity model figures [None]",type=str)
+# Other arguments
+otherArgs.add_argument("-lapwfld",help='Gives the laplacian of th wavefield (y or [n])',type=str)
 args = parser.parse_args(remaining_argv)
 
 ## Get arguments
@@ -90,14 +75,10 @@ bz = args.bz; bx = args.bx; alpha = args.alpha
 tvel = args.tvel; z1 = args.z1
 
 # Acquisition
-nsx = args.nsx; osx = args.osx; dsx = args.dsx; srcz = args.srcz
-nrx = args.nrx; orx = args.orx; drx = args.drx; recz = args.recz
+srcx = args.srcx; srcz = args.srcz
 
 # Data
 dt = args.dt
-
-# Threads
-nthreads = args.nthreads
 
 # QC
 verb  = args.verb
@@ -111,6 +92,12 @@ if(plotacq == "n"):
   plotacq = 0
 else:
   plotacq = 1
+
+lapwfld = args.lapwfld
+if(lapwfld == "n"):
+  lapwfld = 0
+else:
+  lapwfld = 1
 
 # Set up SEP
 sep = seppy.sep(sys.argv)
@@ -133,54 +120,45 @@ velp = np.pad(velp,((5,5),(5,5)),'constant')
 nzp,nxp = velp.shape
 
 # Set up the acquisition
-osx += bx + 5; orx += bx + 5
-srcz  += bz + 5; recz  += bz + 5
-# Receivers at every gridpoint
-if(nrx == None):
-  nrx = nx
+srcx += bx + 5; 
+srcz  += bz + 5;
 
-# Create receiver coordinates
-nrec = np.zeros(nrx,dtype='int32') + nrx
-allrecx = np.zeros([nsx,nrx],dtype='int32')
-allrecz = np.zeros([nsx,nrx],dtype='int32')
-# Create all receiver positions
-recs = np.linspace(orx,orx + (nrx-1)*drx,nrx)
-for isx in range(nsx):
-  allrecx[isx,:] = (recs[:]).astype('int32')
-  allrecz[isx,:] = np.zeros(len(recs),dtype='int32') + recz
+srcdepth = np.zeros(1); srcdepth[0] = srcz
+srcs = np.zeros(1); srcs[0] = srcx
+# Convert to int
+srcs = srcs.astype('int32')
+srcdepth = srcdepth.astype('int32')
+if(verb): print("Final source position: %d"%(srcs[-1]))
 
-# Create source coordinates
-nsrc = np.ones(nsx,dtype='int32')
-allsrcx = np.zeros([nsx,1],dtype='int32')
-allsrcz = np.zeros([nsx,1],dtype='int32')
-# All source x positions in one array
-srcs = np.linspace(osx,osx + (nsx-1)*dsx,nsx)
-for isx in range(nsx):
-  allsrcx[isx,0] = int(srcs[isx])
-  allsrcz[isx,0] = int(srcz)
-
-#TODO: put back in the acquisition plotting
-#      need to think about the best way to do it
-#      Probably best way is if to check if number of receivers and sources
-#      don't change for each shot, then plot
-
-# Crete input wavelet array
-allsrcs = np.zeros([nsx,1,ntu],dtype='float32')
-for isx in range(nsx):
-  allsrcs[isx,0,:] = src[:]
+if(plotacq):
+  vmin = np.min(velp); vmax = np.max(velp)
+  plt.figure(1)
+  plt.imshow(velp,extent=[0,nxp,nzp,0],vmin=vmin,vmax=vmax,cmap='jet')
+  plt.scatter(srcs,srcdepth)
+  plt.grid()
+  plt.show()
 
 # Create output data array
 fact = int(dt/dtu); ntd = int(ntu/fact)
-allshot = np.zeros((nsx,ntd,nrx),dtype='float32')
 
 # Set up a wave propagation object
 sca = sca2d.scaas2d(ntd,nxp,nzp,dt,dx,dz,dtu,bx,bz,alpha)
 
-# Parallel forward modeling
-sca.fwdprop_multishot(allsrcs,allsrcx,allsrcz,nsrc,allrecx,allrecz,nrec,nsx,velp,allshot,nthreads)
+# Source coordinates
+isrcx = np.zeros(1,dtype='int32'); isrcz = np.zeros(1,dtype='int32')
+
+print(velp.shape)
+## Forward modeling
+# Create the wavefield
+onewfld = np.zeros((ntd,nzp,nxp),dtype='float32')
+# Forward modeling for one shot
+if(lapwfld):
+  sca.fwdprop_lapwfld(src,srcs,srcdepth,1,velp,onewfld)
+else:
+  sca.fwdprop_wfld(src,srcs,srcdepth,1,velp,onewfld)
 
 ## Write out all shots
-datout = np.transpose(allshot,(1,2,0))
-daxes = seppy.axes([ntd,nrx,nsx],[0.0,(orx-bx)*dx,(osx-bx)*dx],[dt,drx*dx,dsx*dx])
-sep.write_file("out",daxes,datout)
+wfldout = np.transpose(onewfld,(1,2,0))
+waxes = seppy.axes([nzp,nxp,ntd],[0.0,0.0,0.0],[dz,dx,dt])
+sep.write_file("out",waxes,wfldout)
 

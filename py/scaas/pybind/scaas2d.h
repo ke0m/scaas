@@ -2,7 +2,7 @@
  * 2D Scalar acoustic wave equation forward 
  * and adjoint (No SEPlib. Yay!)
  * @author: Joseph Jennings
- * @version: 2019.10.30
+ * @version: 2019.11.03
  **/
 
 #ifndef SCAAS2D_H
@@ -17,12 +17,14 @@ class scaas2d {
     void fwdprop_oneshot(float *src, int *srcxs, int *srczs, int nsrc, int *recxs, int *reczs, int nrec, float *vel, float *dat);
     void fwdprop_multishot(float *src, int *srcxs, int *srczs, int *nsrc, int *recxs, int *reczs, int *nrec, int nex, float *vel, float *dat, int nthrds);
     void fwdprop_wfld(float *src, int *srcxs, int *srcsz, int nsrc, float *vel, float *psol);
+    void fwdprop_lapwfld(float *src, int *srcxs, int *srcsz, int nsrc, float *vel, float *lappsol);
+    void gradient_oneshot(float *src, int *srcxs, int *srczs, int nsrc, float *asrc, int *recxs, int *reczs, int nrec, float *vel, float *grad);
     void gradient(float *asrc);
     void dr(int *recx, int *recz, int nrec, float *wfld, float *dat);
     void drt(int *recx, int *recz, int nrec, float *wfld, float *dat);
     void drslc(int *recx, int *recz, int nrec, float *wslc, float *dslc);
     void drslct(int *recx, int *recz, int nrec, float *wslc, float *dslc);
-    void shot_interp();
+    void shot_interp(int nrec, float *datc, float *datf);
     void shot_interpt();
     void laplacian_slice();
     void get_info();

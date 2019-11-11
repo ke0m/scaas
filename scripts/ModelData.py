@@ -29,7 +29,7 @@ defaults = {
     "dt": 0.004,
     "nsx": 1,
     "osx": 0,
-    "dsx": 1,
+    "dsx": 10,
     "srcz": 0,
     "nrx": None,
     "orx": 0,
@@ -122,7 +122,7 @@ ntu = saxes.n[0]; dtu = saxes.d[0]
 velp = np.pad(vel,((bx,bx),(bz,bz)),'edge')
 # Pad for laplacian stencil
 velp = np.pad(velp,((5,5),(5,5)),'constant')
-nxp,nzp = velp.shape
+nzp,nxp = velp.shape
 
 # Set up the acquisition
 osx += bx + 5; orx += bx + 5
@@ -161,7 +161,7 @@ if(verb): print("Final source position: %d"%(srcs[-1]))
 if(plotacq):
   vmin = np.min(velp); vmax = np.max(velp)
   plt.figure(1)
-  plt.imshow(velp,extent=[0,nzp,nxp,0],vmin=vmin,vmax=vmax,cmap='jet')
+  plt.imshow(velp,extent=[0,nxp,nzp,0],vmin=vmin,vmax=vmax,cmap='jet')
   plt.scatter(recs,recdepth)
   plt.scatter(srcs,srcdepth)
   plt.grid()
@@ -173,7 +173,7 @@ oneshot = np.zeros((ntd,nrx),dtype='float32')
 allshot = np.zeros((nsx,ntd,nrx),dtype='float32')
 
 # Set up a wave propagation object
-sca = sca2d.scaas2d(ntd,nzp,nxp,dt,dx,dz,dtu,bx,bz,alpha)
+sca = sca2d.scaas2d(ntd,nxp,nzp,dt,dx,dz,dtu,bx,bz,alpha)
 
 # Source coordinates
 isrcx = np.zeros(1,dtype='int32'); isrcz = np.zeros(1,dtype='int32')

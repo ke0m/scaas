@@ -1,7 +1,7 @@
 /**
  * Python interface to scaas2d.cpp
  * @author: Joseph Jennings
- * @version: 2019.11.01
+ * @version: 2019.11.11
  */
 
 #include <pybind11/pybind11.h>
@@ -60,5 +60,62 @@ PYBIND11_MODULE(scaas2dpy,m) {
               py::arg("src"), py::arg("srcxs"), py::arg("srczs"), py::arg("nsrc"),
               py::arg("recxs"), py::arg("reczs"), py::arg("nrec"), py::arg("nex"),
               py::arg("vel"), py::arg("dat"), py::arg("nthrds")
+          )
+      .def("fwdprop_wfld",[](scaas2d &sca2d,
+               py::array_t<float, py::array::c_style> src,
+               py::array_t<int, py::array::c_style> srcxs,
+               py::array_t<int, py::array::c_style> srczs,
+               int nsrc,
+               py::array_t<float, py::array::c_style> vel,
+               py::array_t<float, py::array::c_style> psol
+               )
+               {
+                  sca2d.fwdprop_wfld(src.mutable_data(),srcxs.mutable_data(),srczs.mutable_data(),nsrc,vel.mutable_data(),
+                      psol.mutable_data());
+               },
+               py::arg("src"), py::arg("srcxs"), py::arg("srczs"), py::arg("nsrc"),
+               py::arg("vel"), py::arg("psol")
+          )
+      .def("fwdprop_lapwfld",[](scaas2d &sca2d,
+               py::array_t<float, py::array::c_style> src,
+               py::array_t<int, py::array::c_style> srcxs,
+               py::array_t<int, py::array::c_style> srczs,
+               int nsrc,
+               py::array_t<float, py::array::c_style> vel,
+               py::array_t<float, py::array::c_style> lappsol
+               )
+               {
+                  sca2d.fwdprop_lapwfld(src.mutable_data(),srcxs.mutable_data(),srczs.mutable_data(),nsrc,vel.mutable_data(),
+                      lappsol.mutable_data());
+               },
+               py::arg("src"), py::arg("srcxs"), py::arg("srczs"), py::arg("nsrc"),
+               py::arg("vel"), py::arg("lappsol")
+          )
+      .def("shot_interp",[](scaas2d &sca2d,
+               int nrec,
+               py::array_t<float, py::array::c_style> datc,
+               py::array_t<float, py::array::c_style> datf
+               )
+               {
+                 sca2d.shot_interp(nrec,datc.mutable_data(),datf.mutable_data());
+               }
+          )
+      .def("gradient_oneshot",[](scaas2d &sca2d,
+               py::array_t<float, py::array::c_style> src,
+               py::array_t<int, py::array::c_style> srcxs,
+               py::array_t<int, py::array::c_style> srczs,
+               int nsrc,
+               py::array_t<float, py::array::c_style> asrc,
+               py::array_t<int, py::array::c_style> recxs,
+               py::array_t<int, py::array::c_style> reczs,
+               int nrec,
+               py::array_t<float, py::array::c_style> vel,
+               py::array_t<float, py::array::c_style> grad
+               )
+               {
+                  sca2d.gradient_oneshot(src.mutable_data(),srcxs.mutable_data(),srczs.mutable_data(),nsrc,
+                      asrc.mutable_data(), recxs.mutable_data(), reczs.mutable_data(), nrec,
+                      vel.mutable_data(), grad.mutable_data());
+               }
           );
 }

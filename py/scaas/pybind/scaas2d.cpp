@@ -28,6 +28,44 @@ void scaas2d::drslc(int *recxs, int *reczs, int nrec, float *wslc, float *dslc) 
   }
 }
 
+void scaas2d::shot_interp(int nrec, float *datc, float *datf) {
+
+  /* Allocate memory */
+  float *slc1 = new float[nrec*_nt]();
+  float *slc2 = new float[nrec*_nt]();
+  float *intp = new float[nrec*_nt]();
+
+  /* Calculate coefficients */
+  std::vector<float> ls1, ls2;
+  for(int is = 0; is < _skip; ++is) {
+    ls1.push_back(static_cast<float>(_skip-is)/static_cast<float>(_skip));
+    ls2.push_back(1.0-ls1[is]);
+    ls1[is] /= _skip; ls2[is] /= _skip;
+  }
+
+  /* Interpolate from coarse to fine grid */
+  int k = 0;
+  for(int it = 0; it < _nt-1; ++it) {
+    /* Grab values on coarse grid */
+    memcpy(slc1,&datc[(it+0)*nrec],sizeof(float)*nrec);
+    memcpy(slc2,&datc[(it+1)*nrec],sizeof(float)*nrec);
+    for(int is = 0; is < _skip; ++is) {
+      /* Interpolate onto fine grid */
+      for(int ir = 0; ir < nrec; ++ir) {
+        intp[ir] += slc1[ir]*ls1[is];
+        intp[ir] += slc2[ir]*ls2[is];
+      }
+      /* Save to output */
+      memcpy(&datf[k*nrec],intp,sizeof(float)*nrec);
+      for(int ir = 0; ir < nrec; ++ir) intp[ir] = 0;
+      ++k;
+    }
+  }
+
+  /* Free memory */
+  delete[] slc1; delete[] slc2; delete[] intp;
+}
+
 void scaas2d::fwdprop_oneshot(float *src, int *srcxs, int *srczs, int nsrc, int *recxs, int *reczs, int nrec, float *vel, float *dat) {
 
   /* Precompute velocity dt^2 coefficient */
@@ -95,6 +133,128 @@ void scaas2d::fwdprop_oneshot(float *src, int *srcxs, int *srczs, int nsrc, int 
 
 }
 
+void scaas2d::fwdprop_wfld(float *src, int *srcxs, int *srczs, int nsrc, float *vel, float *psol) {
+  /* Precompute velocity dt^2 coefficient */
+  float *v2dt2 = new float[_onestp]();
+  //TODO: This should be done outside
+  for(int k = 0; k < _onestp; ++k) { v2dt2[k] = vel[k]*vel[k]*_dtu*_dtu; };
+
+  /* Build taper for non-reflecting boundaries: assuming 10th order laplacian */
+  //TODO: This should be done outside
+  float *tap = new float[_onestp]();
+  build_taper(tap);
+
+  /* Allocate memory for wavefield slices */
+  //TODO: This could be done outside
+  float *pre  = new float[_onestp]();
+  float *cur  = new float[_onestp]();
+  float *sou1 = new float[_onestp]();
+  float *sou2 = new float[_onestp]();
+  float *tmp;
+
+  /* Initial conditions */
+  memcpy(psol,pre,sizeof(float)*_onestp); //p(x,0) = 0.0
+
+  /* Inject sources */
+  for(int isrc = 0; isrc < nsrc; ++isrc) {
+    sou1[srczs[isrc]*_nx + srcxs[isrc]] = src[isrc*_ntu + 0]/(_dx*_dz);
+  }
+  for(int k = 0; k < _onestp; ++k) { sou1[k] *= v2dt2[k]; };
+  apply_taper(tap,sou1,pre);
+  memcpy(cur,sou1,sizeof(float)*_onestp);
+
+  int kt = 1;
+  for(int it = 2; it < _ntu; ++it) {
+    /* Calculate source term */
+    for(int isrc = 0; isrc < nsrc; ++isrc) {
+      sou1[srczs[isrc]*_nx + srcxs[isrc]] = src[isrc*_ntu + it]/(_dx*_dz);
+    }
+    /* Apply laplacian */
+    laplacian10(_nx,_nz,_idx2,_idz2,cur,sou2);
+    /* Advance wavefields */
+    for(int k = 0; k < _onestp; ++k) {
+      pre[k] = v2dt2[k]*sou1[k] + 2*cur[k] + v2dt2[k]*sou2[k] - pre[k];
+    }
+    /* Apply taper */
+    apply_taper(tap,pre,cur);
+    /* Save wavefield on coarse time grid */
+    if(it%_skip == 0) {
+      /* Copy to wavefield vector */
+      memcpy(&psol[kt*_onestp],pre,sizeof(float)*_onestp);
+      kt++;
+    }
+    /* Pointer swap */
+    tmp = cur; cur = pre; pre = tmp;
+  }
+
+  /* Free memory */
+  delete[] v2dt2;
+  delete[] pre; delete[] cur; delete[] sou1;
+  delete[] sou2; delete[] tap;
+
+}
+
+void scaas2d::fwdprop_lapwfld(float *src, int *srcxs, int *srczs, int nsrc, float *vel, float *lappsol) {
+  /* Precompute velocity dt^2 coefficient */
+  float *v2dt2 = new float[_onestp]();
+  //TODO: This should be done outside
+  for(int k = 0; k < _onestp; ++k) { v2dt2[k] = vel[k]*vel[k]*_dtu*_dtu; };
+
+  /* Build taper for non-reflecting boundaries: assuming 10th order laplacian */
+  //TODO: This should be done outside
+  float *tap = new float[_onestp]();
+  build_taper(tap);
+
+  /* Allocate memory for wavefield slices */
+  //TODO: This could be done outside
+  float *pre  = new float[_onestp]();
+  float *cur  = new float[_onestp]();
+  float *sou1 = new float[_onestp]();
+  float *sou2 = new float[_onestp]();
+  float *tmp;
+
+  /* Initial conditions */
+  memcpy(lappsol,pre,sizeof(float)*_onestp); //p(x,0) = 0.0
+
+  /* Inject sources */
+  for(int isrc = 0; isrc < nsrc; ++isrc) {
+    sou1[srczs[isrc]*_nx + srcxs[isrc]] = src[isrc*_ntu + 0]/(_dx*_dz);
+  }
+  for(int k = 0; k < _onestp; ++k) { sou1[k] *= v2dt2[k]; };
+  apply_taper(tap,sou1,pre);
+  memcpy(cur,sou1,sizeof(float)*_onestp);
+
+  int kt = 1;
+  for(int it = 2; it < _ntu; ++it) {
+    /* Calculate source term */
+    for(int isrc = 0; isrc < nsrc; ++isrc) {
+      sou1[srczs[isrc]*_nx + srcxs[isrc]] = src[isrc*_ntu + it]/(_dx*_dz);
+    }
+    /* Apply laplacian */
+    laplacian10(_nx,_nz,_idx2,_idz2,cur,sou2);
+    /* Advance wavefields */
+    for(int k = 0; k < _onestp; ++k) {
+      pre[k] = v2dt2[k]*sou1[k] + 2*cur[k] + v2dt2[k]*sou2[k] - pre[k];
+    }
+    /* Apply taper */
+    apply_taper(tap,pre,cur);
+    /* Save wavefield on coarse time grid */
+    if((it-1)%_skip == 0) {
+      /* Copy to wavefield vector */
+      memcpy(&lappsol[kt*_onestp],sou2,sizeof(float)*_onestp);
+      kt++;
+    }
+    /* Pointer swap */
+    tmp = cur; cur = pre; pre = tmp;
+  }
+
+  /* Free memory */
+  delete[] v2dt2;
+  delete[] pre; delete[] cur; delete[] sou1;
+  delete[] sou2; delete[] tap;
+
+}
+
 void scaas2d::fwdprop_multishot(float *src, int *srcxs, int *srczs, int *nsrcs, int *recxs, int *reczs, int *nrecs, int nex,
     float *vel, float *dat, int nthrds) {
 
@@ -131,6 +291,94 @@ void scaas2d::fwdprop_multishot(float *src, int *srcxs, int *srczs, int *nsrcs, 
     delete[] isrc; delete[] idat;
   }
   delete[] soffsets; delete[] roffsets;
+}
+
+void scaas2d::gradient_oneshot(float *src, int *srcxs, int *srczs, int nsrc, float *asrc, int *recxs, int *reczs, int nrec, float *vel, float *grad) {
+
+  /* First calculate laplacian of background wavefield */
+  float *lappsol = new float[_nt*_onestp]();
+  fwdprop_lapwfld(src, srcxs, srczs, nsrc, vel, lappsol);
+
+  //TODO: subsample the source wavelet
+  float *srccrse = new float[_nt]();
+
+  /* Precompute velocity term */
+  //TODO: Work in log!
+  float *ivel = new float[_onestp]();
+  for(int k = 0; k < _onestp; ++k) {
+    if(vel[k] != 0.0) {
+      ivel[k] = -2.0/vel[k];
+    }
+  }
+
+  /* Interpolate adjoint source onto fine time grid */
+  float *iasrc = new float[_ntu*nrec];
+  shot_interp(nrec,asrc,iasrc);
+
+  /* Precompute velocity dt^2 coefficient */
+  float *v2dt2 = new float[_onestp]();
+  for(int k = 0; k < _onestp; ++k) { v2dt2[k] = vel[k]*vel[k]*_dtu*_dtu; };
+
+  /* Build taper for non-reflecting boundaries: assuming 10th order laplacian */
+  //TODO: This should be done outside
+  float *tap = new float[_onestp]();
+  build_taper(tap);
+
+  /* Allocate memory for wavefield slices */
+  //TODO: This could be done outside
+  float *pre  = new float[_onestp]();
+  float *cur  = new float[_onestp]();
+  float *sou1 = new float[_onestp]();
+  float *sou2 = new float[_onestp]();
+  float *tsrc = new float[_onestp]();
+  float *tmp;
+
+  /* First terminal condition (l(nx,nt-1) = 0.0). Do nothing here */
+
+  /* Second step, inject adjoint source at next final step */
+  for(int irec = 0; irec < nrec; ++irec) {
+    sou1[reczs[irec]*_nx + recxs[irec]] = iasrc[irec*_ntu + (_ntu-1)]/(_dx*_dz);
+  }
+  for(int k = 0; k < _onestp; ++k) { sou1[k] *= v2dt2[k]; };
+  apply_taper(tap,sou1,pre);
+  memcpy(cur,sou1,sizeof(float)*_onestp);
+
+  int kt = _nt-1;
+  for(int it = _ntu-3; it > -1; --it) {
+    /* Inject adjoint source */
+    for(int irec = 0; irec < nrec; ++irec) {
+      sou1[reczs[irec]*_nx + recxs[irec]] = iasrc[irec*_ntu + it]/(_dx*_dz);
+    }
+    /* Apply laplacian */
+    laplacian10(_nx,_nz,_idx2,_idz2,cur,sou2);
+    /* Advance wavefields */
+    for(int k = 0; k < _onestp; ++k) {
+      pre[k] = v2dt2[k]*sou1[k] + 2*cur[k] + v2dt2[k]*sou2[k] - pre[k];
+    }
+    /* Apply taper */
+    apply_taper(tap,pre,cur);
+    /* Accumulate gradient on coarse time grid */
+    if((it)%_skip == 0) {
+      /* Inject the forward source */
+      for(int isrc = 0; isrc < nsrc; ++isrc) {
+        tsrc[srczs[isrc]*_nx + srcxs[isrc]] = src[isrc*_ntu + it]/(_dx*_dz);
+      }
+      /* Gradient formula */
+      for(int k = 0; k < _onestp; ++k) {
+        grad[k] += ivel[k] * (pre[k] * lappsol[kt*_onestp + k] + pre[k]*tsrc[k]);
+      }
+      kt--;
+    }
+    /* Pointer swap */
+    tmp = cur; cur = pre; pre = tmp;
+  }
+
+  /* Free memory */
+  delete[] lappsol; delete[] iasrc;
+  delete[] v2dt2;  delete[] tap;
+  delete[] pre; delete[] cur; delete[] sou1;
+  delete[] sou2; delete[] tsrc;
+  delete[] ivel; delete[] srccrse;
 }
 
 void scaas2d::build_taper(float *tap) {

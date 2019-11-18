@@ -91,6 +91,68 @@ PYBIND11_MODULE(scaas2dpy,m) {
                py::arg("src"), py::arg("srcxs"), py::arg("srczs"), py::arg("nsrc"),
                py::arg("vel"), py::arg("lappsol")
           )
+      .def("adjprop_wfld",[](scaas2d &sca2d,
+               py::array_t<float, py::array::c_style> asrc,
+               py::array_t<int, py::array::c_style> recxs,
+               py::array_t<int, py::array::c_style> reczs,
+               int nrec,
+               py::array_t<float, py::array::c_style> vel,
+               py::array_t<float, py::array::c_style> lsol
+               )
+               {
+                  sca2d.adjprop_wfld(asrc.mutable_data(),recxs.mutable_data(),reczs.mutable_data(),nrec,vel.mutable_data(),
+                      lsol.mutable_data());
+               },
+               py::arg("asrc"), py::arg("recxs"), py::arg("reczs"), py::arg("nrec"),
+               py::arg("vel"), py::arg("lsol")
+          )
+      .def("d2t",[](scaas2d &sca2d,
+               py::array_t<float, py::array::c_style> p,
+               py::array_t<float, py::array::c_style> d2p
+               )
+               {
+                 sca2d.d2t(p.mutable_data(),d2p.mutable_data());
+               },
+               py::arg("p"), py::arg("d2p")
+          )
+      .def("d2x",[](scaas2d &sca2d,
+               py::array_t<float, py::array::c_style> p,
+               py::array_t<float, py::array::c_style> d2p
+               )
+               {
+                 sca2d.d2x(p.mutable_data(),d2p.mutable_data());
+               },
+               py::arg("p"), py::arg("d2p")
+          )
+      .def("calc_grad_d2t",[](scaas2d &sca2d,
+               py::array_t<float, py::array::c_style> d2t,
+               py::array_t<float, py::array::c_style> lsol,
+               py::array_t<float, py::array::c_style> v,
+               py::array_t<float, py::array::c_style> grad
+               )
+               {
+                 sca2d.calc_grad_d2t(d2t.mutable_data(),lsol.mutable_data(),v.mutable_data(),grad.mutable_data());
+               },
+               py::arg("d2t"),py::arg("lsol"),py::arg("v"),py::arg("grad")
+          )
+      .def("calc_grad_d2x",[](scaas2d &sca2d,
+               py::array_t<float, py::array::c_style> d2x,
+               py::array_t<float, py::array::c_style> lsol,
+               py::array_t<float, py::array::c_style> src,
+               py::array_t<int,   py::array::c_style> srcxs,
+               py::array_t<int,   py::array::c_style> srczs,
+               int nsrc,
+               py::array_t<float, py::array::c_style> v,
+               py::array_t<float, py::array::c_style> grad
+               )
+               {
+                 sca2d.calc_grad_d2x(d2x.mutable_data(),lsol.mutable_data(),
+                     src.mutable_data(), srcxs.mutable_data(), srczs.mutable_data(), nsrc,
+                     v.mutable_data(), grad.mutable_data());
+               },
+               py::arg("d2x"), py::arg("lsol"), py::arg("src"), py::arg("srcxs"), py::arg("srczs"), py::arg("nsrc"),
+               py::arg("v"), py::arg("grad")
+          )
       .def("shot_interp",[](scaas2d &sca2d,
                int nrec,
                py::array_t<float, py::array::c_style> datc,

@@ -32,7 +32,8 @@ defaults = {
     "srcz": 0,
     "plotacq": "n",
     "verb": "n",
-    "figdir": None
+    "figdir": None,
+    "lapwfld": "n"
     }
 if args.conf_file:
   config = configparser.ConfigParser()
@@ -66,7 +67,9 @@ qcArgs.add_argument("-plotacq",help='Plot acquisition (y or [n])')
 qcArgs.add_argument("-verb",help="Verbosity flag (y or [n])")
 qcArgs.add_argument("-figdir",help="Wavefield plotted on velocity model figures [None]",type=str)
 # Other arguments
+otherArgs = parser.add_argument_group('Other parameters')
 otherArgs.add_argument("-lapwfld",help='Gives the laplacian of th wavefield (y or [n])',type=str)
+otherArgs.add_argument("-dt",help="Time sampling of the output wavefield [0.004]",type=float)
 args = parser.parse_args(remaining_argv)
 
 ## Get arguments
@@ -147,7 +150,6 @@ sca = sca2d.scaas2d(ntd,nxp,nzp,dt,dx,dz,dtu,bx,bz,alpha)
 # Source coordinates
 isrcx = np.zeros(1,dtype='int32'); isrcz = np.zeros(1,dtype='int32')
 
-print(velp.shape)
 ## Forward modeling
 # Create the wavefield
 onewfld = np.zeros((ntd,nzp,nxp),dtype='float32')

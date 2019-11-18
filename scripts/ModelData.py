@@ -12,7 +12,7 @@ for now requires big endian.
 """
 from __future__ import print_function
 import sys, os, argparse, configparser
-import seppy
+import inpout.seppy as seppy
 import numpy as np
 import scaas.scaas2dpy as sca2d
 import matplotlib.pyplot as plt
@@ -125,21 +125,21 @@ velp = np.pad(velp,((5,5),(5,5)),'constant')
 nzp,nxp = velp.shape
 
 # Set up the acquisition
-osx += bx + 5; orx += bx + 5
-srcz  += bz + 5; recz  += bz + 5
+osxp = osx + bx + 5; orxp = orx + bx + 5
+srczp  = srcz + bz + 5; reczp  = recz + bz + 5
 # Receivers at every gridpoint
 if(nrx == None):
   nrx = nx
 
 # Create receiver coordinates
 if(nrx != 1):
-  recs = np.linspace(orx,orx + (nrx-1)*drx,nrx)
+  recs = np.linspace(orxp,orxp + (nrx-1)*drx,nrx)
   # Assumes a fixed receiver depth
-  recdepth = np.zeros(len(recs)) + recz
+  recdepth = np.zeros(len(recs)) + reczp
 else:
   recs = np.zeros(1)
-  recs[0] = orx
-  recdepth = recz
+  recs[0] = orxp
+  recdepth = reczp
 # Convert to int
 recs = recs.astype('int32')
 recdepth = recdepth.astype('int32')
@@ -147,12 +147,12 @@ if(verb): print("Final receiver position: %d"%(recs[-1]))
 
 # Create source coordinates
 if(nsx != 1):
-  srcs = np.linspace(osx,osx + (nsx-1)*dsx,nsx)
+  srcs = np.linspace(osxp,osxp + (nsx-1)*dsx,nsx)
   # Assumes a fixed source depth
-  srcdepth = np.zeros(len(srcs)) + srcz
+  srcdepth = np.zeros(len(srcs)) + srczp
 else:
-  srcdepth = np.zeros(1); srcdepth[0] = srcz
-  srcs = np.zeros(1); srcs[0] = osx
+  srcdepth = np.zeros(1); srcdepth[0] = srczp
+  srcs = np.zeros(1); srcs[0] = osxp
 # Convert to int
 srcs = srcs.astype('int32')
 srcdepth = srcdepth.astype('int32')
@@ -188,6 +188,10 @@ for isx in range(nsx):
 
 ## Write out all shots
 datout = np.transpose(allshot,(1,2,0))
-daxes = seppy.axes([ntd,nrx,nsx],[0.0,(orx-bx)*dx,(osx-bx)*dx],[dt,drx*dx,dsx*dx])
+daxes = seppy.axes([ntd,nrx,nsx],[0.0,orx,osx],[dt,drx,dsx])
 sep.write_file("out",daxes,datout)
+
+## Write auxiliary information to header
+sep.to_header("out","srcz=%d recz=%d"%(srcz,recz))
+sep.to_header("out","bx=%d bz=%d alpha=%f"%(bx,bz,alpha))
 

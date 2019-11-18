@@ -18,6 +18,11 @@ class scaas2d {
     void fwdprop_multishot(float *src, int *srcxs, int *srczs, int *nsrc, int *recxs, int *reczs, int *nrec, int nex, float *vel, float *dat, int nthrds);
     void fwdprop_wfld(float *src, int *srcxs, int *srcsz, int nsrc, float *vel, float *psol);
     void fwdprop_lapwfld(float *src, int *srcxs, int *srcsz, int nsrc, float *vel, float *lappsol);
+    void adjprop_wfld(float *asrc, int *recxs, int *reczs, int nrec, float *vel, float *lsol);
+    void d2t(float* p ,float *d2tp);
+    void d2x(float *p, float *d2xp);
+    void calc_grad_d2t(float *d2pt, float *lsol, float *v, float * grad);
+    void calc_grad_d2x(float *d2px, float *lsol, float *src, int *srcxs, int *srczs, int nsrc, float *v, float *grad);
     void gradient_oneshot(float *src, int *srcxs, int *srczs, int nsrc, float *asrc, int *recxs, int *reczs, int nrec, float *vel, float *grad);
     void gradient(float *asrc);
     void dr(int *recx, int *recz, int nrec, float *wfld, float *dat);

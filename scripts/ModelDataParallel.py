@@ -9,11 +9,11 @@ and little endian (xdr_float vs native_float) the code
 for now requires big endian.
 
 @author: Joseph Jennings
-@version: 2019.11.03
+@version: 2019.11.13
 """
 from __future__ import print_function
 import sys, os, argparse, configparser
-import seppy
+import inpout.seppy as seppy
 import numpy as np
 import scaas.scaas2dpy as sca2d
 import matplotlib.pyplot as plt
@@ -52,7 +52,7 @@ parser = argparse.ArgumentParser(parents=[conf_parser],description=__doc__,
 
 parser.set_defaults(**defaults)
 # Input files
-parser.add_argument("src=",help="Input source time function (on propagation time grid)")
+parser.add_argument("in=",help="Input source time function (on propagation time grid)")
 parser.add_argument("vel=",help="Input velocity model (nz,nx)")
 parser.add_argument("out=",help="Output hydrophone data (nt,nrx,nsx)")
 # Padding parameters
@@ -133,8 +133,8 @@ velp = np.pad(velp,((5,5),(5,5)),'constant')
 nzp,nxp = velp.shape
 
 # Set up the acquisition
-osx += bx + 5; orx += bx + 5
-srcz  += bz + 5; recz  += bz + 5
+osxp = osx + bx + 5; orxp = orx + bx + 5
+srczp  = srcz + bz + 5; reczp  = recz + bz + 5
 # Receivers at every gridpoint
 if(nrx == None):
   nrx = nx
@@ -144,20 +144,20 @@ nrec = np.zeros(nrx,dtype='int32') + nrx
 allrecx = np.zeros([nsx,nrx],dtype='int32')
 allrecz = np.zeros([nsx,nrx],dtype='int32')
 # Create all receiver positions
-recs = np.linspace(orx,orx + (nrx-1)*drx,nrx)
+recs = np.linspace(orxp,orxp + (nrx-1)*drx,nrx)
 for isx in range(nsx):
   allrecx[isx,:] = (recs[:]).astype('int32')
-  allrecz[isx,:] = np.zeros(len(recs),dtype='int32') + recz
+  allrecz[isx,:] = np.zeros(len(recs),dtype='int32') + reczp
 
 # Create source coordinates
 nsrc = np.ones(nsx,dtype='int32')
 allsrcx = np.zeros([nsx,1],dtype='int32')
 allsrcz = np.zeros([nsx,1],dtype='int32')
 # All source x positions in one array
-srcs = np.linspace(osx,osx + (nsx-1)*dsx,nsx)
+srcs = np.linspace(osxp,osxp + (nsx-1)*dsx,nsx)
 for isx in range(nsx):
   allsrcx[isx,0] = int(srcs[isx])
-  allsrcz[isx,0] = int(srcz)
+  allsrcz[isx,0] = int(srczp)
 
 #TODO: put back in the acquisition plotting
 #      need to think about the best way to do it
@@ -181,6 +181,10 @@ sca.fwdprop_multishot(allsrcs,allsrcx,allsrcz,nsrc,allrecx,allrecz,nrec,nsx,velp
 
 ## Write out all shots
 datout = np.transpose(allshot,(1,2,0))
-daxes = seppy.axes([ntd,nrx,nsx],[0.0,(orx-bx)*dx,(osx-bx)*dx],[dt,drx*dx,dsx*dx])
+daxes = seppy.axes([ntd,nrx,nsx],[0.0,orx*dx,osx*dx],[dt,drx*dx,dsx*dx])
 sep.write_file("out",daxes,datout)
+
+## Write auxiliary information to header
+sep.to_header("out","srcz=%d recz=%d"%(srcz,recz))
+sep.to_header("out","bx=%d bz=%d alpha=%f"%(bx,bz,alpha))
 

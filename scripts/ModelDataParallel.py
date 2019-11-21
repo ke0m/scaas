@@ -9,7 +9,7 @@ and little endian (xdr_float vs native_float) the code
 for now requires big endian.
 
 @author: Joseph Jennings
-@version: 2019.11.13
+@version: 2019.11.20
 """
 from __future__ import print_function
 import sys, os, argparse, configparser
@@ -159,12 +159,16 @@ for isx in range(nsx):
   allsrcx[isx,0] = int(srcs[isx])
   allsrcz[isx,0] = int(srczp)
 
-#TODO: put back in the acquisition plotting
-#      need to think about the best way to do it
-#      Probably best way is if to check if number of receivers and sources
-#      don't change for each shot, then plot
+if(plotacq):
+  plt.figure(1)
+  # Plot velocity model
+  vmin = np.min(velp); vmax = np.max(velp)
+  plt.imshow(velp,extent=[0,nxp,nzp,0],vmin=vmin,vmax=vmax,cmap='jet')
+  # Get all source positions
+  plt.scatter(allrecx[0,:],allrecz[0,:])
+  plt.scatter(allsrcx[:,0],allsrcz[:,0])
 
-# Crete input wavelet array
+# Create input wavelet array
 allsrcs = np.zeros([nsx,1,ntu],dtype='float32')
 for isx in range(nsx):
   allsrcs[isx,0,:] = src[:]
@@ -181,7 +185,7 @@ sca.fwdprop_multishot(allsrcs,allsrcx,allsrcz,nsrc,allrecx,allrecz,nrec,nsx,velp
 
 ## Write out all shots
 datout = np.transpose(allshot,(1,2,0))
-daxes = seppy.axes([ntd,nrx,nsx],[0.0,orx*dx,osx*dx],[dt,drx*dx,dsx*dx])
+daxes = seppy.axes([ntd,nrx,nsx],[0.0,orx,osx],[dt,drx,dsx])
 sep.write_file("out",daxes,datout)
 
 ## Write auxiliary information to header

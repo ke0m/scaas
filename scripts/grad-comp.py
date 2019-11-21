@@ -113,20 +113,20 @@ gradfd = np.zeros(vtrup.shape,dtype='float32')
 datptb = np.zeros(ntd,dtype='float32')
 
 # Calculate objective function perturbation for each point in the model
-for iz in range(5,nzp):
-  for ix in range(5,nxp):
-    vptbp[:] = vmodp[:]
-    vptbp[iz,ix] += dvel
-    sca.fwdprop_oneshot(fsrc,srcx,srcz,1,recx,recz,1,vptbp,datptb)
-    misptb = objf(datptb,dattru)
-    gradfd[iz,ix] = (misptb - mis0)/dvel
-
+#for iz in range(5,nzp):
+#  for ix in range(5,nxp):
+#    vptbp[:] = vmodp[:]
+#    vptbp[iz,ix] += dvel
+#    sca.fwdprop_oneshot(fsrc,srcx,srcz,1,recx,recz,1,vptbp,datptb)
+#    misptb = objf(datptb,dattru)
+#    gradfd[iz,ix] = (misptb - mis0)/dvel
+#
 sep = seppy.sep([])
-gaxes = seppy.axes([nzp,nxp],[0.0,0.0],[dz,dx])
-sep.write_file(None,gaxes,gradfd,'pygradfd1.H')
+#gaxes = seppy.axes([nzp,nxp],[0.0,0.0],[dz,dx])
+#sep.write_file(None,gaxes,gradfd,'pygradfd1.H')
 
-#gaxes,gradfd = sep.read_file(None,ifname='pygradfd.H')
-#gradfd = gradfd.reshape(gaxes.n,order='F')
+gaxes,gradfd = sep.read_file(None,ifname='pygradfd.H')
+gradfd = gradfd.reshape(gaxes.n,order='F')
 
 cmin = np.min(gradfd); cmax = np.max(gradfd)
 

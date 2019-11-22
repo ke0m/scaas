@@ -1,5 +1,5 @@
 """
-Computes an FWI gradient on a shot by shot basis
+Computes an FWI gradient for all shots in parallel
 
 All inputs and output files must be in SEPlib format.
 While I have the capability of handling both big
@@ -7,7 +7,7 @@ and little endian (xdr_float vs native_float) the code
 for now requires big endian.
 
 @author: Joseph Jennings
-@version: 2019.11.12
+@version: 2019.11.21
 """
 from __future__ import print_function
 import sys, os, argparse, configparser
@@ -24,6 +24,7 @@ args, remaining_argv = conf_parser.parse_known_args()
 defaults = {
     "plotacq": "n",
     "verb": "n",
+    "nthreads": None,
     }
 if args.conf_file:
   config = configparser.ConfigParser()
@@ -42,6 +43,9 @@ parser.add_argument("src=",help="Input source time function (on propagation time
 parser.add_argument("vel=",help="Input smoothed velocity model (nz,nx)")
 parser.add_argument("-moddat=",help="Output modeled data (nt,nrx,nsx)")
 parser.add_argument("out=",help="Output gradient (nz,nx)")
+# Other parameters
+miscArgs = parser.add_argument_group('Miscellaneous parameters')
+miscArgs.add_argument("-nthreads",help='Number of CPU threads to use [nsx]',type=int)
 # Quality check
 qcArgs = parser.add_argument_group('QC parameters')
 qcArgs.add_argument("-plotacq",help='Plot acquisition (y or [n])')
@@ -107,31 +111,24 @@ if(nrx == None):
   nrx = nx
 
 # Create receiver coordinates
-if(nrx != 1):
-  recs = np.linspace(orxp,orxp + (nrx-1)*drx,nrx)
-  # Assumes a fixed receiver depth
-  recdepth = np.zeros(len(recs)) + reczp
-else:
-  recs = np.zeros(1)
-  recs[0] = orxp
-  recdepth = reczp
-# Convert to int
-recs = recs.astype('int32')
-recdepth = recdepth.astype('int32')
-if(verb): print("Final receiver position: %d"%(recs[-1]))
+nrec = np.zeros(nrx,dtype='int32') + nrx 
+allrecx = np.zeros([nsx,nrx],dtype='int32')
+allrecz = np.zeros([nsx,nrx],dtype='int32')
+# Create all receiver positions
+recs = np.linspace(orxp,orxp + (nrx-1)*drx,nrx)
+for isx in range(nsx):
+  allrecx[isx,:] = (recs[:]).astype('int32')
+  allrecz[isx,:] = np.zeros(len(recs),dtype='int32') + reczp
 
 # Create source coordinates
-if(nsx != 1):
-  srcs = np.linspace(osxp,osxp + (nsx-1)*dsx,nsx)
-  # Assumes a fixed source depth
-  srcdepth = np.zeros(len(srcs)) + srczp
-else:
-  srcdepth = np.zeros(1); srcdepth[0] = srczp
-  srcs = np.zeros(1); srcs[0] = osxp
-# Convert to int
-srcs = srcs.astype('int32')
-srcdepth = srcdepth.astype('int32')
-if(verb): print("Final source position: %d"%(srcs[-1]))
+nsrc = np.ones(nsx,dtype='int32')
+allsrcx = np.zeros([nsx,1],dtype='int32')
+allsrcz = np.zeros([nsx,1],dtype='int32')
+# All source x positions in one array
+srcs = np.linspace(osxp,osxp + (nsx-1)*dsx,nsx)
+for isx in range(nsx):
+  allsrcx[isx,0] = int(srcs[isx])
+  allsrcz[isx,0] = int(srczp)
 
 if(plotacq):
   vmin = np.min(velp); vmax = np.max(velp)
@@ -142,10 +139,14 @@ if(plotacq):
   plt.grid()
   plt.show()
 
+# Create input wavelet array
+allsrcs = np.zeros([nsx,1,ntu],dtype='float32')
+for isx in range(nsx):
+  allsrcs[isx,0,:] = src[:]
+
 # Create output data array
 fact = int(dt/dtu); ntd = int(ntu/fact)
-oneshotmod = np.zeros((ntd,nrx),dtype='float32')
-allshotmod = np.zeros((nsx,ntd,nrx),dtype='float32')
+moddat = np.zeros((nsx,ntd,nrx),dtype='float32')
 
 # Create output gradient arrays
 igrad = np.zeros(velp.shape,dtype='float32')
@@ -154,34 +155,19 @@ grad = np.zeros(velp.shape,dtype='float32')
 # Set up a wave propagation object
 sca = sca2d.scaas2d(ntd,nxp,nzp,dt,dx,dz,dtu,bx,bz,alpha)
 
-# Source coordinates
-isrcx = np.zeros(1,dtype='int32'); isrcz = np.zeros(1,dtype='int32')
-## Calculate gradient for each shot
-for isx in range(nsx):
-  print("Shot %d"%(isx))
-  # Initialize temporary gradient
-  igrad[:] = 0.0
-  # Create source coordinates
-  isrcx[0] = srcs[isx]; isrcz[0] = srcdepth[isx]
-  # Forward modeling for one shot
-  sca.fwdprop_oneshot(src,isrcx,isrcz,1,recs,recdepth,nrx,velp,oneshotmod)
-  # Save the modeled data
-  allshotmod[isx,:,:] = oneshotmod
-  #f2,axarr2 = plt.subplots(1,2)
-  #axarr2[0].imshow(oneshotmod,cmap='gray');
-  #axarr2[1].imshow(dat[isx,:,:],cmap='gray');
-  #plt.show()
-  # Calculate adjoint source
-  asrc = -(oneshotmod - dat[isx,:,:])
-  # Calculate gradient for this shot
-  sca.gradient_oneshot(src,isrcx,isrcz,1,asrc,recs,recdepth,nrx,velp,igrad)
-  # Sum over all gradients
-  grad += igrad
-  # Plot
-  #f1,axarr1 = plt.subplots(1,2)
-  #axarr1[0].imshow(grad)
-  #axarr1[1].imshow(igrad)
-  #plt.show()
+# Forward modeling for all shots
+sca.fwdprop_multishot(allsrcs,allsrcx,allsrcz,nsrc,allrecx,allrecz,nrec,nsx,velp,moddat,nthreads)
+
+# Compute adjoint source
+asrc = -(moddat - dat)
+
+f,axarr = plt.subplots(1,2)
+axarr[0].imshow(moddat[10,:,:])
+axarr[1].imshow(dat[10,:,:])
+plt.show()
+
+# Gradient for all shots
+sca.gradient_multishot(allsrcs,allsrcx,allsrcz,nsrc,asrc,allrecx,allrecz,nrec,nsx,velp,grad,nthreads)
 
 # TODO: Unpad the gradient
 upgrad = np.zeros([nz,nx],dtype='float32')
@@ -193,6 +179,5 @@ sep.write_file("out",paxes,grad)
 
 ## Write the synthetic data if desired
 if(sep.get_fname("-moddat") != None):
-  sep.write_file("-moddat",daxes,allshotmod)
-
+  sep.write_file("-moddat",daxes,moddat)
 

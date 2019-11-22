@@ -160,7 +160,8 @@ PYBIND11_MODULE(scaas2dpy,m) {
                )
                {
                  sca2d.shot_interp(nrec,datc.mutable_data(),datf.mutable_data());
-               }
+               },
+               py::arg("nrec"), py::arg("datc"), py::arg("datf")
           )
       .def("gradient_oneshot",[](scaas2d &sca2d,
                py::array_t<float, py::array::c_style> src,
@@ -178,6 +179,32 @@ PYBIND11_MODULE(scaas2dpy,m) {
                   sca2d.gradient_oneshot(src.mutable_data(),srcxs.mutable_data(),srczs.mutable_data(),nsrc,
                       asrc.mutable_data(), recxs.mutable_data(), reczs.mutable_data(), nrec,
                       vel.mutable_data(), grad.mutable_data());
-               }
-          );
+               },
+               py::arg("src"), py::arg("srcxs"), py::arg("srczs"), py::arg("nsrc"),
+               py::arg("asrc"), py::arg("recxs"), py::arg("reczs"), py::arg("nrec"),
+               py::arg("vel"), py::arg("grad")
+          )
+      .def("gradient_multishot",[] (scaas2d &sca2d,
+              py::array_t<float, py::array::c_style> src,
+              py::array_t<int, py::array::c_style> srcxs,
+              py::array_t<int, py::array::c_style> srczs,
+              py::array_t<int, py::array::c_style> nsrcs,
+              py::array_t<float, py::array::c_style> asrc,
+              py::array_t<int, py::array::c_style> recxs,
+              py::array_t<int, py::array::c_style> reczs,
+              py::array_t<int, py::array::c_style> nrecs,
+              int nex,
+              py::array_t<float, py::array::c_style> vel,
+              py::array_t<float, py::array::c_style> grad,
+              int nthrds
+              )
+              {
+                sca2d.gradient_multishot(src.mutable_data(), srcxs.mutable_data(), srczs.mutable_data(), nsrcs.mutable_data(),
+                    asrc.mutable_data(), recxs.mutable_data(), reczs.mutable_data(), nrecs.mutable_data(), nex,
+                    vel.mutable_data(), grad.mutable_data(), nthrds);
+              },
+              py::arg("src"), py::arg("srcxs"), py::arg("srczs"), py::arg("nsrcs"),
+              py::arg("asrc"), py::arg("recxs"), py::arg("reczs"), py::arg("nrecs"),
+              py::arg("nex"), py::arg("vel"), py::arg("grad"), py::arg("nthrds")
+         );
 }

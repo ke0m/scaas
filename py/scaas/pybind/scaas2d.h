@@ -24,6 +24,7 @@ class scaas2d {
     void calc_grad_d2t(float *d2pt, float *lsol, float *v, float * grad);
     void calc_grad_d2x(float *d2px, float *lsol, float *src, int *srcxs, int *srczs, int nsrc, float *v, float *grad);
     void gradient_oneshot(float *src, int *srcxs, int *srczs, int nsrc, float *asrc, int *recxs, int *reczs, int nrec, float *vel, float *grad);
+    void gradient_multishot(float *src, int *srcxs, int *srczs, int *nsrcs, float *asrc, int *recxs, int *reczs, int *nrecs, int nex, float *vel, float *grad, int nthrds);
     void gradient(float *asrc);
     void dr(int *recx, int *recz, int nrec, float *wfld, float *dat);
     void drt(int *recx, int *recz, int nrec, float *wfld, float *dat);

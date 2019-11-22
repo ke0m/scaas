@@ -334,7 +334,7 @@ void scaas2d::adjprop_wfld(float *asrc, int *recxs, int *reczs, int nrec, float 
   for(int it = _ntu-3; it > -1; --it) {
     /* Inject adjoint source */
     for(int irec = 0; irec < nrec; ++irec) {
-      sou1[reczs[irec]*_nx + recxs[irec]] = iasrc[(it+1)*nrec + irec];
+      sou1[reczs[irec]*_nx + recxs[irec]] = iasrc[(it+1)*nrec + irec]/(_dx*_dz);
     }
     /* Apply laplacian */
     laplacian10(_nx,_nz,_idx2,_idz2,cur,sou2);
@@ -410,7 +410,7 @@ void scaas2d::calc_grad_d2t(float *d2pt, float *lsol, float *v, float *grad) {
   /* Gradient computation */
   for(int it = 1; it < _nt; ++it) {
     for(int k = 0; k < _onestp; ++k) {
-      grad[k] += ivel3[k] * (lsol[_onestp*(it-1) + k] * d2pt[_onestp*it + k]);
+      grad[k] += ivel3[k] * (lsol[_onestp*(it-1) + k] * d2pt[_onestp*it + k])*(_dx*_dz);
     }
   }
 
@@ -440,7 +440,7 @@ void scaas2d::calc_grad_d2x(float *d2px, float *lsol, float *src, int *srcxs, in
     }
     /* Gradient formula */
     for(int k = 0; k < _onestp; ++k) {
-      grad[k] += ivel[k] * (lsol[_onestp*it + k] * d2px[_onestp*it + k] + lsol[_onestp*it + k] * tsrc[k]);
+      grad[k] += ivel[k] * (lsol[_onestp*it + k] * d2px[_onestp*it + k] + lsol[_onestp*it + k] * tsrc[k])*(_dx*_dz);
     }
   }
 
@@ -500,7 +500,7 @@ void scaas2d::gradient_oneshot(float *src, int *srcxs, int *srczs, int nsrc, flo
 
   /* Second step, inject adjoint source at next final step */
   for(int irec = 0; irec < nrec; ++irec) {
-    sou1[reczs[irec]*_nx + recxs[irec]] = iasrc[(_ntu-1)*nrec + irec];
+    sou1[reczs[irec]*_nx + recxs[irec]] = iasrc[(_ntu-1)*nrec + irec]/(_dx*_dz);
   }
   for(int k = 0; k < _onestp; ++k) { sou1[k] *= v2dt2[k]; };
   apply_taper(tap,sou1,pre);
@@ -511,7 +511,7 @@ void scaas2d::gradient_oneshot(float *src, int *srcxs, int *srczs, int nsrc, flo
   for(int it = _ntu-3; it > -1; --it) {
     /* Inject adjoint source */
     for(int irec = 0; irec < nrec; ++irec) {
-      sou1[reczs[irec]*_nx + recxs[irec]] = iasrc[(it+1)*nrec + irec];
+      sou1[reczs[irec]*_nx + recxs[irec]] = iasrc[(it+1)*nrec + irec]/(_dx*_dz);
     }
     /* Apply laplacian */
     laplacian10(_nx,_nz,_idx2,_idz2,cur,sou2);
@@ -529,7 +529,7 @@ void scaas2d::gradient_oneshot(float *src, int *srcxs, int *srczs, int nsrc, flo
       }
       /* Gradient formula */
       for(int k = 0; k < _onestp; ++k) {
-        grad[k] += ivel[k] * (pre[k] * lappsol[kt*_onestp + k] + pre[k]*tsrc[k]);
+        grad[k] += ivel[k] * (pre[k] * lappsol[kt*_onestp + k] + pre[k]*tsrc[k])*(_dx*_dz);
       }
       kt--;
     }
@@ -543,6 +543,51 @@ void scaas2d::gradient_oneshot(float *src, int *srcxs, int *srczs, int nsrc, flo
   delete[] pre; delete[] cur; delete[] sou1;
   delete[] sou2; delete[] tsrc;
   delete[] ivel; delete[] srccrse;
+}
+
+
+void scaas2d::gradient_multishot(float *src, int *srcxs, int *srczs, int *nsrcs, float *asrc, int *recxs, int *reczs, int *nrecs, int nex,
+    float *vel, float *grad, int nthrds) {
+
+  /* Precompute the offsets */
+  int *soffsets = new int[nex](); int *roffsets = new int[nex]();
+  for(int iex = 1; iex < nex; ++iex) {
+    soffsets[iex] = soffsets[iex-1] + nsrcs[iex];
+    roffsets[iex] = roffsets[iex-1] + nrecs[iex];
+  }
+
+  /* Loop over each experiment */
+  omp_set_num_threads(nthrds);
+#pragma omp parallel for default(shared)
+  for(int iex = 0; iex < nex; ++iex) {
+    /* Get number of sources and receivers for this shot */
+    int insrc = nsrcs[iex]; int inrec = nrecs[iex];
+    /* Get the source positions for this shot */
+    int *isrcx = new int[insrc](); int *isrcz = new int[insrc]();
+    memcpy(isrcx,&srcxs[soffsets[iex]],sizeof(int)*insrc); memcpy(isrcz,&srczs[soffsets[iex]],sizeof(int)*insrc);
+    /* Get the receiver positions for this shot */
+    int *irecx = new int[inrec](); int *irecz = new int[inrec]();
+    memcpy(irecx,&recxs[roffsets[iex]],sizeof(int)*inrec); memcpy(irecz,&reczs[roffsets[iex]],sizeof(int)*inrec);
+    /* Get the source wavelets for this shot */
+    float *isrc = new float[_ntu*insrc]();
+    memcpy(isrc,&src[soffsets[iex]*_ntu],sizeof(float)*_ntu*insrc);
+    /* Get the adjoint sources for this shot */
+    float *iasrc = new float[_nt*inrec]();
+    memcpy(iasrc,&asrc[iex*_nt*inrec],sizeof(float)*_nt*inrec);
+    /* Allocate a temporary gradient */
+    float *igrad = new float[_onestp]();
+    /* Compute the gradient for this shot */
+    gradient_oneshot(isrc, isrcx, isrcz, insrc, iasrc, irecx, irecz, inrec, vel, igrad);
+    /* Add gradient to output gradient */
+    for(int k = 0; k < _onestp; ++k) { grad[k] += igrad[k]; };
+    /* Free memory */
+    delete[] isrcx;  delete[] isrcz;
+    delete[] irecx;  delete[] irecz;
+    delete[] isrc;   delete[] iasrc;
+    delete[] igrad;
+  }
+  delete[] soffsets; delete[] roffsets;
+
 }
 
 void scaas2d::build_taper(float *tap) {

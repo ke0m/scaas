@@ -224,14 +224,13 @@ void steepest(size_t n,float *x,float &f,float *g,float *diag,float *w,int &ifla
     
             nfun+=nfev;
     
-            fprintf(stderr,"FOUND A SATISFACTORY STEPLENGTH STP=%.10f\nNEW ITERATE ITER=%d\n# OF FUNCTION EVALUATION NFUN=%d\nOBJECTIVE FUNCTION F=%.10f\n",stp,iter,nfun,f);
     
             /*
              TERMINATION TEST
              ----------------
             */
             gnorm=sqrt(sdot(n,g,g));
-            fprintf(stderr,"GRADIENT GNORM=%.10f\n\n",gnorm);
+            fprintf(stderr,"FOUND A SATISFACTORY STEPLENGTH STP=%.10f\nITER=%d NFUN=%d F=%.10f GNORM=%.10f\n\n",stp,iter,nfun,f,gnorm);
             xnorm=sqrt(sdot(n,x,x));
             xnorm=max(1.f,xnorm);
             if(gnorm/xnorm<=epsilon) finish=true;

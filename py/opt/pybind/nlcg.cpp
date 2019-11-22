@@ -229,7 +229,6 @@ void nlcg(size_t n,float *x,float &f,float *g,float *diag,float *w,int &iflag,in
     
             nfun+=nfev;
     
-            fprintf(stderr,"FOUND A SATISFACTORY STEPLENGTH STP=%.10f\nNEW ITERATE ITER=%d\n# OF FUNCTION EVALUATION NFUN=%d\nOBJECTIVE FUNCTION F=%.10f\n",stp,iter,nfun,f);
     
             /*
              TERMINATION TEST
@@ -237,7 +236,7 @@ void nlcg(size_t n,float *x,float &f,float *g,float *diag,float *w,int &iflag,in
             */
             float g2=sdot(n,g,g);
             gnorm=sqrt(g2);
-            fprintf(stderr,"GRADIENT GNORM=%.10f\n\n",gnorm);
+            fprintf(stderr,"FOUND A SATISFACTORY STEPLENGTH STP=%.10f\nITER=%d NFUN=%d F=%.10f GNORM=%.10f\n\n",stp,iter,nfun,f,gnorm);
             xnorm=sqrt(sdot(n,x,x));
             xnorm=max(1.f,xnorm);
             if(gnorm/xnorm<=epsilon) finish=true;

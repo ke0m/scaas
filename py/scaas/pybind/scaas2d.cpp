@@ -298,7 +298,7 @@ void scaas2d::fwdprop_multishot(float *src, int *srcxs, int *srczs, int *nsrcs, 
 void scaas2d::adjprop_wfld(float *asrc, int *recxs, int *reczs, int nrec, float *vel, float *lsol) {
 
   /* Interpolate adjoint source onto fine time grid */
-  float *iasrc = new float[_ntu*nrec];
+  float *iasrc = new float[_ntu*nrec]();
   shot_interp(nrec,asrc,iasrc);
 
   /* Precompute velocity dt^2 coefficient */

@@ -280,6 +280,7 @@ void lbfgs(size_t n,int &m,float *x,float &f,float *g,bool diagco,float *diag,fl
             return;
         }
     }
+    //XXX: Generally, the optimization stays here
     else if(iflag==1){
         //continue here on reentry with iflag=1
         //load saved variables
@@ -290,6 +291,7 @@ void lbfgs(size_t n,int &m,float *x,float &f,float *g,bool diagco,float *diag,fl
         stp=dsave[13];
 
         while(true){
+            //XXX: Generally returns an info=0 or info=-1.
             mcsrch(n,x,f,g,w+ispt+point*n,stp,info,nfev,diag,isave,dsave);
     
             if(info==-1){

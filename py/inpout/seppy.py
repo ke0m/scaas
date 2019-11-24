@@ -240,6 +240,25 @@ class sep:
     fout = open(ofname,"a")
     fout.write("\n\t\tn%d=1 o%d=0.0 d%d=1.0\n"%(dim,dim,dim))
     fout.close()
+  
+  def append_to_movie(self,tag,ofaxes,data,niter,ofname=None,form='xdr'):
+    """ Appends to a file for an inversion movie"""
+    if(ofname == None):
+      ofname = self.get_fname(tag)
+
+    # Write an extra line to the header
+    fout = open(ofname,"a")
+    odim = ofaxes.ndims + 1
+    fout.write("\n\t\tn%d=%d o%d=0.0 d%d=1.0\n"%(odim,niter,odim,odim))
+    fout.close()
+
+    # Append the data to the binary
+    opath = self.get_datapath() + ofname + "@"
+    with open(opath,'ab') as f:
+      if(form == 'xdr'):
+        data.flatten('F').astype('>f').tofile(f)
+      elif(form == 'native'):
+        data.flatten('F').astype('<f').tofile(f)
 
   def get_fline(self):
     """ Returns the first line of the program header """

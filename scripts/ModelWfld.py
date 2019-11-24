@@ -72,6 +72,9 @@ otherArgs.add_argument("-lapwfld",help='Gives the laplacian of th wavefield (y o
 otherArgs.add_argument("-dt",help="Time sampling of the output wavefield [0.004]",type=float)
 args = parser.parse_args(remaining_argv)
 
+# Set up SEP
+sep = seppy.sep(sys.argv)
+
 ## Get arguments
 # Padding
 bz = args.bz; bx = args.bx; alpha = args.alpha
@@ -84,26 +87,10 @@ srcx = args.srcx; srcz = args.srcz
 dt = args.dt
 
 # QC
-verb  = args.verb
-if(verb == "n"):
-  verb = 0
-else:
-  verb = 1
+verb    = sep.yn2zoo(args.verb)
+plotacq = sep.yn2zoo(args.plotacq)
+lapwfld = sep.yn2zoo(args.lapwfld)
 
-plotacq = args.plotacq
-if(plotacq == "n"):
-  plotacq = 0
-else:
-  plotacq = 1
-
-lapwfld = args.lapwfld
-if(lapwfld == "n"):
-  lapwfld = 0
-else:
-  lapwfld = 1
-
-# Set up SEP
-sep = seppy.sep(sys.argv)
 # Read in velocity model
 vaxes,vel = sep.read_file("vel")
 vel = vel.reshape(vaxes.n,order='F')

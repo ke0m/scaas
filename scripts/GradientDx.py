@@ -48,21 +48,13 @@ qcArgs.add_argument("-plotacq",help='Plot acquisition (y or [n])')
 qcArgs.add_argument("-verb",help="Verbosity flag (y or [n])")
 args = parser.parse_args(remaining_argv)
 
-# QC
-verb  = args.verb
-if(verb == "n"):
-  verb = 0
-else:
-  verb = 1
-
-plotacq = args.plotacq
-if(plotacq == "n"):
-  plotacq = 0
-else:
-  plotacq = 1
-
 # Set up SEP
 sep = seppy.sep(sys.argv)
+
+# QC
+verb    = sep.yn2zoo(args.verb)
+plotacq = sep.yn2zoo(args.plotacq)
+
 # Read in data
 daxes,dat = sep.read_file("in")
 dat = dat.reshape(daxes.n,order='F')

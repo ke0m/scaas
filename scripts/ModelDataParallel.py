@@ -84,6 +84,9 @@ miscArgs = parser.add_argument_group('Miscellaneous parameters')
 miscArgs.add_argument("-nthreads",help='Number of CPU threads to use [nsx]',type=int)
 args = parser.parse_args(remaining_argv)
 
+# Set up SEP
+sep = seppy.sep(sys.argv)
+
 ## Get arguments
 # Padding
 bz = args.bz; bx = args.bx; alpha = args.alpha
@@ -100,20 +103,9 @@ dt = args.dt
 nthreads = args.nthreads
 
 # QC
-verb  = args.verb
-if(verb == "n"):
-  verb = 0
-else:
-  verb = 1
+verb    = sep.yn2zoo(args.verb)
+plotacq = sep.yn2zoo(args.plotacq)
 
-plotacq = args.plotacq
-if(plotacq == "n"):
-  plotacq = 0
-else:
-  plotacq = 1
-
-# Set up SEP
-sep = seppy.sep(sys.argv)
 # Read in velocity model
 vaxes,vel = sep.read_file("vel")
 vel = vel.reshape(vaxes.n,order='F')

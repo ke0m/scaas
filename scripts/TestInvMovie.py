@@ -12,6 +12,7 @@ import sys, os, argparse, configparser
 import numpy as np
 import inpout.seppy as seppy
 import opt.optpy as opt
+import opt.optqc as optqc
 from functions import *
 import matplotlib.pyplot as plt 
 
@@ -21,6 +22,7 @@ conf_parser.add_argument("-c", "--conf_file",
                          help="Specify config file", metavar="FILE")
 args, remaining_argv = conf_parser.parse_known_args()
 defaults = { 
+    "wtrials": "n",
     }   
 if args.conf_file:
   config = configparser.ConfigParser()
@@ -37,14 +39,12 @@ parser.set_defaults(**defaults)
 parser.add_argument("-mmov",help="Output model movie")
 parser.add_argument("-gmov",help="Output gradient movie")
 parser.add_argument("-ofn",help="Output objective function")
+parser.add_argument("-wtrials",help="Write trial results (y or [n])")
 args = parser.parse_args(remaining_argv)
 
 # Set up IO
 sep = seppy.sep(sys.argv)
-# Get the names of the files
-mmov = sep.get_fname("-mmov")
-gmov = sep.get_fname("-gmov")
-ofn  = sep.get_fname("-ofn")
+wtrials = sep.yn2zoo(args.wtrials)
 
 # Size of model
 n = 100
@@ -77,14 +77,13 @@ dsave = np.zeros(14,dtype='float32')
 mgaxes = seppy.axes([n],[0.0],[1.0])
 ofaxes = seppy.axes([1],[0.0],[1.0])
 
-# Write first iteration
-if(mmov != None):
-  sep.write_file("-mmov",mgaxes,x)
-if(gmov != None):
-  sep.write_file("-gmov",mgaxes,g)
-if(ofn != None):
-  sep.write_file("-ofn",ofaxes,f)
-  ofaxes.ndims = 0
+# Create the optqc objects
+dia  = optqc.optqc(sep,"-ofn",ofaxes,"-mmov","-gmov",mgaxes)
+diat = None
+if(wtrials):
+  diat = optqc.optqc(sep,"-ofn",ofaxes,"-mmov","-gmov",mgaxes,trials=True)
+  # Write the first iteration
+  dia.output(f,x,g); diat.output(f,x,g)
 
 # Keep track of iterations
 itercheck = 0
@@ -93,6 +92,10 @@ while(True):
   # User supplied objective function and gradient evaluation function
   f[0] = rosenbrock(x,g)
 
+  # Write trial steps if requested
+  if(wtrials):
+    diat.output(f,x,g)
+
   # Call solver
   opt.lbfgs(n,m,x,f,g,diagco,diag,w,iflag,isave,dsave)
 
@@ -100,17 +103,11 @@ while(True):
   if(itercheck != isave[4] or iflag[0] == 0):
     # Update the iteration number
     itercheck = isave[4]
-    if(iflag[0] == 0): itercheck += 1
     # Write the new iterate, gradient and objective function
-    if(mmov != None):
-      sep.append_to_movie("-mmov",mgaxes,x,itercheck+1)
-    if(gmov != None):
-      sep.append_to_movie("-gmov",mgaxes,g,itercheck+1)
-    if(ofn != None):
-      sep.append_to_movie("-ofn",ofaxes,f,itercheck+1)
+    dia.output(f,x,g)
 
   icall += 1
-  if(iflag[0] <= 0 or icall > 200): break
+  if(iflag[0] <= 0 or icall > 500): break
 
 # Print the output x
 print(x)

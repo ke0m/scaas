@@ -312,6 +312,15 @@ class sep:
     """ Creates a random string with uppercase letters and integers """
     return ''.join(random.choice(chars) for _ in range(size))
 
+  def yn2zoo(self,yn):
+    """ Converts a 'y' or 'n' to an integer """
+    if(yn == "n"):
+      zoo = 0 
+    else:
+      zoo = 1
+
+    return zoo
+
   #TODO: For now, I write the file to wherever you are.
   #      This may not be good in the future
   def pltgrey(self,daxes,dat,greyargs=None,shwvplt=True,figname=None,bg=False,savehfile=False):

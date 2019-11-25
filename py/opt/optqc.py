@@ -33,12 +33,14 @@ class optqc:
         self.dtrial = dname.split('.')[0] + '-trial.H'
 
   def output(self,ofn,mod,grd,dat=None):
+    """ Main output function for writing the iterates """
     if(self.trials):
       self.output_trial(ofn,mod,grd,dat)
     else:
       self.output_iter(ofn,mod,grd,dat)
 
   def output_trial(self,ofn,mod,grd,dat=None):
+    """ Writes the trial results to files """
     # Write the file if the first iteration
     if(self.iter == 1):
       if(self.oftrial != None):
@@ -65,6 +67,7 @@ class optqc:
     self.iter += 1
 
   def output_iter(self,ofn,mod,grd,dat=None):
+    """ Writes the iterates to file (at each iteration) """
     # Write the file if the first iteration
     if(self.iter == 1):
       if(self.oftag != None):

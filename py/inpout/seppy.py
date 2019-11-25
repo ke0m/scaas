@@ -153,15 +153,15 @@ class sep:
 
   def from_header(self,tag,keys,ifname=None):
     """ Given a list of keys (strings), returns the values from the header """
-    vals = []
+    odict= {}
     # Read the header dictionary
     thdict = self.read_header_dict(tag,ifname)
     # Loop over all keys
     for ikey in keys:
       if ikey in thdict:
-        vals.append(thdict[ikey])
+        odict[ikey] = thdict[ikey]
 
-    return vals
+    return odict
 
   def write_header(self,tag,ofaxes,ofname=None,form='xdr'):
     """ Writes header information to SEP file and returns

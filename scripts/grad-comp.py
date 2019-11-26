@@ -20,7 +20,7 @@ from __future__ import print_function
 import numpy as np
 import inpout.seppy as seppy
 import scaas.scaas2dpy as sca2d
-from wavelet import ricker
+from scaas.wavelet import ricker
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import ImageGrid
 

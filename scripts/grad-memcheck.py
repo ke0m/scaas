@@ -75,11 +75,11 @@ adict['nex']  = 1;
 pdict = {}
 pdict['bz'] = bz; pdict['bx'] = bx; pdict['alpha'] = alpha
 # Create object
-gl2 = fwi.fwi(maxes,saxes,fsrc,daxes,dattru,adict,pdict,1)
+gl2 = fwi.fwi(maxes,saxes,fsrc,daxes,dattru,adict,pdict,nthrd=1)
 
 # Compute gradient
 # Loop over gradient calculation
-for itry in range(1000):
+for itry in range(10):
   grad = np.zeros([nzp,nxp],dtype='float32')
   f = gl2.gradientL2(vmodp,grad)
 

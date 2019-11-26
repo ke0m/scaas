@@ -1,10 +1,10 @@
 import scaas.scaas2dpy as sca2d
 import numpy as np
-import matplotlib.pyplot as plt
+from scaas.gradtaper import build_taper
 
 class fwi:
   """ Functions for computing gradient and value of FWI objective functions """
-  def __init__(self,maxes,saxes,allsrcs,daxes,dat,acqdict,prpdict,nthreads):
+  def __init__(self,maxes,saxes,allsrcs,daxes,dat,acqdict,prpdict,tpdict=None,nthrd=1):
     """ Constructor """
     ## Dimensions
     # Get model dimensions
@@ -22,7 +22,7 @@ class fwi:
     self.allsrcx = acqdict['allsrcx']
     self.allsrcz = acqdict['allsrcz']
     # Receiver positions
-    self.nrec    = acqdict['nsrc']
+    self.nrec    = acqdict['nrec']
     self.allrecx = acqdict['allrecx']
     self.allrecz = acqdict['allrecz']
     # Number of examples (usually sources)
@@ -32,14 +32,22 @@ class fwi:
     self.bx = prpdict['bx']; self.bz = prpdict['bz']; 
     self.alpha = prpdict['alpha']
     # Number of threads
-    self.nthreads = nthreads
+    self.nthrd = nthrd
     # Create wave propagation object
     self.sca = sca2d.scaas2d(self.nt, self.nx, self.nz, self.dt, self.dx, self.dz, self.dtu,
                              self.bx, self.bz, self.alpha)
+    ## Input arrays
     # Get source
     self.allsrcs = allsrcs
     # Get data
     self.dat = dat
+    ## Gradient taper
+    # Build taper
+    if(tpdict == None):
+      _,self.gtap2 = build_taper(self.nx,self.nz,0,0)
+    else:
+      _,self.gtap2 = build_taper(self.nx,self.nz,tdict['iz1'],tdict['iz2'])
+
 
   def gradientL2(self,velcur,grad):
     """ Gradient of L2 FWI Objective function """
@@ -47,16 +55,19 @@ class fwi:
     moddat = np.zeros([self.nsx,self.nt,self.nrx],dtype='float32')
     self.sca.fwdprop_multishot(self.allsrcs, self.allsrcx, self.allsrcz, self.nsrc,
                           self.allrecx, self.allrecz, self.nrec, 
-                          self.nex, velcur, moddat, self.nthreads)
+                          self.nex, velcur, moddat, self.nthrd)
     
     ## Compute adjoint source
     res = moddat - self.dat
     asrc = -res
     
     # Gradient for all shots
+    gradutap = np.zeros([self.nz,self.nx],dtype='float32')
     self.sca.gradient_multishot(self.allsrcs, self.allsrcx, self.allsrcz, self.nsrc,
                                 asrc        , self.allrecx, self.allrecz, self.nrec,
-                                self.nex, velcur, grad, self.nthreads)
+                                self.nex, velcur, gradutap, self.nthrd)
+    # Apply taper near the source positions
+    grad[:] = self.gtap2*gradutap
 
     return 0.5*np.dot(res.flatten(),res.flatten())
 

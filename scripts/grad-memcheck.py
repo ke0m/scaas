@@ -88,4 +88,3 @@ print(f)
 plt.imshow(grad)
 plt.show()
 
-

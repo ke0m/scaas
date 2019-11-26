@@ -16,19 +16,19 @@ class optqc:
       # Initialize output files
       self.oftrial = None; self.mtrial = None; self.gtrial = None; self.dtrial = None
       # Objective function
-      if(self.oftag != None):
+      if(self.sep.get_fname(self.oftag) != None):
         ofname = self.sep.get_fname(self.oftag)
         self.oftrial = ofname.split('.')[0] + '-trial.H'
       # Model
-      if(self.mtag != None):
+      if(self.sep.get_fname(self.mtag) != None):
         mname = self.sep.get_fname(self.mtag)
         self.mtrial = mname.split('.')[0] + '-trial.H'
       # Gradient
-      if(self.gtag != None):
+      if(self.sep.get_fname(self.gtag) != None):
         gname = self.sep.get_fname(self.gtag)
         self.gtrial = gname.split('.')[0] + '-trial.H'
       # Data
-      if(self.dtag != None):
+      if(self.sep.get_fname(self.dtag) != None):
         dname = self.sep.get_fname(self.dtag)
         self.dtrial = dname.split('.')[0] + '-trial.H'
 
@@ -70,25 +70,25 @@ class optqc:
     """ Writes the iterates to file (at each iteration) """
     # Write the file if the first iteration
     if(self.iter == 1):
-      if(self.oftag != None):
+      if(self.sep.get_fname(self.oftag) != None):
         self.sep.write_file(self.oftag,self.ofaxes,ofn)
         # Make ofaxes zero-dimensional (for append_to_movie)
         self.ofaxes.ndims = 0
-      if(self.mtag != None):
+      if(self.sep.get_fname(self.mtag) != None):
         self.sep.write_file(self.mtag, self.mgaxes, mod)
-      if (self.gtag != None):
+      if (self.sep.get_fname(self.gtag) != None):
         self.sep.write_file(self.gtag, self.mgaxes, grd)
-      if(self.dtag != None):
+      if(self.sep.get_fname(self.dtag) != None):
         self.sep.write_file(self.dtag, self.daxes, dat)
     # Append to files for subsequent iterations 
     else:
-      if(self.oftag != None):
+      if(self.sep.get_fname(self.oftag) != None):
         self.sep.append_to_movie(self.oftag, self.ofaxes, ofn, self.iter)
-      if(self.mtag != None):
+      if(self.sep.get_fname(self.mtag) != None):
         self.sep.append_to_movie(self.mtag, self.mgaxes, mod, self.iter)
-      if(self.gtag != None):
+      if(self.sep.get_fname(self.gtag) != None):
         self.sep.append_to_movie(self.gtag, self.mgaxes, grd, self.iter)
-      if(self.dtag != None):
+      if(self.sep.get_fname(self.dtag) != None):
         self.sep.append_to_movie(self.dtag, self.daxes, dat, self.iter)
     # Update the iteration counter
     self.iter += 1

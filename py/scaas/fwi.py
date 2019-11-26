@@ -29,7 +29,7 @@ class fwi:
     self.nex     = acqdict['nex']
     ## Propagation parameters
     # Boundaries
-    self.bx = prpdict['bx']; self.bz = prpdict['bz']; 
+    self.bx = prpdict['bx']; self.bz = prpdict['bz']
     self.alpha = prpdict['alpha']
     # Number of threads
     self.nthrd = nthrd
@@ -40,29 +40,30 @@ class fwi:
     # Get source
     self.allsrcs = allsrcs
     # Get data
-    self.dat = dat
+    self.odat = dat
+    self.mdat = np.zeros(dat.shape,dtype='float32')
     ## Gradient taper
     # Build taper
     if(tpdict == None):
       _,self.gtap2 = build_taper(self.nx,self.nz,0,0)
     else:
-      _,self.gtap2 = build_taper(self.nx,self.nz,tdict['iz1'],tdict['iz2'])
+      _,self.gtap2 = build_taper(self.nx,self.nz,tpdict['izt'],tpdict['izb'])
 
 
   def gradientL2(self,velcur,grad):
     """ Gradient of L2 FWI Objective function """
-    # Forward modeling for all shots for current model
-    moddat = np.zeros([self.nsx,self.nt,self.nrx],dtype='float32')
+    ## Forward modeling for all shots for current model
+    self.mdat[:] = np.zeros(self.odat.shape,dtype='float32')
     self.sca.fwdprop_multishot(self.allsrcs, self.allsrcx, self.allsrcz, self.nsrc,
                           self.allrecx, self.allrecz, self.nrec, 
-                          self.nex, velcur, moddat, self.nthrd)
+                          self.nex, velcur, self.mdat, self.nthrd)
     
     ## Compute adjoint source
-    res = moddat - self.dat
+    res = self.mdat - self.odat
     asrc = -res
     
-    # Gradient for all shots
-    gradutap = np.zeros([self.nz,self.nx],dtype='float32')
+    ## Gradient for all shots
+    gradutap = np.zeros([self.nz,self.nx],dtype='float32'); grad[:] = 0.0
     self.sca.gradient_multishot(self.allsrcs, self.allsrcx, self.allsrcz, self.nsrc,
                                 asrc        , self.allrecx, self.allrecz, self.nrec,
                                 self.nex, velcur, gradutap, self.nthrd)
@@ -70,4 +71,10 @@ class fwi:
     grad[:] = self.gtap2*gradutap
 
     return 0.5*np.dot(res.flatten(),res.flatten())
+
+  def get_moddat(self):
+    """ Returns the modeled data for the current model velcur.
+        Must be called after gradientL2 otherwise data are overwritten.
+    """
+    return np.transpose(self.mdat,(1,2,0))
 

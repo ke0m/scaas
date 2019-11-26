@@ -84,7 +84,11 @@ for itry in range(10):
   f = gl2.gradientL2(vmodp,grad)
 
 print(f)
+# Plot modeled data
+plt.figure()
+plt.plot(gl2.get_moddat()[:,0,0])
 # Plot gradient
+plt.figure()
 plt.imshow(grad)
 plt.show()
 

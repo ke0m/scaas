@@ -80,13 +80,13 @@ ofaxes = seppy.axes([1],[0.0],[1.0])
 # Create the optqc objects
 dia  = optqc.optqc(sep,"-ofn",ofaxes,"-mmov","-gmov",mgaxes)
 # Write the first iteration
-dia.output(f,x,g)
+dia.outputH(f,x,g)
 
 diat = None
 if(wtrials):
   diat = optqc.optqc(sep,"-ofn",ofaxes,"-mmov","-gmov",mgaxes,trials=True)
   # Write the first iteration
-  diat.output(f,x,g)
+  diat.outputH(f,x,g)
 
 # Keep track of iterations
 itercheck = 0
@@ -97,7 +97,7 @@ while(True):
 
   # Write trial steps if requested
   if(wtrials):
-    diat.output(f,x,g)
+    diat.outputH(f,x,g)
 
   # Call solver
   opt.lbfgs(n,m,x,f,g,diagco,diag,w,iflag,isave,dsave)
@@ -107,7 +107,7 @@ while(True):
     # Update the iteration number
     itercheck = isave[4]
     # Write the new iterate, gradient and objective function
-    dia.output(f,x,g)
+    dia.outputH(f,x,g)
 
   icall += 1
   if(iflag[0] <= 0 or icall > 500): break

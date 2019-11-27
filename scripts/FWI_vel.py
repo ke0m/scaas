@@ -8,7 +8,7 @@ and little endian (xdr_float vs native_float) the code
 for now requires big endian.
 
 @author: Joseph Jennings
-@version: 2019.11.25
+@version: 2019.11.26
 """
 from __future__ import print_function
 import sys, os, argparse, configparser
@@ -54,6 +54,8 @@ movArgs.add_argument("-mmov",help="Model iteration movie")
 movArgs.add_argument("-gmov",help="Gradient iteration movie")
 movArgs.add_argument("-dmov",help="Data iteration movie")
 movArgs.add_argument("-wtrials",help="Write trial results (y or [n])")
+movArgs.add_argument("-trim",help="Trim the output models and gradients ([y] or n)")
+movArgs.add_argument("-sidxs",help="Indices of shots to keep for writing data movies [idx1,idx2,...] (default is all)")
 # Other parameters
 miscArgs = parser.add_argument_group('Miscellaneous parameters')
 miscArgs.add_argument("-nthreads",help='Number of CPU threads to use [1]',type=int)
@@ -76,6 +78,7 @@ izt = args.izt; izb = args.izb
 
 # Inversion trials
 wtrials = sep.yn2zoo(args.wtrials)
+trim    = sep.yn2zoo(args.trim)
 
 # QC
 verb    = sep.yn2zoo(args.verb)
@@ -194,16 +197,31 @@ w = np.zeros(n*(2*m[0] + 1) + 2*m[0],dtype='float32')
 isave = np.zeros(8,dtype='int32')
 dsave = np.zeros(14,dtype='float32')
 
+# Get the shot indices for writing
+sidxs = sep.read_list(args.sidxs,np.arange(nsx),dtype='int')
+
 # Create the optqc objects
-#TODO: add trim pars for cutting models and data
-dia  = optqc.optqc(sep,"-ofn",ofaxes,"-mmov","-gmov",maxes,"-dmov",daxes)
-
-diat = None
-if(wtrials):
-  diat = optqc.optqc(sep,"-ofn",ofaxes,"-mmov","-gmov",maxes,trials=True)
-
-# Keep track of iterations
-itercheck = 0
+dia = None; diat = None
+if(trim):
+  # Trim dictionary
+  trpars = {}
+  trpars['lidx'] = bx+5; trpars['ridx'] = bx+nx+5
+  trpars['tidx'] = bz+5; trpars['bidx'] = bz+nz+5
+  # Trimmed axes
+  tmaxes = seppy.axes([nz,nx],maxes.o,maxes.d)
+  tdaxes = seppy.axes([nt,nrx,len(sidxs)],daxes.o,daxes.d)
+  dia  = optqc.optqc(sep,"-ofn",ofaxes,"-mmov","-gmov",tmaxes,"-dmov",tdaxes,trpars=trpars)
+  if(wtrials):
+    diat = optqc.optqc(sep,"-ofn",ofaxes,"-mmov","-gmov",tmaxes,trials=True,trpars=trpars)
+else:
+  # Trim dictionary (just trim the edges for the laplacian)
+  trpars = {}
+  trpars['lidx'] = 5; trpars['ridx'] = 2*bx+nx
+  trpars['tidx'] = 5; trpars['bidx'] = 2*bz+nz
+  tmaxes = seppy.axes([2*bx+nz,2*bz+nz],maxes.o,maxes.d)
+  dia  = optqc.optqc(sep,"-ofn",ofaxes,"-mmov","-gmov",tmaxes,"-dmov",daxes,trpars=trpars)
+  if(wtrials):
+    diat = optqc.optqc(sep,"-ofn",ofaxes,"-mmov","-gmov",tmaxes,trials=True)
 
 # Keep models and gradients from two steps
 # This is because the solver will attempt a step length
@@ -215,29 +233,38 @@ mods[1][:] = velp[:]
 grds = []
 grds.append(np.zeros(velp.shape,dtype='float32'))
 grds.append(np.zeros(velp.shape,dtype='float32'))
-grds[1][:] = grad[:]
-#TODO: do the same for the data
+dats = []
+dats.append(np.zeros([nt,nrx,len(sidxs)],dtype='float32'))
+dats.append(np.zeros([nt,nrx,len(sidxs)],dtype='float32'))
+
+# Keep track of iterations
+itercheck = 0
 
 # Run the inversion
 while(True):
   # FWI objective function and gradient evaluation
   f[0] = gl2.gradientL2(velp,grad)
 
+  # Initialize arrays at first iteration
+  if(itercheck == 0):
+    grds[1][:] = grad[:]
+    dats[1][:] = gl2.get_moddat(sidxs)
+
   # Write trial steps if requested
   if(wtrials):
-    diat.output(f,velp,grad)
+    diat.outputH(f,velp,grad)
 
   # Call solver and update model
   opt.lbfgs(n,m,velp,f,grad,diagco,diag,w,iflag,isave,dsave)
-  mods[0][:] = mods[1][:]; grds[0][:] = grds[1][:]
-  mods[1][:] = velp[:];    grds[1][:] = grad[:]
+  mods[0][:] = mods[1][:]; grds[0][:] = grds[1][:]; dats[0][:] = dats[1][:];
+  mods[1][:] = velp[:];    grds[1][:] = grad[:];    dats[1][:] = gl2.get_moddat(sidxs)
 
   # Check if a new iterate was found (first trial always written)
   if(itercheck != isave[4] or iflag[0] == 0):
     # Update the iteration number
     itercheck = isave[4]
     # Write the new inversion outputs
-    dia.output(f,mods[0],grds[0],gl2.get_moddat())
+    dia.outputH(f,mods[0],grds[0],dats[0])
 
   icall += 1
   if(iflag[0] <= 0 or icall > 500): break

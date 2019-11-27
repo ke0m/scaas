@@ -321,6 +321,21 @@ class sep:
 
     return zoo
 
+  def read_list(self,arg,default,dtype='int'):
+    """ Reads in comma delimited string at the command line into a python list """
+    if(len(arg) == 0):
+      return default
+    else:
+      if(dtype == 'int'):
+        olist = [int(val) for val in arg.split(',')]
+        return olist
+      elif(dtype == 'float'):
+        olist = [float(val) for val in arg.split(',')]
+        return olist
+      else:
+        print("Type %s not recognized. Returning default")
+        return default
+
   #TODO: For now, I write the file to wherever you are.
   #      This may not be good in the future
   def pltgrey(self,daxes,dat,greyargs=None,shwvplt=True,figname=None,bg=False,savehfile=False):

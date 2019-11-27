@@ -55,13 +55,13 @@ class fwi:
     ## Forward modeling for all shots for current model
     self.mdat[:] = np.zeros(self.odat.shape,dtype='float32')
     self.sca.fwdprop_multishot(self.allsrcs, self.allsrcx, self.allsrcz, self.nsrc,
-                          self.allrecx, self.allrecz, self.nrec, 
+                          self.allrecx, self.allrecz, self.nrec,
                           self.nex, velcur, self.mdat, self.nthrd)
-    
+
     ## Compute adjoint source
     res = self.mdat - self.odat
     asrc = -res
-    
+
     ## Gradient for all shots
     gradutap = np.zeros([self.nz,self.nx],dtype='float32'); grad[:] = 0.0
     self.sca.gradient_multishot(self.allsrcs, self.allsrcx, self.allsrcz, self.nsrc,
@@ -72,9 +72,18 @@ class fwi:
 
     return 0.5*np.dot(res.flatten(),res.flatten())
 
-  def get_moddat(self):
-    """ Returns the modeled data for the current model velcur.
+  def get_moddat(self,sidxs=None):
+    """ Returns the modeled data for the current model velcur at the source indices
+        specified by sidxs.
         Must be called after gradientL2 otherwise data are overwritten.
     """
-    return np.transpose(self.mdat,(1,2,0))
+    if(sidxs == None):
+      return np.transpose(self.mdat,(1,2,0))
+    else:
+      datwind = np.zeros([self.nt,self.nrx,len(sidxs)],dtype='float32')
+      k = 0
+      for idx in sidxs:
+        datwind[:,:,k] = self.mdat[idx,:,:]
+        k += 1
+      return datwind
 

@@ -15,7 +15,7 @@ import sys, os, argparse, configparser
 import inpout.seppy as seppy
 import numpy as np
 import scaas.fwi as fwi
-import opt.optpy as opt
+import opt.nlopt as opt
 import opt.optqc as optqc
 import matplotlib.pyplot as plt
 

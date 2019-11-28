@@ -29,7 +29,7 @@ void steepest_pyf(size_t n, float *x, float *f, float *g, float *diag, float *w,
   f[0] = f0; iflag[0] = iflag0;
 }
 
-PYBIND11_MODULE(optpy,m) {
+PYBIND11_MODULE(nlopt,m) {
   m.doc() = "Non-linear optimization functions";
   m.def("lbfgs",[](
           py::size_t n,

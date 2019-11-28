@@ -21,7 +21,7 @@ It does so using one of three gradient descent solvers:
 from __future__ import print_function
 import sys, os, argparse, configparser
 import numpy as np
-import opt.optpy as opt
+import opt.nlopt as opt
 from functions import *
 import matplotlib.pyplot as plt 
 

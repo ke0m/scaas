@@ -11,7 +11,7 @@ function value at each iteration
 import sys, os, argparse, configparser
 import numpy as np
 import inpout.seppy as seppy
-import opt.optpy as opt
+import opt.nlopt as opt
 import opt.optqc as optqc
 from functions import *
 import matplotlib.pyplot as plt 

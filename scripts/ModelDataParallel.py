@@ -154,11 +154,12 @@ for isx in range(nsx):
 if(plotacq):
   plt.figure(1)
   # Plot velocity model
-  vmin = np.min(velp); vmax = np.max(velp)
+  vmin = np.min(vel); vmax = np.max(vel)
   plt.imshow(velp,extent=[0,nxp,nzp,0],vmin=vmin,vmax=vmax,cmap='jet')
   # Get all source positions
   plt.scatter(allrecx[0,:],allrecz[0,:])
   plt.scatter(allsrcx[:,0],allsrcz[:,0])
+  plt.show()
 
 # Create input wavelet array
 allsrcs = np.zeros([nsx,1,ntu],dtype='float32')

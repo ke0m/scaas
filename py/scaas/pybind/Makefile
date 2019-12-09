@@ -1,4 +1,5 @@
-PYPATH=/opt/anaconda/anaconda3/envs/py35/
+PYPATH=/opt/anaconda/anaconda3/envs/py35
+NPPATH=${PYPATH}/lib/python3.5/site-packages/numpy/core
 ISPC=/opt/ispc-v1.9.2-linux/
 
 %.o: %.cpp
@@ -12,7 +13,7 @@ laplacianold.o: laplacianFWDISPC.ispc #laplacian10.ispc
 
 scaas2d.o: scaas2d.cpp
 	g++ -O3 -fPIC -ffast-math -fopenmp -std=c++1y -shared -Wall -I${PYPATH}/include/python3.5m \
-		-Wl,-rpath=${PYTPATH}/lib -L${PYPATH}/lib -lpython3.5m -c $< -o $@
+		-I${NPPATH}/include -Wl,-rpath=${PYTPATH}/lib -L${PYPATH}/lib -lpython3.5m -c $< -o $@
 
 #XXX: The -shared is necessary for linking
 scaas2dpy: scaas2d.o laplacian10.o laplacianold.o

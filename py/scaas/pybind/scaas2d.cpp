@@ -7,6 +7,19 @@
 
 namespace plt = matplotlibcpp;
 
+/**
+ * Constructor
+ * @param nt number of time samples
+ * @param nx number of x samples
+ * @param nz number of z samples
+ * @param dt time sampling rate (data)
+ * @param dx spatial sampling in x
+ * @param dz spatial sampling in z
+ * @param dtu time sampling (propagation)
+ * @param bx absorbing boundary thickness in x
+ * @param bz absorbing boundary thickness in z
+ * @param alpha cosine taper parameter
+ */
 scaas2d::scaas2d(int nt, int nx, int nz, float dt, float dx, float dz, float dtu, int bx, int bz, float alpha) {
   /* Lengths */
   _nt = nt; _nx = nx; _nz = nz; _onestp = _nx*_nz;
@@ -19,6 +32,15 @@ scaas2d::scaas2d(int nt, int nx, int nz, float dt, float dx, float dz, float dtu
   _skip = static_cast<int>(_dt/_dtu); _ntu = _nt*_skip;
 }
 
+
+/**
+ * Restricts wavefield to receiver locations
+ * @param recxs x coordinates of receivers (samples)
+ * @param reczs z coordinates of receivers (samples)
+ * @param nrec number of receivers
+ * @param wslc wavefield slice (input)
+ * @param dslc data slice (output)
+ */
 void scaas2d::drslc(int *recxs, int *reczs, int nrec, float *wslc, float *dslc) {
 
   /* Loop over all receivers for the time slice */
@@ -28,6 +50,12 @@ void scaas2d::drslc(int *recxs, int *reczs, int nrec, float *wslc, float *dslc) 
   }
 }
 
+/**
+ * Linearly interpolates the shot in time before wave propagation
+ * @param nrec number of receivers
+ * @param datc the input coarse data
+ * @param datf the output fine data
+ */
 void scaas2d::shot_interp(int nrec, float *datc, float *datf) {
 
   /* Allocate memory */
@@ -587,7 +615,94 @@ void scaas2d::gradient_multishot(float *src, int *srcxs, int *srczs, int *nsrcs,
     delete[] igrad;
   }
   delete[] soffsets; delete[] roffsets;
+}
 
+void scaas2d::brnfwd_oneshot(float *src, int *srcxs, int *srczs, int nsrc, int *recxs, int *reczs, int nrec, float *vel, float *dvel, float *ddat) {
+  /* Precompute velocity dt^2 coefficient */
+  float *v2dt2 = new float[_onestp]();
+  //TODO: This should be done outside
+  for(int k = 0; k < _onestp; ++k) { v2dt2[k] = vel[k]*vel[k]*_dtu*_dtu; };
+
+  /* Precompute Born source scale factor */
+  float *dvov = new float[_onestp]();
+  for(int k = 0; k < _onestp; ++k) {
+    if(vel[k] != 0) dvov[k] = 2*dvel[k]/vel[k];
+  }
+
+  /* Build taper for non-reflecting boundaries: assuming 10th order laplacian */
+  float *tap = new float[_onestp]();
+  build_taper(tap);
+
+  /* Allocate memory for wavefield slices */
+  float *pre  = new float[_onestp]();  float *dpre  = new float[_onestp]();
+  float *cur  = new float[_onestp]();  float *dcur  = new float[_onestp]();
+  float *sou1 = new float[_onestp]();  float *dsou1 = new float[_onestp]();
+  float *sou2 = new float[_onestp]();  float *dsou2 = new float[_onestp]();
+                                       float *ddslc = new float[_nt*nrec]();
+  float *tmp;                          float *dtmp;
+
+  /* Background initial conditions */
+  for(int isrc = 0; isrc < nsrc; ++isrc) {
+    sou1[srczs[isrc]*_nx + srcxs[isrc]] = src[isrc*_ntu + 0]/(_dx*_dz); // Source injection
+  }
+  for(int k = 0; k < _onestp; ++k) { sou1[k] *= v2dt2[k]; }; // p(x,1) = v^2*dt^2*f(0)
+  memcpy(cur,sou1,sizeof(float)*_onestp);
+
+  /* Scattered initial conditions */
+  memcpy(ddat,ddslc,sizeof(float)*nrec); //dp(x,0) = 0.0
+  for(int k = 0; k < _onestp; ++k) { dcur[k] = dvov[k]*sou1[k]; }; // dp(x,1) = dv/v*(lap(p(x,0)) + f(0))
+
+
+  int kt = 1;
+  if(_skip == 1) kt = 2; // Handle the special case
+  for(int it = 2; it < _ntu; ++it) {
+
+    /* First compute the background wavefield */
+    // Calculate source term
+    for(int isrc = 0; isrc < nsrc; ++isrc) {
+      sou1[srczs[isrc]*_nx + srcxs[isrc]] = src[isrc*_ntu + (it-1)]/(_dx*_dz);
+    }
+    // Apply laplacian
+    laplacian10(_nx,_nz,_idx2,_idz2,cur,sou2);
+    // Advance background wavefield
+    for(int k = 0; k < _onestp; ++k) {
+      pre[k] = v2dt2[k]*sou1[k] + 2*cur[k] + v2dt2[k]*sou2[k] - pre[k];
+    }
+    /* Apply taper */
+    apply_taper(tap,pre,cur);
+
+    /* Now compute scattered wavefield using the Born source */
+    // Apply laplacian
+    laplacian10(_nx,_nz,_idx2,_idz2,dcur,dsou2);
+    for(int k = 0; k < _onestp; ++k) {
+      dpre[k] = v2dt2[k]*(dvov[k]*sou2[k] +  dvov[k]*sou1[k]) + 2*dcur[k] + v2dt2[k]*dsou2[k] - dpre[k];
+    }
+    /* Apply taper */
+    apply_taper(tap,dpre,dcur);
+
+    /* Save scattered data on coarse time grid */
+    if(it%_skip == 0) {
+      /* Apply delta function operator */
+      drslc(recxs,reczs,nrec,dpre,ddslc);
+      /* Copy to data vector */
+      memcpy(&ddat[kt*nrec],ddslc,sizeof(float)*nrec);
+      kt++;
+    }
+    /* Background pointer swap */
+    tmp = cur; cur = pre; pre = tmp;
+    /* Scattered pointer swap */
+    dtmp = dcur; dcur = dpre; dpre = dtmp;
+  }
+
+  /* Free memory */
+  delete[] v2dt2;
+  delete[] pre; delete[] cur; delete[] sou1;
+  delete[] sou2; delete[] tap;
+  delete[] dpre; delete[] dcur; delete[] dsou1;
+  delete[] dsou2; delete[] ddslc;
+}
+
+void brnadj_oneshot() {
 }
 
 void scaas2d::build_taper(float *tap) {

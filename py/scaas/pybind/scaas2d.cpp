@@ -878,10 +878,6 @@ void scaas2d::brnoffadj_oneshot(float *src, int *srcxs, int *srczs, int nsrc, in
           for(int ix = nh; ix < _nx-nh; ++ix) {
               dv[(ih+nh)*_onestp + iz*_nx + ix] += ivel[iz*_nx + ix] * (pre[iz*_nx + ix+ih] * lappsol[kt*_onestp + iz*_nx + ix-ih] +
                  pre[iz*_nx + ix+ih] * tsrc[iz*_nx + ix-ih])*(_dx*_dz);
-            //if(ix-ih < _nx && ix-ih >= 0 && ix+ih < _nx && ix+ih >= 0) {
-            //  dv[(ih+nh)*_onestp + iz*_nx + ix] += ivel[iz*_nx + ix] * (pre[iz*_nx + ix+ih] * lappsol[kt*_onestp + iz*_nx + ix-ih] +
-            //     pre[iz*_nx + ix+ih] * tsrc[iz*_nx + ix-ih])*(_dx*_dz);
-            //}
           }
         }
       }

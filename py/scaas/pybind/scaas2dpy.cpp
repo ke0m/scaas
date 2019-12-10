@@ -247,5 +247,27 @@ PYBIND11_MODULE(scaas2dpy,m) {
              py::arg("src"), py::arg("srcxs"), py::arg("srczs"), py::arg("nsrc"),
              py::arg("recxs"), py::arg("reczs"), py::arg("nrec"),
              py::arg("vel"), py::arg("dv"), py::arg("ddat")
-        );
+        )
+      .def("brnoffadj_oneshot",[](scaas2d &sca2d,
+               py::array_t<float, py::array::c_style> src,
+               py::array_t<int, py::array::c_style> srcxs,
+               py::array_t<int, py::array::c_style> srczs,
+               int nsrc,
+               py::array_t<int, py::array::c_style> recxs,
+               py::array_t<int, py::array::c_style> reczs,
+               int nrec,
+               py::array_t<float, py::array::c_style> vel,
+               int nrh,
+               py::array_t<float, py::array::c_style> dv,
+               py::array_t<float, py::array::c_style> ddat
+               )
+               {
+                  sca2d.brnoffadj_oneshot(src.mutable_data(),srcxs.mutable_data(),srczs.mutable_data(),nsrc,
+                      recxs.mutable_data(), reczs.mutable_data(), nrec,
+                      vel.mutable_data(), nrh, dv.mutable_data(), ddat.mutable_data());
+               },
+               py::arg("src"), py::arg("srcxs"), py::arg("srczs"), py::arg("nsrc"),
+               py::arg("recxs"), py::arg("reczs"), py::arg("nrec"),
+               py::arg("vel"), py::arg("nrh"), py::arg("dv"), py::arg("ddat")
+          );
 }

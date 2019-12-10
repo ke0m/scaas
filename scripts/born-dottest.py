@@ -43,10 +43,6 @@ recx = (np.linspace(orx,orx + (nrx-1)*drx,nrx)).astype('int32')
 recz = np.zeros(nrx,dtype='int32') + bz + 5
 
 # Create the wavelet
-#freq = 20; amp = 100.0; dly = 0.05;
-#fsrc = ricker(ntu,dtu,freq,amp,dly)
-#plt.plot(fsrc)
-#plt.show()
 fsrc = np.random.rand(ntu).astype('float32')
 
 # Create wave propagation object

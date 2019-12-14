@@ -4,22 +4,10 @@
 #include <omp.h>
 #include "scaas2d.h"
 #include "matplotlibcpp.h"
+#include <iostream>
 
 namespace plt = matplotlibcpp;
 
-/**
- * Constructor
- * @param nt number of time samples
- * @param nx number of x samples
- * @param nz number of z samples
- * @param dt time sampling rate (data)
- * @param dx spatial sampling in x
- * @param dz spatial sampling in z
- * @param dtu time sampling (propagation)
- * @param bx absorbing boundary thickness in x
- * @param bz absorbing boundary thickness in z
- * @param alpha cosine taper parameter
- */
 scaas2d::scaas2d(int nt, int nx, int nz, float dt, float dx, float dz, float dtu, int bx, int bz, float alpha) {
   /* Lengths */
   _nt = nt; _nx = nx; _nz = nz; _onestp = _nx*_nz;
@@ -33,14 +21,6 @@ scaas2d::scaas2d(int nt, int nx, int nz, float dt, float dx, float dz, float dtu
 }
 
 
-/**
- * Restricts wavefield to receiver locations
- * @param recxs x coordinates of receivers (samples)
- * @param reczs z coordinates of receivers (samples)
- * @param nrec number of receivers
- * @param wslc wavefield slice (input)
- * @param dslc data slice (output)
- */
 void scaas2d::drslc(int *recxs, int *reczs, int nrec, float *wslc, float *dslc) {
 
   /* Loop over all receivers for the time slice */
@@ -50,12 +30,6 @@ void scaas2d::drslc(int *recxs, int *reczs, int nrec, float *wslc, float *dslc) 
   }
 }
 
-/**
- * Linearly interpolates the shot in time before wave propagation
- * @param nrec number of receivers
- * @param datc the input coarse data
- * @param datf the output fine data
- */
 void scaas2d::shot_interp(int nrec, float *datc, float *datf) {
 
   /* Allocate memory */
@@ -702,7 +676,45 @@ void scaas2d::brnfwd_oneshot(float *src, int *srcxs, int *srczs, int nsrc, int *
   delete[] dsou2; delete[] ddslc;
 }
 
+void scaas2d::brnfwd(float *src, int *srcxs, int *srczs, int *nsrcs, int *recxs, int *reczs, int *nrecs, int nex,
+    float *vel, float *dvel, float *ddat, int nthrds) {
+  /* Precompute the offsets */
+  int *soffsets = new int[nex](); int *roffsets = new int[nex]();
+  for(int iex = 1; iex < nex; ++iex) {
+    soffsets[iex] = soffsets[iex-1] + nsrcs[iex];
+    roffsets[iex] = roffsets[iex-1] + nrecs[iex];
+  }
+
+  /* Loop over each experiment */
+  omp_set_num_threads(nthrds);
+#pragma omp parallel for default(shared)
+  for(int iex = 0; iex < nex; ++iex) {
+    /* Get number of sources and receivers for this shot */
+    int insrc = nsrcs[iex]; int inrec = nrecs[iex];
+    /* Get the source positions for this shot */
+    int *isrcx = new int[insrc](); int *isrcz = new int[insrc]();
+    memcpy(isrcx,&srcxs[soffsets[iex]],sizeof(int)*insrc); memcpy(isrcz,&srczs[soffsets[iex]],sizeof(int)*insrc);
+    /* Get the receiver positions for this shot */
+    int *irecx = new int[inrec](); int *irecz = new int[inrec]();
+    memcpy(irecx,&recxs[roffsets[iex]],sizeof(int)*inrec); memcpy(irecz,&reczs[roffsets[iex]],sizeof(int)*inrec);
+    /* Get the source wavelets for this shot */
+    float *isrc = new float[_ntu*insrc]();
+    memcpy(isrc,&src[soffsets[iex]*_ntu],sizeof(float)*_ntu*insrc);
+    /* Perform the wave propagation for this shot */
+    float *iddat = new float[_nt*inrec]();
+    brnfwd_oneshot(isrc, isrcx, isrcz, insrc, irecx, irecz, inrec, vel, dvel, iddat);
+    /* Copy to output data array */
+    memcpy(&ddat[iex*_nt*inrec],iddat,sizeof(float)*_nt*inrec);
+    /* Free memory */
+    delete[] isrcx;  delete[] isrcz;
+    delete[] irecx;  delete[] irecz;
+    delete[] isrc; delete[] iddat;
+  }
+  delete[] soffsets; delete[] roffsets;
+}
+
 void scaas2d::brnadj_oneshot(float *src, int *srcxs, int *srczs, int nsrc, int *recxs, int *reczs, int nrec, float *vel, float *dv, float *ddat) {
+
   /* First calculate laplacian of background wavefield */
   float *lappsol = new float[_nt*_onestp]();
   fwdprop_lapwfld(src, srcxs, srczs, nsrc, vel, lappsol);
@@ -794,6 +806,49 @@ void scaas2d::brnadj_oneshot(float *src, int *srcxs, int *srczs, int nsrc, int *
   delete[] ivel; delete[] srccrse;
 }
 
+void scaas2d::brnadj(float *src, int *srcxs, int *srczs, int *nsrcs, int *recxs, int *reczs, int *nrecs, int nex,
+    float *vel, float *dvel, float *ddat, int nthrds) {
+
+  /* Precompute the offsets */
+  int *soffsets = new int[nex](); int *roffsets = new int[nex]();
+  for(int iex = 1; iex < nex; ++iex) {
+    soffsets[iex] = soffsets[iex-1] + nsrcs[iex];
+    roffsets[iex] = roffsets[iex-1] + nrecs[iex];
+  }
+
+  /* Loop over each experiment */
+  omp_set_num_threads(nthrds);
+#pragma omp parallel for default(shared)
+  for(int iex = 0; iex < nex; ++iex) {
+    /* Get number of sources and receivers for this shot */
+    int insrc = nsrcs[iex]; int inrec = nrecs[iex];
+    /* Get the source positions for this shot */
+    int *isrcx = new int[insrc](); int *isrcz = new int[insrc]();
+    memcpy(isrcx,&srcxs[soffsets[iex]],sizeof(int)*insrc); memcpy(isrcz,&srczs[soffsets[iex]],sizeof(int)*insrc);
+    /* Get the receiver positions for this shot */
+    int *irecx = new int[inrec](); int *irecz = new int[inrec]();
+    memcpy(irecx,&recxs[roffsets[iex]],sizeof(int)*inrec); memcpy(irecz,&reczs[roffsets[iex]],sizeof(int)*inrec);
+    /* Get the source wavelets for this shot */
+    float *isrc = new float[_ntu*insrc]();
+    memcpy(isrc,&src[soffsets[iex]*_ntu],sizeof(float)*_ntu*insrc);
+    /* Get the data for this shot */
+    float *iddat = new float[_nt*inrec]();
+    memcpy(iddat,&ddat[iex*_nt*inrec],sizeof(float)*_nt*inrec);
+    /* Allocate a temporary gradient */
+    float *idvel = new float[_onestp]();
+    /* Compute the gradient for this shot */
+    brnadj_oneshot(isrc, isrcx, isrcz, insrc, irecx, irecz, inrec, vel, idvel, iddat);
+    /* Add gradient to output gradient */
+    for(int k = 0; k < _onestp; ++k) { dvel[k] += idvel[k]; };
+    /* Free memory */
+    delete[] isrcx;  delete[] isrcz;
+    delete[] irecx;  delete[] irecz;
+    delete[] isrc;   delete[] iddat;
+    delete[] idvel;
+  }
+  delete[] soffsets; delete[] roffsets;
+}
+
 void scaas2d::brnoffadj_oneshot(float *src, int *srcxs, int *srczs, int nsrc, int *recxs, int *reczs, int nrec, float *vel, int rnh, float *dv, float *ddat) {
 
   /* First calculate laplacian of background wavefield */
@@ -876,8 +931,8 @@ void scaas2d::brnoffadj_oneshot(float *src, int *srcxs, int *srczs, int nsrc, in
       for(int ih = -nh; ih <= nh; ++ih) {
         for(int iz = 0; iz < _nz; ++iz) {
           for(int ix = nh; ix < _nx-nh; ++ix) {
-              dv[(ih+nh)*_onestp + iz*_nx + ix] += ivel[iz*_nx + ix] * (pre[iz*_nx + ix+ih] * lappsol[kt*_onestp + iz*_nx + ix-ih] +
-                 pre[iz*_nx + ix+ih] * tsrc[iz*_nx + ix-ih])*(_dx*_dz);
+            dv[(ih+nh)*_onestp + iz*_nx + ix] += ivel[iz*_nx + ix] * (pre[iz*_nx + ix+ih] * lappsol[kt*_onestp + iz*_nx + ix-ih] +
+                pre[iz*_nx + ix+ih] * tsrc[iz*_nx + ix-ih])*(_dx*_dz);
           }
         }
       }
@@ -895,6 +950,48 @@ void scaas2d::brnoffadj_oneshot(float *src, int *srcxs, int *srczs, int nsrc, in
   delete[] ivel; delete[] srccrse;
 }
 
+void scaas2d::brnoffadj(float *src, int *srcxs, int *srczs, int *nsrcs, int *recxs, int *reczs, int *nrecs, int nex,
+    float *vel, int rnh, float *dvel, float *ddat, int nthrds) {
+
+  /* Precompute the offsets */
+  int *soffsets = new int[nex](); int *roffsets = new int[nex]();
+  for(int iex = 1; iex < nex; ++iex) {
+    soffsets[iex] = soffsets[iex-1] + nsrcs[iex];
+    roffsets[iex] = roffsets[iex-1] + nrecs[iex];
+  }
+
+  /* Loop over each experiment */
+  omp_set_num_threads(nthrds);
+#pragma omp parallel for default(shared)
+  for(int iex = 0; iex < nex; ++iex) {
+    /* Get number of sources and receivers for this shot */
+    int insrc = nsrcs[iex]; int inrec = nrecs[iex];
+    /* Get the source positions for this shot */
+    int *isrcx = new int[insrc](); int *isrcz = new int[insrc]();
+    memcpy(isrcx,&srcxs[soffsets[iex]],sizeof(int)*insrc); memcpy(isrcz,&srczs[soffsets[iex]],sizeof(int)*insrc);
+    /* Get the receiver positions for this shot */
+    int *irecx = new int[inrec](); int *irecz = new int[inrec]();
+    memcpy(irecx,&recxs[roffsets[iex]],sizeof(int)*inrec); memcpy(irecz,&reczs[roffsets[iex]],sizeof(int)*inrec);
+    /* Get the source wavelets for this shot */
+    float *isrc = new float[_ntu*insrc]();
+    memcpy(isrc,&src[soffsets[iex]*_ntu],sizeof(float)*_ntu*insrc);
+    /* Get the adjoint sources for this shot */
+    float *iddat = new float[_nt*inrec]();
+    memcpy(iddat,&ddat[iex*_nt*inrec],sizeof(float)*_nt*inrec);
+    /* Allocate a temporary gradient */
+    float *idvel = new float[_onestp*rnh]();
+    /* Compute the extended image for this shot */
+    brnoffadj_oneshot(isrc, isrcx, isrcz, insrc, irecx, irecz, inrec, vel, rnh, idvel, iddat);
+    /* Add image to output image */
+    for(int k = 0; k < _onestp*rnh; ++k) { dvel[k] += idvel[k]; };
+    /* Free memory */
+    delete[] isrcx;  delete[] isrcz;
+    delete[] irecx;  delete[] irecz;
+    delete[] isrc;   delete[] iddat;
+    delete[] idvel;
+  }
+  delete[] soffsets; delete[] roffsets;
+}
 
 void scaas2d::build_taper(float *tap) {
   /* Fill the the taper with ones */

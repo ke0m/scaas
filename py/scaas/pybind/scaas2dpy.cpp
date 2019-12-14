@@ -227,6 +227,29 @@ PYBIND11_MODULE(scaas2dpy,m) {
              py::arg("recxs"), py::arg("reczs"), py::arg("nrec"),
              py::arg("vel"), py::arg("dvel"), py::arg("ddat")
         )
+      .def("brnfwd",[](scaas2d &sca2d,
+             py::array_t<float, py::array::c_style> src,
+             py::array_t<int, py::array::c_style> srcxs,
+             py::array_t<int, py::array::c_style> srczs,
+             py::array_t<int, py::array::c_style> nsrc,
+             py::array_t<int, py::array::c_style> recxs,
+             py::array_t<int, py::array::c_style> reczs,
+             py::array_t<int, py::array::c_style> nrec,
+             int nex,
+             py::array_t<float, py::array::c_style> vel,
+             py::array_t<float, py::array::c_style> dvel,
+             py::array_t<float, py::array::c_style> ddat,
+             int nthrds
+            )
+            {
+             sca2d.brnfwd(src.mutable_data(),srcxs.mutable_data(), srczs.mutable_data(), nsrc.mutable_data(),
+                     recxs.mutable_data(), reczs.mutable_data(), nrec.mutable_data(), nex,
+                     vel.mutable_data(), dvel.mutable_data(), ddat.mutable_data(), nthrds);
+            },
+            py::arg("src"), py::arg("srcxs"), py::arg("srczs"), py::arg("nsrc"),
+            py::arg("recxs"), py::arg("reczs"), py::arg("nrec"), py::arg("nex"),
+            py::arg("vel"), py::arg("dvel"), py::arg("ddat"), py::arg("nthrds")
+          )
       .def("brnadj_oneshot",[](scaas2d &sca2d,
              py::array_t<float, py::array::c_style> src,
              py::array_t<int, py::array::c_style> srcxs,
@@ -248,6 +271,29 @@ PYBIND11_MODULE(scaas2dpy,m) {
              py::arg("recxs"), py::arg("reczs"), py::arg("nrec"),
              py::arg("vel"), py::arg("dv"), py::arg("ddat")
         )
+      .def("brnadj",[] (scaas2d &sca2d,
+             py::array_t<float, py::array::c_style> src,
+             py::array_t<int, py::array::c_style> srcxs,
+             py::array_t<int, py::array::c_style> srczs,
+             py::array_t<int, py::array::c_style> nsrcs,
+             py::array_t<int, py::array::c_style> recxs,
+             py::array_t<int, py::array::c_style> reczs,
+             py::array_t<int, py::array::c_style> nrecs,
+             int nex,
+             py::array_t<float, py::array::c_style> vel,
+             py::array_t<float, py::array::c_style> dvel,
+             py::array_t<float, py::array::c_style> ddat,
+             int nthrds
+             )
+             {
+               sca2d.brnadj(src.mutable_data(), srcxs.mutable_data(), srczs.mutable_data(), nsrcs.mutable_data(),
+                   recxs.mutable_data(), reczs.mutable_data(), nrecs.mutable_data(), nex,
+                    vel.mutable_data(), dvel.mutable_data(), ddat.mutable_data(), nthrds);
+             },
+             py::arg("src"), py::arg("srcxs"), py::arg("srczs"), py::arg("nsrcs"),
+             py::arg("recxs"), py::arg("reczs"), py::arg("nrecs"), py::arg("nex"),
+             py::arg("vel"), py::arg("dvel"), py::arg("ddat"), py::arg("nthrds")
+          )
       .def("brnoffadj_oneshot",[](scaas2d &sca2d,
                py::array_t<float, py::array::c_style> src,
                py::array_t<int, py::array::c_style> srcxs,
@@ -269,5 +315,29 @@ PYBIND11_MODULE(scaas2dpy,m) {
                py::arg("src"), py::arg("srcxs"), py::arg("srczs"), py::arg("nsrc"),
                py::arg("recxs"), py::arg("reczs"), py::arg("nrec"),
                py::arg("vel"), py::arg("nrh"), py::arg("dv"), py::arg("ddat")
+          )
+      .def("brnoffadj",[] (scaas2d &sca2d,
+               py::array_t<float, py::array::c_style> src,
+               py::array_t<int, py::array::c_style> srcxs,
+               py::array_t<int, py::array::c_style> srczs,
+               py::array_t<int, py::array::c_style> nsrcs,
+               py::array_t<int, py::array::c_style> recxs,
+               py::array_t<int, py::array::c_style> reczs,
+               py::array_t<int, py::array::c_style> nrecs,
+               int nex,
+               py::array_t<float, py::array::c_style> vel,
+               int rnh,
+               py::array_t<float, py::array::c_style> dvel,
+               py::array_t<float, py::array::c_style> ddat,
+               int nthrds
+               )
+               {
+                 sca2d.brnoffadj(src.mutable_data(), srcxs.mutable_data(), srczs.mutable_data(), nsrcs.mutable_data(),
+                     recxs.mutable_data(), reczs.mutable_data(), nrecs.mutable_data(), nex,
+                      vel.mutable_data(), rnh, dvel.mutable_data(), ddat.mutable_data(), nthrds);
+               },
+               py::arg("src"), py::arg("srcxs"), py::arg("srczs"), py::arg("nsrcs"),
+               py::arg("recxs"), py::arg("reczs"), py::arg("nrecs"), py::arg("nex"),
+               py::arg("vel"), py::arg("rnh"), py::arg("dvel"), py::arg("ddat"), py::arg("nthrds")
           );
 }

@@ -2,7 +2,7 @@
  * 2D Scalar acoustic wave equation forward 
  * and adjoint (No SEPlib. Yay!)
  * @author: Joseph Jennings
- * @version: 2019.11.03
+ * @version: 2019.12.12
  **/
 
 #ifndef SCAAS2D_H
@@ -31,10 +31,11 @@ class scaas2d {
     void gradient_multishot(float *src, int *srcxs, int *srczs, int *nsrcs, float *asrc, int *recxs, int *reczs, int *nrecs, int nex, float *vel, float *grad, int nthrds);
     /// Born functions
     void brnfwd_oneshot(float *src, int *srcxs, int *srczs, int nsrc, int *recxs, int *reczs, int nrec, float *vel, float *dvel, float *ddat);
-    void brnfwd(float *src, int *srcxs, int *srczs, int *nsrc, int *recxs, int *reczs, int *nrec, int nex, float *vel, float *dat, int nthrds);
+    void brnfwd(float *src, int *srcxs, int *srczs, int *nsrc, int *recxs, int *reczs, int *nrec, int nex, float *vel, float *dvel, float *ddat, int nthrds);
     void brnadj_oneshot(float *src, int *srcxs, int *srczs, int nsrc, int *recxs, int *reczs, int nrec, float *vel, float *dvel, float *ddat);
+    void brnadj(float *src, int *srcxs, int *srczs, int *nsrcs, int *recxs, int *reczs, int *nrecs, int nex, float *vel, float *dvel, float *ddat, int nthrds);
     void brnoffadj_oneshot(float *src, int *srcxs, int *srczs, int nsrc, int *recxs, int *reczs, int nrec, float *vel, int rnh, float *dvel, float *ddat);
-    void brnadj(float *src, int *srcxs, int *srczs, int *nsrcs, float *asrc, int *recxs, int *reczs, int *nrecs, int nex, float *vel, float *grad, int nthrds);
+    void brnoffadj(float *src, int *srcxs, int *srczs, int *nsrcs, int *recxs, int *reczs, int *nrecs, int nex, float *vel, int rnh, float *dvel, float *ddat, int nthrds);
     /// Shot and receiver (data) functions
     void dr(int *recx, int *recz, int nrec, float *wfld, float *dat);
     void drt(int *recx, int *recz, int nrec, float *wfld, float *dat);

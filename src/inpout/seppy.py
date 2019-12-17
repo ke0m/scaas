@@ -4,6 +4,7 @@ import os,socket,getpass
 import datetime
 import string, random
 import subprocess as sp
+import matplotlib.pyplot as plt
 
 class axes:
   """ Axes of regularly sampled data"""
@@ -336,6 +337,7 @@ class sep:
         print("Type %s not recognized. Returning default")
         return default
 
+  ## Vplot plotting
   #TODO: For now, I write the file to wherever you are.
   #      This may not be good in the future
   def pltgrey(self,daxes,dat,greyargs=None,shwvplt=True,figname=None,bg=False,savehfile=False):
@@ -424,6 +426,49 @@ class sep:
       if(ext != "pdf"):
         # Use Imagemagick to convert to other file type
         sp.check_call("convert %s %s"%(figfile+".pdf",figname),shell=True)
+
+    return
+
+  def pltgreymovie(self,dat,greyargs=None,o1=None,o2=None,o3=None,d1=None,d2=None,d3=None,bg=None,savehfile=False):
+    """ Plot a Grey movie within Python """
+    argdict = locals()
+    assert(len(dat.shape) > 1), "Only use Grey for arrays of ndim=2 or larger"
+    # Create random output filename
+    rgname = ""
+    if(len(self.argv) == 0):
+      rgname = "python" + self.id_generator() + "Grey"
+    else:
+      rgname = self.argv[0].split("/")[-1] + self.id_generator() + "Grey"
+    rghname = rgname + ".H"
+    # Build axes
+    ns = list(dat.shape); os = []; ds = []
+    for i in range(3):
+      okey = 'o' + str(i+1)
+      if(argdict[okey] != None):
+        os.append(argdict[okey])
+      else:
+        os.append(0.0)
+      dkey = 'd' + str(i+1)
+      if(argdict[dkey] != None):
+        ds.append(argdict[dkey])
+      else:
+        ds.append(1.0)
+    daxes = axes(ns,os,ds)
+    self.write_file(None,daxes,dat,ofname=rghname)
+    # Build Grey command for viewing
+    gpltcmd = 'Grey < %s'%(rghname); gsvecmd = 'Grey < %s'%(rghname)
+
+    if(greyargs != None):
+      gpltcmd += " " + greyargs
+
+    gpltcmd += " | Tube -geometry 600x500"
+    if(bg): gpltcmd += "&"
+
+    print(gpltcmd)
+    # Plot the figure with vplot
+    sp.check_call(gpltcmd,shell=True)
+    if(savehfile == False):
+      sp.check_call("Rm %s"%(rghname),shell=True)
 
     return
 
@@ -614,4 +659,29 @@ class sep:
         sp.check_call("convert %s %s"%(figfile+".pdf",figname),shell=True)
 
     return
+
+  ## Python plotting
+  def pltmoviekeys(self,imgs,options=None):
+    curr_pos = 0
+
+    def key_event(e):
+      global curr_pos
+
+      if e.key == "right":
+        curr_pos = curr_pos + 1
+      elif e.key == "left":
+        curr_pos = curr_pos - 1
+      else:
+        return
+      curr_pos = curr_pos % iaxes.n[2]
+
+      ax.cla()
+      ax.imshow(imgs[:,:,curr_pos],cmap='gray')
+      fig.canvas.draw()
+
+    fig = plt.figure()
+    fig.canvas.mpl_connect('key_press_event', key_event)
+    ax = fig.add_subplot(111)
+    ax.imshow(imgs[:,:,0],cmap='gray')
+    plt.show()
 

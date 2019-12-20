@@ -16,6 +16,10 @@ def find_optimal_sizes(n,j,nb):
     space -= sample
   return b,e
 
+def distance(pt1,pt2):
+  """ Compute the distance between two points """
+  return np.linalg.norm(np.asarray(pt1)-np.asarray(pt2))
+
 def create_ptscatmodel(nz,nx,j1,j2,verb=False):
   """ Creates a point scatterer model """
   # Calculate the number of blocks in each dimension
@@ -51,6 +55,31 @@ def create_ptscatmodel(nz,nx,j1,j2,verb=False):
       ct2 = int(b2[ib2] + j2/2 + 1)
       scats[ct1,ct2] = 1.0
       if(verb): print("Block %d %d: (%d,%d)"%(ib1,ib2,ct1,ct2))
+
+  return scats
+
+def create_randptscatmodel(nz,nx,npts,mindist):
+  """ Creates a model with randomly distributed point scatterers """
+  scats = np.zeros([nz,nx],dtype='float32')
+  pts = []; k = 0
+  while(len(pts) < npts):
+    # Create a coordinates
+    pt = []
+    pt.append(np.random.randint(10,nz-10))
+    pt.append(np.random.randint(10,nx-10))
+    if(k == 0):
+      scats[pt[0],pt[1]] = 1.0
+      pts.append(pt)
+    else:
+      keeppoint = True
+      for opt in pts:
+        if(distance(pt,opt) < mindist):
+          keeppoint = False
+          break
+      if(keeppoint == True):
+        scats[pt[0],pt[1]] = 1.0
+        pts.append(pt)
+    k += 1
 
   return scats
 

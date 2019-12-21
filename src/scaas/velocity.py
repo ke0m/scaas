@@ -1,6 +1,7 @@
 # Build point scatterer models for imaging
 import numpy as np
 import scaas.noise_generator as noise_generator
+import scipy.ndimage as flt
 
 def find_optimal_sizes(n,j,nb):
   """ Finds the optimal size for a provided j along a
@@ -92,4 +93,32 @@ def create_randomptb(nz,nx,romin,romax,nptsz=1,nptsx=1,octaves=4,period=80,Ngrad
   noise -= np.min(noise)
   n = ((romax - romin) + np.max(noise*romin))/(np.max(noise))
   return (noise*(n-romin) + romin).astype('float32')
+
+def create_randomptb_loc(nz,nx,romin,romax,naz,nax,cz,cx,
+                         nptsz=1,nptsx=1,octaves=4,period=80,Ngrad=80,persist=0.2,ncpu=2):
+  """ Creates a low wavenumber perturbation given minimum rho
+  and maximum rho values
+  """
+  noise = noise_generator.perlin(x=np.linspace(0,nptsx,nax), y=np.linspace(0,nptsz,naz), octaves=octaves,
+      period=period, Ngrad=Ngrad, persist=persist, ncpu=ncpu)
+  noise -= np.min(noise)
+  n = ((romax - romin) + np.max(noise*romin))/(np.max(noise))
+  noiseout = noise*(n-romin) + romin
+
+  #nz = naz + p1 + p2
+  # cz = p1 + naz
+  #pz = int((nz-naz)/2); px = int((nx-nax)/2)
+  pz1 = cz - int(naz/2)
+  if(pz1 < 0):
+    cz = naz/2
+  pz2 = nz - cz - int(naz/2)
+  print(pz1,int(naz/2),pz2)
+  px1 = cx - int(nax/2)
+  if(px1 < 0):
+    cx = nax/2
+  px2 = nx - cx - int(nax/2)
+  noisep   = np.pad(noiseout,((pz1,pz2),(px1,px2)),'constant',constant_values=1)
+  noisepsm = flt.gaussian_filter(noisep,sigma=5)
+
+  return noisepsm.astype('float32')
 

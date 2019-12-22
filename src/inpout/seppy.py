@@ -429,6 +429,49 @@ class sep:
 
     return
 
+  def pltgreyimg(self,dat,greyargs=None,o1=None,o2=None,d1=None,d2=None,bg=None,savehfile=False):
+    """ Plot a Grey movie within Python """
+    argdict = locals()
+    assert(len(dat.shape) > 1), "Only use Grey for arrays of ndim=2 or larger"
+    # Create random output filename
+    rgname = ""
+    if(len(self.argv) == 0):
+      rgname = "python" + self.id_generator() + "Grey"
+    else:
+      rgname = self.argv[0].split("/")[-1] + self.id_generator() + "Grey"
+    rghname = rgname + ".H"
+    # Build axes
+    ns = list(dat.shape); os = []; ds = []
+    for i in range(2):
+      okey = 'o' + str(i+1)
+      if(argdict[okey] != None):
+        os.append(argdict[okey])
+      else:
+        os.append(0.0)
+      dkey = 'd' + str(i+1)
+      if(argdict[dkey] != None):
+        ds.append(argdict[dkey])
+      else:
+        ds.append(1.0)
+    daxes = axes(ns,os,ds)
+    self.write_file(None,daxes,dat,ofname=rghname)
+    # Build Grey command for viewing
+    gpltcmd = 'Grey < %s'%(rghname); gsvecmd = 'Grey < %s'%(rghname)
+
+    if(greyargs != None):
+      gpltcmd += " " + greyargs
+
+    gpltcmd += " | Tube -geometry 600x500"
+    if(bg): gpltcmd += "&"
+
+    print(gpltcmd)
+    # Plot the figure with vplot
+    sp.check_call(gpltcmd,shell=True)
+    if(savehfile == False):
+      sp.check_call("Rm %s"%(rghname),shell=True)
+
+    return
+
   def pltgreymovie(self,dat,greyargs=None,o1=None,o2=None,o3=None,d1=None,d2=None,d3=None,bg=None,savehfile=False):
     """ Plot a Grey movie within Python """
     argdict = locals()

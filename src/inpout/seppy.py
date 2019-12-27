@@ -11,9 +11,9 @@ class axes:
   def __init__(self,n,o,d,label=None):
     self.ndims = len(n)
     assert(len(o) == self.ndims or len(d) == self.ndims), "Error: the size of n, o and d do not match."
-    self.n = n 
-    self.o = o 
-    self.d = d 
+    self.n = n
+    self.o = o
+    self.d = d
     self.label = label
 
   def get_nelem(self):
@@ -98,7 +98,7 @@ class sep:
 
     # Remove ones at the end
     for n in ns:
-      if(ns[-1] == 1.0): 
+      if(ns[-1] == 1.0):
         del ns[-1]; del os[-1]; del ds[-1]; del lbls[-1]
 
     # Take care of the remaining
@@ -149,7 +149,7 @@ class sep:
         dat[:] = np.fromfile(f, dtype='<f')
       else:
         print("Failed to read in file. Format %s not recognized\n"%(form))
-  
+
     return faxes, dat
 
   def from_header(self,tag,keys,ifname=None):
@@ -164,7 +164,7 @@ class sep:
 
     return odict
 
-  def write_header(self,tag,ofaxes,ofname=None,form='xdr'):
+  def write_header(self,tag,ofaxes,ofname=None,dpath=None,form='xdr'):
     """ Writes header information to SEP file and returns
     the path to the output """
     fout = None
@@ -182,11 +182,15 @@ class sep:
     # Get the datapath
     if(len(ofname.split('/')) > 1):
       ofname = ofname.split('/')[-1]
-    opath = self.get_datapath() + ofname + "@"
+    opath = None
+    if(dpath == None):
+      opath = self.get_datapath() + ofname + "@"
+    else:
+      opath = dpath + ofname + "@"
     fout.write('\t\tsets next: in="%s"\n'%(opath))
     # Print axes
     for k in range(ofaxes.ndims):
-      if(ofaxes.label != None): 
+      if(ofaxes.label != None):
         fout.write("\t\tn%d=%d o%d=%f d%d=%.12f label%d=%s\n"%
             (k+1,ofaxes.n[k],k+1,ofaxes.o[k],k+1,ofaxes.d[k],k+1,ofaxes.label[k]))
       else:
@@ -206,9 +210,9 @@ class sep:
 
   #TODO: really inefficient for large files (lots of memory and slow)
   # probably should wrap Huy's code
-  def write_file(self,tag,ofaxes,data,ofname=None,form='xdr'):
+  def write_file(self,tag,ofaxes,data,ofname=None,dpath=None,form='xdr'):
     """ Writes data and axes to a SEP header and binary """
-    opath = self.write_header(tag,ofaxes,ofname,form)
+    opath = self.write_header(tag,ofaxes,ofname,dpath,form)
     with open(opath,'wb') as f:
       if(form == 'xdr'):
         data.flatten('F').astype('>f').tofile(f)
@@ -241,8 +245,8 @@ class sep:
     fout = open(ofname,"a")
     fout.write("\n\t\tn%d=1 o%d=0.0 d%d=1.0\n"%(dim,dim,dim))
     fout.close()
-  
-  def append_to_movie(self,tag,ofaxes,data,niter,ofname=None,form='xdr'):
+
+  def append_to_movie(self,tag,ofaxes,data,niter,ofname=None,dpath=None,form='xdr'):
     """ Appends to a file for an inversion movie"""
     if(ofname == None):
       ofname = self.get_fname(tag)
@@ -254,7 +258,11 @@ class sep:
     fout.close()
 
     # Append the data to the binary
-    opath = self.get_datapath() + ofname + "@"
+    opath = None
+    if(dpath == None):
+      opath = self.get_datapath() + ofname + "@"
+    else:
+      opath = dpath + ofname + "@"
     with open(opath,'ab') as f:
       if(form == 'xdr'):
         data.flatten('F').astype('>f').tofile(f)
@@ -308,7 +316,7 @@ class sep:
     #  dpath = '/tmp/'
 
     return dpath
-  
+
   def id_generator(self,size=6, chars=string.ascii_uppercase + string.digits):
     """ Creates a random string with uppercase letters and integers """
     return ''.join(random.choice(chars) for _ in range(size))
@@ -316,7 +324,7 @@ class sep:
   def yn2zoo(self,yn):
     """ Converts a 'y' or 'n' to an integer """
     if(yn == "n"):
-      zoo = 0 
+      zoo = 0
     else:
       zoo = 1
 
@@ -362,7 +370,7 @@ class sep:
       if(greyargs != None):
         gpltcmd += " " + greyargs
         gsvecmd += " " + greyargs
-    
+
         gpltcmd += " | Tube -geometry 600x500"
         if(bg): gpltcmd += "&"
         gsvecmd += " out=%s > /dev/null "%(figfile+".v")
@@ -405,7 +413,7 @@ class sep:
     elif(shwvplt == False and figname != None):
       if(greyargs != None):
         gsvecmd += " " + greyargs
-    
+
         gsvecmd += " out=%s > /dev/null "%(figfile+".v")
       # Write the vplot
       print(gsvecmd)
@@ -547,7 +555,7 @@ class sep:
       if(graphargs != None):
         gpltcmd += " " + graphargs
         gsvecmd += " " + graphargs
-    
+
         gpltcmd += " | Tube -geometry 600x500"
         if(bg): gpltcmd += "&"
         gsvecmd += " out=%s > /dev/null "%(figfile+".v")
@@ -590,7 +598,7 @@ class sep:
     elif(shwvplt == False and figname != None):
       if(graphargs != None):
         gsvecmd += " " + graphargs
-    
+
         gsvecmd += " out=%s > /dev/null "%(figfile+".v")
       # Write the vplot
       print(gsvecmd)
@@ -634,9 +642,9 @@ class sep:
     ## Plot and write figure
     if(shwvplt and figname != None):
       if(dotargs != None):
-        gpltcmd += " " + dotargs 
+        gpltcmd += " " + dotargs
         gsvecmd += " " + dotargs
-    
+
         gpltcmd += " | Tube -geometry 600x500"
         if(bg): gpltcmd += "&"
         gsvecmd += " out=%s > /dev/null "%(figfile+".v")
@@ -679,7 +687,7 @@ class sep:
     elif(shwvplt == False and figname != None):
       if(dotargs != None):
         gsvecmd += " " + dotargs
-    
+
         gsvecmd += " out=%s > /dev/null "%(figfile+".v")
       # Write the vplot
       print(gsvecmd)

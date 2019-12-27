@@ -356,7 +356,7 @@ class sep:
     if(tagout != None):
       return tagout
     else:
-      return str(tagout)
+      return str(numin)
 
   ## Vplot plotting
   #TODO: For now, I write the file to wherever you are.

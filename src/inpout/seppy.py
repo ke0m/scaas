@@ -345,6 +345,19 @@ class sep:
         print("Type %s not recognized. Returning default")
         return default
 
+  def create_inttag(self,numin,totnum):
+    """ Creates a tag that is appended with zeros for friendly Unix sorting """
+    nzeros = int(np.log10(totnum))
+    tagout = None
+    for izro in range(1,nzeros+1):
+      if(numin >= 10**(izro-1) and numin < 10**(izro)):
+        tagout = '0'*(nzeros) + str(numin)
+      nzeros -= 1
+    if(tagout != None):
+      return tagout
+    else:
+      return str(tagout)
+
   ## Vplot plotting
   #TODO: For now, I write the file to wherever you are.
   #      This may not be good in the future

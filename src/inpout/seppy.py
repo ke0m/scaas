@@ -138,17 +138,26 @@ class sep:
 
     return hdict
 
-  def read_file(self,tag,ifname=None,form='xdr'):
+  def read_file(self,tag,ifname=None,form='xdr',safe=False):
     """ Reads a SEP file from tag and returns the data and the axes """
     faxes  = self.read_header(tag,ifname)
-    dat = np.zeros(faxes.get_nelem())
-    with open(self.hdict["in"],'rb') as f:
-      if(form == 'xdr'):
-        dat[:] = np.fromfile(f, dtype='>f')
-      elif(form == 'native'):
-        dat[:] = np.fromfile(f, dtype='<f')
-      else:
-        print("Failed to read in file. Format %s not recognized\n"%(form))
+    if(safe):
+      dat = np.zeros(faxes.get_nelem())
+      with open(self.hdict["in"],'rb') as f:
+        if(form == 'xdr'):
+          dat[:] = np.fromfile(f, dtype='>f')
+        elif(form == 'native'):
+          dat[:] = np.fromfile(f, dtype='<f')
+        else:
+          print("Failed to read in file. Format %s not recognized\n"%(form))
+    else:
+      with open(self.hdict["in"],'rb') as f:
+        if(form == 'xdr'):
+          dat = np.fromfile(f, dtype='>f')
+        elif(form == 'native'):
+          dat = np.fromfile(f, dtype='<f')
+        else:
+          print("Failed to read in file. Format %s not recognized\n"%(form))
 
     return faxes, dat
 

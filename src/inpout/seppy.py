@@ -394,7 +394,7 @@ class sep:
         gsvecmd += " " + greyargs
 
         gpltcmd += " | Tube -geometry 600x500"
-        if(bg): gpltcmd += "&"
+        if(bg): gpltcmd += " &"
         gsvecmd += " out=%s > /dev/null "%(figfile+".v")
       # Plot and write the vplot
       print(gsvecmd)
@@ -423,7 +423,7 @@ class sep:
         gpltcmd += " " + greyargs
 
       gpltcmd += " | Tube -geometry 600x500"
-      if(bg): gpltcmd += "&"
+      if(bg): gpltcmd += " &"
 
       print(gpltcmd)
       # Plot the figure with vplot
@@ -492,7 +492,7 @@ class sep:
       gpltcmd += " " + greyargs
 
     gpltcmd += " | Tube -geometry 600x500"
-    if(bg): gpltcmd += "&"
+    if(bg): gpltcmd += " &"
 
     print(gpltcmd)
     # Plot the figure with vplot
@@ -535,7 +535,7 @@ class sep:
       gpltcmd += " " + greyargs
 
     gpltcmd += " | Tube -geometry 600x500"
-    if(bg): gpltcmd += "&"
+    if(bg): gpltcmd += " &"
 
     print(gpltcmd)
     # Plot the figure with vplot
@@ -579,7 +579,7 @@ class sep:
         gsvecmd += " " + graphargs
 
         gpltcmd += " | Tube -geometry 600x500"
-        if(bg): gpltcmd += "&"
+        if(bg): gpltcmd += " &"
         gsvecmd += " out=%s > /dev/null "%(figfile+".v")
       # Plot and write the vplot
       print(gsvecmd)
@@ -608,7 +608,7 @@ class sep:
         gpltcmd += " " + graphargs
 
       gpltcmd += " | Tube -geometry 600x500"
-      if(bg): gpltcmd += "&"
+      if(bg): gpltcmd += " &"
 
       print(gpltcmd)
       # Plot the figure with vplot
@@ -668,7 +668,7 @@ class sep:
         gsvecmd += " " + dotargs
 
         gpltcmd += " | Tube -geometry 600x500"
-        if(bg): gpltcmd += "&"
+        if(bg): gpltcmd += " &"
         gsvecmd += " out=%s > /dev/null "%(figfile+".v")
       # Plot and write the vplot
       print(gsvecmd)
@@ -697,7 +697,7 @@ class sep:
         gpltcmd += " " + dotargs
 
       gpltcmd += " | Tube -geometry 600x500"
-      if(bg): gpltcmd += "&"
+      if(bg): gpltcmd += " &"
 
       print(gpltcmd)
       # Plot the figure with vplot

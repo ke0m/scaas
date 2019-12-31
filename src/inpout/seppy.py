@@ -459,7 +459,7 @@ class sep:
 
     return
 
-  def pltgreyimg(self,dat,greyargs=None,o1=None,o2=None,d1=None,d2=None,bg=None,savehfile=False):
+  def pltgreyimg(self,dat,greyargs=None,o1=None,o2=None,d1=None,d2=None,bg=False,savehfile=False):
     """ Plot a Grey movie within Python """
     argdict = locals()
     assert(len(dat.shape) > 1), "Only use Grey for arrays of ndim=2 or larger"
@@ -502,7 +502,7 @@ class sep:
 
     return
 
-  def pltgreymovie(self,dat,greyargs=None,o1=None,o2=None,o3=None,d1=None,d2=None,d3=None,bg=None,savehfile=False):
+  def pltgreymovie(self,dat,greyargs=None,o1=None,o2=None,o3=None,d1=None,d2=None,d3=None,bg=False,savehfile=False):
     """ Plot a Grey movie within Python """
     argdict = locals()
     assert(len(dat.shape) > 1), "Only use Grey for arrays of ndim=2 or larger"

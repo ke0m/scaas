@@ -5,7 +5,7 @@ Self-doc goes here
 @version:
 """
 import sys, os, argparse, configparser
-import seppy
+import inpout.seppy as seppy
 import numpy as np
 import subprocess
 
@@ -16,12 +16,11 @@ conf_parser.add_argument("-c", "--conf_file",
 args, remaining_argv = conf_parser.parse_known_args()
 defaults = {
     "verb": "n",
-    "klean": "y",
     }
 if args.conf_file:
-  config = ConfigParser.SafeConfigParser()
+  config = configparser.ConfigParser()
   config.read([args.conf_file])
-  defaults = dict(config.items("Defaults"))
+  defaults = dict(config.items("defaults"))
 
 # Parse the other arguments
 # Don't surpress add_help here so it will handle -h
@@ -32,8 +31,9 @@ parser = argparse.ArgumentParser(parents=[conf_parser],description=__doc__,
 parser.set_defaults(**defaults)
 
 # Input files
-parser.add_argument("in=",help="input file")
-parser.add_argument("out=",help="output file")
+ioArgs = parser.add_argument_group('Inputs and outputs')
+ioArgs.add_argument("in=",help="input file",type=str)
+ioArgs.add_argument("out=",help="output file",type=str)
 # Required arguments
 requiredNamed = parser.add_argument_group('required parameters')
 requiredNamed.add_argument('-ex',help='A required argument',required=True,type=str)

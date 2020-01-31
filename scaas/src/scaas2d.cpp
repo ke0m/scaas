@@ -2,6 +2,7 @@
 #include <math.h>
 #include <cstring>
 #include <omp.h>
+#include <vector>
 #include "scaas2d.h"
 #include <iostream>
 

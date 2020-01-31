@@ -3,10 +3,7 @@
 #include <cstring>
 #include <omp.h>
 #include "scaas2d.h"
-#include "matplotlibcpp.h"
 #include <iostream>
-
-namespace plt = matplotlibcpp;
 
 scaas2d::scaas2d(int nt, int nx, int nz, float dt, float dx, float dz, float dtu, int bx, int bz, float alpha) {
   /* Lengths */

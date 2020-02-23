@@ -39,6 +39,10 @@ requiredNamed = parser.add_argument_group('required parameters')
 requiredNamed.add_argument('-ex',help='A required argument',required=True,type=str)
 # Optional arguments
 parser.add_argument("-verb",help="Verbosity flag (y or [n])",type=str)
+# Enables required arguments in config file
+for action in parser._actions:
+  if(action.dest in defaults):
+    action.required = False
 args = parser.parse_args(remaining_argv)
 
 # Set up SEP

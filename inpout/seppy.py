@@ -242,7 +242,7 @@ class sep:
       assert(ofname != None), "No output file name found. Did you pass argv to seppy?"
       fout = open(ofname,"a")
     else:
-      fout = open(ofname,"w+")
+      fout = open(ofname,"a+")
     fout.write('\n' + info)
     fout.close()
 

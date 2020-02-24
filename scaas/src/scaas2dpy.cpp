@@ -124,6 +124,15 @@ PYBIND11_MODULE(scaas2dpy,m) {
                },
                py::arg("p"), py::arg("d2p")
           )
+      .def("lapimg",[](scaas2d &sca2d,
+               py::array_t<float, py::array::c_style> img,
+               py::array_t<float, py::array::c_style> lap
+               )
+               {
+                 sca2d.lapimg(img.mutable_data(), lap.mutable_data());
+               },
+               py::arg("img"), py::arg("lap")
+          )
       .def("calc_grad_d2t",[](scaas2d &sca2d,
                py::array_t<float, py::array::c_style> d2t,
                py::array_t<float, py::array::c_style> lsol,

@@ -24,6 +24,7 @@ class scaas2d {
     /// Gradient helper functions
     void d2t(float* p ,float *d2tp);
     void d2x(float *p, float *d2xp);
+    void lapimg(float *img, float *lap);
     void calc_grad_d2t(float *d2pt, float *lsol, float *v, float * grad);
     void calc_grad_d2x(float *d2px, float *lsol, float *src, int *srcxs, int *srczs, int nsrc, float *v, float *grad);
     /// Gradient functions

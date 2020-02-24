@@ -1,4 +1,4 @@
-PYPATH=/opt/anaconda/anaconda3/envs/py35
+PYPATH=/opt/anaconda3/envs/py35
 NPPATH=${PYPATH}/lib/python3.5/site-packages/numpy/core
 ISPC=/opt/ispc-v1.9.2-linux/
 MPL=/opt/matplotlib-cpp

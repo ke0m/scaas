@@ -3,7 +3,7 @@
 #include <cstring>
 #include <omp.h>
 #include "scaas2d.h"
-#include "matplotlibcpp.h"
+#include "/opt/matplotlib-cpp/matplotlibcpp.h"
 #include <iostream>
 
 namespace plt = matplotlibcpp;
@@ -394,6 +394,18 @@ void scaas2d::d2x(float *p, float *d2p) {
 
   /* Free memory */
   delete[] tmp1; delete[] tmp2;
+
+}
+
+void scaas2d::lapimg(float *img, float *lap) {
+
+  for(int iz = 0; iz < _nz; ++iz) {
+    for(int ix = 0; ix < _nx; ++ix) {
+      lap[iz*_nx + ix] = -4*img[iz*_nx + ix] +
+          img[(iz-1)*_nx + ix  ] + img[(iz+1)*_nx + ix  ] +
+          img[(iz  )*_nx + ix-1] + img[(iz  )*_nx + ix+1];
+    }
+  }
 
 }
 

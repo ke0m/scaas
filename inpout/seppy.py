@@ -33,7 +33,7 @@ class sep:
     self.hdict = {}
     self.haxes = {}
     self.argv  = argv
-    self.hostname = socket.gethostname()
+    self.hostname = self.gethostname()
 
   def get_fname(self, tag):
     """ Gets the file name with the associated tag """
@@ -325,6 +325,22 @@ class sep:
     #  dpath = '/tmp/'
 
     return dpath
+
+  def gethostname(alias=True):
+    """
+    An extension of socket.gethostname() where the hostname alias
+    is returned if requested. This makes this code more
+    compatible with the IO in SEPlib
+    """
+    hname = socket.gethostname()
+    if(alias):
+      with open('/etc/hosts','r') as f:
+        for line in f.readlines():
+          cols = line.lower().split()
+          if(hname == cols[1] and len(cols) > 2):
+            hname = cols[2]
+
+    return hname
 
   def id_generator(self,size=6, chars=string.ascii_uppercase + string.digits):
     """ Creates a random string with uppercase letters and integers """
@@ -734,29 +750,4 @@ class sep:
         sp.check_call("convert %s %s"%(figfile+".pdf",figname),shell=True)
 
     return
-
-  ## Python plotting
-  def pltmoviekeys(self,imgs,options=None):
-    curr_pos = 0
-
-    def key_event(e):
-      global curr_pos
-
-      if e.key == "right":
-        curr_pos = curr_pos + 1
-      elif e.key == "left":
-        curr_pos = curr_pos - 1
-      else:
-        return
-      curr_pos = curr_pos % iaxes.n[2]
-
-      ax.cla()
-      ax.imshow(imgs[:,:,curr_pos],cmap='gray')
-      fig.canvas.draw()
-
-    fig = plt.figure()
-    fig.canvas.mpl_connect('key_press_event', key_event)
-    ax = fig.add_subplot(111)
-    ax.imshow(imgs[:,:,0],cmap='gray')
-    plt.show()
 

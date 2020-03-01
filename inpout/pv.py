@@ -20,7 +20,6 @@ def write_nrrd(ofname,dat,ds=[1.0,1.0,1.0],dpath='/scratch/',endian='little'):
     raise Exception("The datapath %s is not valid. Please call write_nrrd with a valid datapath"%(dpath))
   # Get output binary
   bname = ofname.split('.nrrd')[0]
-  print(bname)
   opath = dpath + bname + '.H@'
   # Write nrrd header file
   hfo = open(ofname,'w+')

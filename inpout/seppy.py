@@ -293,8 +293,6 @@ class sep:
 
     return fline
 
-  #TODO: only gets the first line. Need to search over the other
-  # lines for the matching hostname
   def get_datapath(self):
     """ Gets the set datpath for writing SEP binaries """
     dpath = ''
@@ -337,8 +335,9 @@ class sep:
       with open('/etc/hosts','r') as f:
         for line in f.readlines():
           cols = line.lower().split()
-          if(hname == cols[1] and len(cols) > 2):
-            hname = cols[2]
+          if(len(cols) > 1):
+            if(hname == cols[1] and len(cols) > 2):
+              hname = cols[2]
 
     return hname
 

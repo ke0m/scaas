@@ -50,16 +50,17 @@ PYBIND11_MODULE(scaas2dpy,m) {
               int nex,
               py::array_t<float, py::array::c_style> vel,
               py::array_t<float, py::array::c_style> dat,
-              int nthrds
+              int nthrds,
+              int verb
               )
               {
                 sca2d.fwdprop_multishot(src.mutable_data(),srcxs.mutable_data(), srczs.mutable_data(), nsrc.mutable_data(),
                     recxs.mutable_data(), reczs.mutable_data(), nrec.mutable_data(), nex,
-                    vel.mutable_data(), dat.mutable_data(), nthrds);
+                    vel.mutable_data(), dat.mutable_data(), nthrds, verb);
               },
               py::arg("src"), py::arg("srcxs"), py::arg("srczs"), py::arg("nsrc"),
               py::arg("recxs"), py::arg("reczs"), py::arg("nrec"), py::arg("nex"),
-              py::arg("vel"), py::arg("dat"), py::arg("nthrds")
+              py::arg("vel"), py::arg("dat"), py::arg("nthrds"), py::arg("verb")=1
           )
       .def("fwdprop_wfld",[](scaas2d &sca2d,
                py::array_t<float, py::array::c_style> src,
@@ -123,6 +124,15 @@ PYBIND11_MODULE(scaas2dpy,m) {
                  sca2d.d2x(p.mutable_data(),d2p.mutable_data());
                },
                py::arg("p"), py::arg("d2p")
+          )
+      .def("lapimg",[](scaas2d &sca2d,
+               py::array_t<float, py::array::c_style> img,
+               py::array_t<float, py::array::c_style> lap
+               )
+               {
+                 sca2d.lapimg(img.mutable_data(), lap.mutable_data());
+               },
+               py::arg("img"), py::arg("lap")
           )
       .def("calc_grad_d2t",[](scaas2d &sca2d,
                py::array_t<float, py::array::c_style> d2t,
@@ -196,16 +206,18 @@ PYBIND11_MODULE(scaas2dpy,m) {
               int nex,
               py::array_t<float, py::array::c_style> vel,
               py::array_t<float, py::array::c_style> grad,
-              int nthrds
+              int nthrds,
+              int verb
               )
               {
                 sca2d.gradient_multishot(src.mutable_data(), srcxs.mutable_data(), srczs.mutable_data(), nsrcs.mutable_data(),
                     asrc.mutable_data(), recxs.mutable_data(), reczs.mutable_data(), nrecs.mutable_data(), nex,
-                    vel.mutable_data(), grad.mutable_data(), nthrds);
+                    vel.mutable_data(), grad.mutable_data(), nthrds, verb);
               },
               py::arg("src"), py::arg("srcxs"), py::arg("srczs"), py::arg("nsrcs"),
               py::arg("asrc"), py::arg("recxs"), py::arg("reczs"), py::arg("nrecs"),
-              py::arg("nex"), py::arg("vel"), py::arg("grad"), py::arg("nthrds")
+              py::arg("nex"), py::arg("vel"), py::arg("grad"), py::arg("nthrds"),
+              py::arg("verb")=1
          )
       .def("brnfwd_oneshot",[] (scaas2d &sca2d,
               py::array_t<float, py::array::c_style> src,
@@ -239,16 +251,18 @@ PYBIND11_MODULE(scaas2dpy,m) {
              py::array_t<float, py::array::c_style> vel,
              py::array_t<float, py::array::c_style> dvel,
              py::array_t<float, py::array::c_style> ddat,
-             int nthrds
+             int nthrds,
+             int verb
             )
             {
              sca2d.brnfwd(src.mutable_data(),srcxs.mutable_data(), srczs.mutable_data(), nsrc.mutable_data(),
                      recxs.mutable_data(), reczs.mutable_data(), nrec.mutable_data(), nex,
-                     vel.mutable_data(), dvel.mutable_data(), ddat.mutable_data(), nthrds);
+                     vel.mutable_data(), dvel.mutable_data(), ddat.mutable_data(), nthrds, verb);
             },
             py::arg("src"), py::arg("srcxs"), py::arg("srczs"), py::arg("nsrc"),
             py::arg("recxs"), py::arg("reczs"), py::arg("nrec"), py::arg("nex"),
-            py::arg("vel"), py::arg("dvel"), py::arg("ddat"), py::arg("nthrds")
+            py::arg("vel"), py::arg("dvel"), py::arg("ddat"), py::arg("nthrds"),
+            py::arg("verb")=1
           )
       .def("brnadj_oneshot",[](scaas2d &sca2d,
              py::array_t<float, py::array::c_style> src,
@@ -283,16 +297,18 @@ PYBIND11_MODULE(scaas2dpy,m) {
              py::array_t<float, py::array::c_style> vel,
              py::array_t<float, py::array::c_style> dvel,
              py::array_t<float, py::array::c_style> ddat,
-             int nthrds
+             int nthrds,
+             int verb
              )
              {
                sca2d.brnadj(src.mutable_data(), srcxs.mutable_data(), srczs.mutable_data(), nsrcs.mutable_data(),
                    recxs.mutable_data(), reczs.mutable_data(), nrecs.mutable_data(), nex,
-                    vel.mutable_data(), dvel.mutable_data(), ddat.mutable_data(), nthrds);
+                    vel.mutable_data(), dvel.mutable_data(), ddat.mutable_data(), nthrds, verb);
              },
              py::arg("src"), py::arg("srcxs"), py::arg("srczs"), py::arg("nsrcs"),
              py::arg("recxs"), py::arg("reczs"), py::arg("nrecs"), py::arg("nex"),
-             py::arg("vel"), py::arg("dvel"), py::arg("ddat"), py::arg("nthrds")
+             py::arg("vel"), py::arg("dvel"), py::arg("ddat"), py::arg("nthrds"),
+             py::arg("verb")=1
           )
       .def("brnoffadj_oneshot",[](scaas2d &sca2d,
                py::array_t<float, py::array::c_style> src,
@@ -329,15 +345,17 @@ PYBIND11_MODULE(scaas2dpy,m) {
                int rnh,
                py::array_t<float, py::array::c_style> dvel,
                py::array_t<float, py::array::c_style> ddat,
-               int nthrds
+               int nthrds,
+               int verb
                )
                {
                  sca2d.brnoffadj(src.mutable_data(), srcxs.mutable_data(), srczs.mutable_data(), nsrcs.mutable_data(),
                      recxs.mutable_data(), reczs.mutable_data(), nrecs.mutable_data(), nex,
-                      vel.mutable_data(), rnh, dvel.mutable_data(), ddat.mutable_data(), nthrds);
+                      vel.mutable_data(), rnh, dvel.mutable_data(), ddat.mutable_data(), nthrds, verb);
                },
                py::arg("src"), py::arg("srcxs"), py::arg("srczs"), py::arg("nsrcs"),
                py::arg("recxs"), py::arg("reczs"), py::arg("nrecs"), py::arg("nex"),
-               py::arg("vel"), py::arg("rnh"), py::arg("dvel"), py::arg("ddat"), py::arg("nthrds")
+               py::arg("vel"), py::arg("rnh"), py::arg("dvel"), py::arg("ddat"), py::arg("nthrds"),
+               py::arg("verb")=1
           );
 }

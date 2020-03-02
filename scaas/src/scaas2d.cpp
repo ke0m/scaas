@@ -273,7 +273,8 @@ void scaas2d::fwdprop_multishot(float *src, int *srcxs, int *srczs, int *nsrcs, 
 
   /* Set up printing if verbosity is desired */
   int *sidx = new int[nthrds]();
-  int csize = (int)nex/nthrds + nex%nthrds;
+  int csize = (int)nex/nthrds;
+  if(nex%nthrds != 0) csize += 1;
   bool firstiter = true;
 
   /* Loop over each experiment */
@@ -588,7 +589,8 @@ void scaas2d::gradient_multishot(float *src, int *srcxs, int *srczs, int *nsrcs,
 
   /* Set up printing if verbosity is desired */
   int *sidx = new int[nthrds]();
-  int csize = (int)nex/nthrds + nex%nthrds;
+  int csize = (int)nex/nthrds;
+  if(nex%nthrds != 0) csize += 1;
   bool firstiter = true;
 
   /* Loop over each experiment */
@@ -730,7 +732,8 @@ void scaas2d::brnfwd(float *src, int *srcxs, int *srczs, int *nsrcs, int *recxs,
 
   /* Set up printing if verbosity is desired */
   int *sidx = new int[nthrds]();
-  int csize = (int)nex/nthrds + nex%nthrds;
+  int csize = (int)nex/nthrds;
+  if(nex%nthrds != 0) csize += 1;
   bool firstiter = true;
 
   /* Loop over each experiment */
@@ -876,7 +879,8 @@ void scaas2d::brnadj(float *src, int *srcxs, int *srczs, int *nsrcs, int *recxs,
 
   /* Set up printing if verbosity is desired */
   int *sidx = new int[nthrds]();
-  int csize = (int)nex/nthrds + nex%nthrds;
+  int csize = (int)nex/nthrds;
+  if(nex%nthrds != 0) csize += 1;
   bool firstiter = true;
 
   /* Loop over each experiment */
@@ -1035,7 +1039,8 @@ void scaas2d::brnoffadj(float *src, int *srcxs, int *srczs, int *nsrcs, int *rec
 
   /* Set up printing if verbosity is desired */
   int *sidx = new int[nthrds]();
-  int csize = (int)nex/nthrds + nex%nthrds;
+  int csize = (int)nex/nthrds;
+  if(nex%nthrds != 0) csize += 1;
   bool firstiter = true;
 
   /* Loop over each experiment */
@@ -1153,10 +1158,16 @@ void scaas2d::printprogress_omp(std::string prefix, int icur, int tot, int threa
   double percentage = (double)icur/tot;
   int lpad = (int) (percentage * PBWIDTH);
   int rpad = PBWIDTH - lpad-1;
-  printf ("\r(thd: %d ) %s [%.*s>%*s] %d/%d", thread, prefix.c_str(), lpad, PBSTR, rpad, "", icur, tot);
+  std::string tid;
+  if(thread < 10) {
+    tid = std::string( 1, '0').append(std::to_string(thread));
+  } else{
+    tid = std::to_string(thread);
+  }
+  printf ("\r(thd: %s) %s [%.*s>%*s] %d/%d", tid.c_str(), prefix.c_str(), lpad, PBSTR, rpad, "", icur, tot);
   fflush (stdout);
   if(icur == tot-1) {
-    printf ("\r(thd: %d) %s [%.*s%*s] %d/%d", thread, prefix.c_str(), PBWIDTH, PBSTR, 0, "", tot, tot);
+    printf ("\r(thd: %s) %s [%.*s%*s] %d/%d", tid.c_str(), prefix.c_str(), PBWIDTH, PBSTR, 0, "", tot, tot);
     printf(" ");
   }
 }

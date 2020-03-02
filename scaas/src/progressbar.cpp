@@ -41,10 +41,11 @@ int main(int argc, char **argv) {
   int k1 = 0, k2 = 0;
   int nthd = 24, ctr = 0;
   int *sidx = new int[nthd]();
-  int tot = 52;
+  int tot = 54;
   omp_set_num_threads(nthd);
   // compute the maximum chunk size
-  int csize = (int)tot/nthd + 1;
+  int csize = (int)tot/nthd;
+  if(tot%nthd != 0) csize += 1;
   bool firstiter = true;
 #pragma omp parallel for default(shared)
   for(int i = 0; i < tot; ++i) {

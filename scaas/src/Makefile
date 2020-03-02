@@ -38,3 +38,6 @@ laplacianoldtest: laplacianoldtest.cpp laplacianold.o
 		-Wl,-rpath=${CONDA_PREFIX}/lib \
 		-L${CONDA_PREFIX}/lib -lpython3.5m laplacianold.o -o $@ -std=c++11
 
+progressbar.x: progressbar.cpp
+	g++ -std=c++1y -fopenmp $< -o $@
+

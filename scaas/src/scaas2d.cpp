@@ -4,13 +4,10 @@
 #include <cstring>
 #include <omp.h>
 #include "scaas2d.h"
-#include "/opt/matplotlib-cpp/matplotlibcpp.h"
 #include <iostream>
 
 #define PBSTR "============================================================="
 #define PBWIDTH 60
-
-namespace plt = matplotlibcpp;
 
 scaas2d::scaas2d(int nt, int nx, int nz, float dt, float dx, float dz, float dtu, int bx, int bz, float alpha) {
   /* Lengths */
@@ -602,6 +599,9 @@ void scaas2d::gradient_multishot(float *src, int *srcxs, int *srczs, int *nsrcs,
     if(firstiter && verb) {
       sidx[omp_get_thread_num()] = iex;
     }
+    if(verb) {
+      printprogress_omp("nshots:", iex - sidx[omp_get_thread_num()], csize, omp_get_thread_num());
+    }
     /* Get number of sources and receivers for this shot */
     int insrc = nsrcs[iex]; int inrec = nrecs[iex];
     /* Get the source positions for this shot */
@@ -622,9 +622,6 @@ void scaas2d::gradient_multishot(float *src, int *srcxs, int *srczs, int *nsrcs,
     gradient_oneshot(isrc, isrcx, isrcz, insrc, iasrc, irecx, irecz, inrec, vel, igrad);
     /* Add gradient to output gradient */
     for(int k = 0; k < _onestp; ++k) { grad[k] += igrad[k]; };
-    if(verb) {
-      printprogress_omp("nshots:", iex - sidx[omp_get_thread_num()], csize, omp_get_thread_num());
-    }
     /* Free memory */
     delete[] isrcx;  delete[] isrcz;
     delete[] irecx;  delete[] irecz;
@@ -744,6 +741,9 @@ void scaas2d::brnfwd(float *src, int *srcxs, int *srczs, int *nsrcs, int *recxs,
     if(firstiter && verb) {
       sidx[omp_get_thread_num()] = iex;
     }
+    if(verb) {
+      printprogress_omp("nshots:", iex - sidx[omp_get_thread_num()], csize, omp_get_thread_num());
+    }
     /* Get number of sources and receivers for this shot */
     int insrc = nsrcs[iex]; int inrec = nrecs[iex];
     /* Get the source positions for this shot */
@@ -760,9 +760,6 @@ void scaas2d::brnfwd(float *src, int *srcxs, int *srczs, int *nsrcs, int *recxs,
     brnfwd_oneshot(isrc, isrcx, isrcz, insrc, irecx, irecz, inrec, vel, dvel, iddat);
     /* Copy to output data array */
     memcpy(&ddat[iex*_nt*inrec],iddat,sizeof(float)*_nt*inrec);
-    if(verb) {
-      printprogress_omp("nshots:", iex - sidx[omp_get_thread_num()], csize, omp_get_thread_num());
-    }
     /* Free memory */
     delete[] isrcx;  delete[] isrcz;
     delete[] irecx;  delete[] irecz;
@@ -890,6 +887,9 @@ void scaas2d::brnadj(float *src, int *srcxs, int *srczs, int *nsrcs, int *recxs,
     if(firstiter && verb) {
       sidx[omp_get_thread_num()] = iex;
     }
+    if(verb) {
+      printprogress_omp("nshots:", iex - sidx[omp_get_thread_num()], csize, omp_get_thread_num());
+    }
     /* Get number of sources and receivers for this shot */
     int insrc = nsrcs[iex]; int inrec = nrecs[iex];
     /* Get the source positions for this shot */
@@ -910,9 +910,6 @@ void scaas2d::brnadj(float *src, int *srcxs, int *srczs, int *nsrcs, int *recxs,
     brnadj_oneshot(isrc, isrcx, isrcz, insrc, irecx, irecz, inrec, vel, idvel, iddat);
     /* Add gradient to output gradient */
     for(int k = 0; k < _onestp; ++k) { dvel[k] += idvel[k]; };
-    if(verb) {
-      printprogress_omp("nshots:", iex - sidx[omp_get_thread_num()], csize, omp_get_thread_num());
-    }
     /* Free memory */
     delete[] isrcx;  delete[] isrcz;
     delete[] irecx;  delete[] irecz;
@@ -1049,6 +1046,9 @@ void scaas2d::brnoffadj(float *src, int *srcxs, int *srczs, int *nsrcs, int *rec
     if(firstiter && verb) {
       sidx[omp_get_thread_num()] = iex;
     }
+    if(verb) {
+      printprogress_omp("nshots:", iex - sidx[omp_get_thread_num()], csize, omp_get_thread_num());
+    }
     /* Get number of sources and receivers for this shot */
     int insrc = nsrcs[iex]; int inrec = nrecs[iex];
     /* Get the source positions for this shot */
@@ -1069,9 +1069,6 @@ void scaas2d::brnoffadj(float *src, int *srcxs, int *srczs, int *nsrcs, int *rec
     brnoffadj_oneshot(isrc, isrcx, isrcz, insrc, irecx, irecz, inrec, vel, rnh, idvel, iddat);
     /* Add image to output image */
     for(int k = 0; k < _onestp*rnh; ++k) { dvel[k] += idvel[k]; };
-    if(verb) {
-      printprogress_omp("nshots:", iex - sidx[omp_get_thread_num()], csize, omp_get_thread_num());
-    }
     /* Free memory */
     delete[] isrcx;  delete[] isrcz;
     delete[] irecx;  delete[] irecz;
@@ -1156,7 +1153,7 @@ void scaas2d::printprogress_omp(std::string prefix, int icur, int tot, int threa
   double percentage = (double)icur/tot;
   int lpad = (int) (percentage * PBWIDTH);
   int rpad = PBWIDTH - lpad-1;
-  printf ("\r(thd: %d) %s [%.*s>%*s] %d/%d", thread, prefix.c_str(), lpad, PBSTR, rpad, "", icur, tot);
+  printf ("\r(thd: %d ) %s [%.*s>%*s] %d/%d", thread, prefix.c_str(), lpad, PBSTR, rpad, "", icur, tot);
   fflush (stdout);
   if(icur == tot-1) {
     printf ("\r(thd: %d) %s [%.*s%*s] %d/%d", thread, prefix.c_str(), PBWIDTH, PBSTR, 0, "", tot, tot);

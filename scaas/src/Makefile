@@ -41,3 +41,6 @@ laplacianoldtest: laplacianoldtest.cpp laplacianold.o
 		-Wl,-rpath=${PYPATH}/lib \
 		-L${PYPATH}/lib -lpython3.5m laplacianold.o -o $@ -std=c++11
 
+progressbar.x: progressbar.cpp
+	g++ -fopenmp $< -o $@
+

@@ -9,8 +9,6 @@
 #define PBSTR "============================================================="
 #define PBWIDTH 60
 
-namespace plt = matplotlibcpp;
-
 scaas2d::scaas2d(int nt, int nx, int nz, float dt, float dx, float dz, float dtu, int bx, int bz, float alpha) {
   /* Lengths */
   _nt = nt; _nx = nx; _nz = nz; _onestp = _nx*_nz;

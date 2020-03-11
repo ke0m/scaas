@@ -1,18 +1,10 @@
 import numpy as np
 import opt.opr8tr as opr
-
-#TODO: 
-# 1. cgstep (Nocedal 5.2)
-# 2. idcgstep (Nocedal 7.1)
-# 3. CD class
-#    needs an internal cdstep
-#    uses the abstract operator class
-# 4. CG class
-#    needs an internal cgstep
-#    uses the abstract operator class
+from combops import colop
 
 def cdstep(f,m,g,rr,gg,w,idict) -> None:
-  """  Performs one step of conjugate directions as 
+  """  
+  Performs one step of conjugate directions as 
   described in GIEE by Claerbout
 
   Parameters
@@ -34,7 +26,7 @@ def cdstep(f,m,g,rr,gg,w,idict) -> None:
   # Tolerance
   small = 1e-20
   # Step sizes
-  alpha = None; beta = None;
+  alfa = None; beta = None;
 
   ## Preliminaries
   # Check if objective function was reduced
@@ -50,9 +42,10 @@ def cdstep(f,m,g,rr,gg,w,idict) -> None:
     idict['iflag'] = 0
     return
 
-  # Print info if desired
+  # Print info if desired 
+  # TODO: change to pretty print
   if(idict['verb'] == 1):
-    print("iter=%d f=%f gnorm=%f"%(idict['iter'],f,np.dot(g,g)))
+    print("iter=%d objf=%f gnrm=%f"%(idict['iter'],f,np.dot(g,g)))
 
   # Get the search directions
   s = w['s']; ss = w['ss']

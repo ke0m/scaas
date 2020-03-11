@@ -14,7 +14,7 @@ Types of combinations:
 @author: Joseph Jennings
 @version: 2020.03.08
 """
-from opt.opr8tr import operator
+from opt.linopt.opr8tr import operator
 import numpy as np
 
 class chainop(operator):
@@ -49,6 +49,11 @@ class chainop(operator):
     # Check if the dimensions are valid
     self.__mdim = dims[ 0]['ncols']
     self.__ddim = dims[-1]['nrows']
+    # Make tuples if 1D
+    if(isinstance(self.__mdim,int)):
+      self.__mdim = (self.__mdim,)
+    if(isinstance(self.__ddim,int)):
+      self.__ddim = (self.__ddim,)
     for idim in range(len(dims)-1):
       if(np.prod(dims[idim]['nrows']) != np.prod(dims[idim+1]['ncols'])):
         print("Operator %d has %d rows and operator %d has %d cols"%(idim,
@@ -221,7 +226,7 @@ class rowop(operator):
 class colop(operator):
   """ Column operator """
 
-  def __init__(self,ops,dims):
+  def __init__(self,ops,dims,epss):
     """
     colop constructor
 
@@ -230,6 +235,8 @@ class colop(operator):
       dims - a list of dictionaries that contain the 
              dimensions of the inputs and outputs of the arrays
              For example dims = [{'nrows': 10, 'ncols': 10},...]
+      epss - a list of scalar values to be applied to the output of each
+             operator in the column. Useful for regularized inversion [1.0,1.0,1.0,...]
 
     Note that the column operator will be formed in the order in which the
     operators are supplied. For example
@@ -249,15 +256,22 @@ class colop(operator):
       raise Exception("Number of dimensions (%d) must equal number of operators (%d)"%(len(dims),self.__nops))
 
     # Check if the dimensions are valid
+    self.__mdim = dims[ 0]['ncols']
     self.__ddim = dims[-1]['nrows']
     for idim in range(len(dims)-1):
-      if(np.prod(dims[idim]['cols']) != np.prod(dims[idim+1]['ncols'])):
+      if(np.prod(dims[idim]['ncols']) != np.prod(dims[idim+1]['ncols'])):
         print("Operator %d has %d cols and operator %d has %d cols"%(idim,
           np.prod(dims[idim]['ncols']),idim+1,np.prod(dims[idim+1]['ncols'])))
         raise Exception("Dimensions of ops don't match")
 
     # Save dimensions
     self.__dims = dims
+
+    # Epsilons for inversion
+    if(epss is not None):
+      self.__epss = epss
+    else:
+      self.__epss = np.ones(self.__nops)
 
   def totaldims(self):
     """ Returns the total dims of the column operator """
@@ -289,7 +303,7 @@ class colop(operator):
 
     # Each forward gives a different data
     for iop in range(self.__nops):
-      self.__ops[iop].forward(add,m,data[iop])
+      self.__ops[iop].forward(add,self.__epss[iop]*mod,dat[iop])
 
   def adjoint(self,add,mod,dat):
     """
@@ -312,13 +326,13 @@ class colop(operator):
     iadd = add
     # Apply each operator and add to the output
     for iop in range(self.__nops):
-      self.__ops[iop].adjoint(iadd,mod,dat[iop])
+      self.__ops[iop].adjoint(iadd,mod,self.__epss[iop]*dat[iop])
       iadd = True
 
 class diagop(operator):
   """ A diagonal operator """
 
-  def __init__(self,ops,dims):
+  def __init__(self,ops,dims,epss=None):
     """
     diagop constructor
     
@@ -327,6 +341,8 @@ class diagop(operator):
       dims - a list of dictionaries that contain the 
              dimensions of the inputs and outputs of the arrays
              For example dims = [{'nrows': 10, 'ncols': 10},...]
+      epss - a list of scalar values to be applied to the output of each
+             operator on the diagonal. Useful for regularized inversion [[1.0,1.0]]
 
     Note that the diagonal operator will be formed in the order in which
     operators are supplied. For example if ops = [A,B,C,...] then
@@ -344,6 +360,12 @@ class diagop(operator):
     if(self.__nops != len(dims)):
       raise Exception("Number of dimensions (%d) must equal number of operators (%d)"%
           (len(dims),self.__nops))
+
+    # Epsilons for inversion
+    if(epss is not None):
+      self.__epss = epss
+    else:
+      self.__epss = np.ones(self.__nops)
 
   def totaldims(self):
     """ Returns the total dims of the column operator """
@@ -371,7 +393,7 @@ class diagop(operator):
 
     # Apply each operator to each model giving the data
     for iop in range(nops):
-      self.__ops[iop].forward(add,mod[iop],dat[iop])
+      self.__ops[iop].forward(add,self.__eps[iop]*mod[iop],dat[iop])
 
   def adjoint(self,add,mod,dat):
     """
@@ -386,7 +408,7 @@ class diagop(operator):
     if(not isinstance(dat,list) or not isinstance(mod,list)):
       raise Exception("dat and mod must be a list of numpy arrays")
 
-    # Apply each operator to each model giving the data
+    # Apply each operator to data giving the model
     for iop in range(nops):
-      self.__ops[iop].adjoint(add,mod[iop],dat[iop])
+      self.__ops[iop].adjoint(add,mod[iop],self.___eps[iop]*dat[iop])
 

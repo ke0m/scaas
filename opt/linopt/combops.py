@@ -46,14 +46,20 @@ class chainop(operator):
       raise Exception("Number of dimensions (%d) must equal number of operators (%d)"
           %(len(dims),self.__nops))
 
-    # Check if the dimensions are valid
+    # Save the model and data dimensions
     self.__mdim = dims[ 0]['ncols']
     self.__ddim = dims[-1]['nrows']
-    # Make tuples if 1D
+    # Make tuples
     if(isinstance(self.__mdim,int)):
       self.__mdim = (self.__mdim,)
+    else:
+      self.__mdim = tuple(self.__mdim)
     if(isinstance(self.__ddim,int)):
       self.__ddim = (self.__ddim,)
+    else:
+      self.__ddim = tuple(self.__ddim)
+
+    # Check if all dimensions are valid
     for idim in range(len(dims)-1):
       if(np.prod(dims[idim]['nrows']) != np.prod(dims[idim+1]['ncols'])):
         print("Operator %d has %d rows and operator %d has %d cols"%(idim,

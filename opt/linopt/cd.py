@@ -115,12 +115,14 @@ def run_niter(op,dat,mod,niter,grdop,objs,mods,grds,ress,optqc,verb):
     if(f1 >= f0):
       print("Objective function did not reduce, terminating solver")
       break
+    #TODO: only saves the last result
     # Save results to provided lists
     save_results(mod,mods,tap,grds,res,ress,f1,objs)
     # Save to SEPlib file or image if desired
     if(optqc is not None):
       optqc.output(f1,mod,tap,res)
     if(verb):
+      #TODO: format the %f so it is always the same length
       print("iter=%s objf=%f gnrm=%f"%(create_inttag(iiter+1,niter),f1,np.linalg.norm(tap)))
 
 def run_toler(op,dat,mod,toler,grdop,mods,objs,grds,ress,verb):

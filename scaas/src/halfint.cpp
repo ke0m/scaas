@@ -74,7 +74,7 @@ void halfint::adjoint(bool add, int n1, float *mod, float *dat) {
   kiss_fft_cpx *cx = new kiss_fft_cpx[_nw]();
 
   /* Pad the input for the FFT */
-  for(int i = 0; i < n1; ++i)  tmp[i] = mod[i];
+  for(int i = 0; i < n1; ++i)  tmp[i] = dat[i];
   for(int i = n1; i < _n; ++i) tmp[i] = 0.0;
 
   /* Forward FFT */

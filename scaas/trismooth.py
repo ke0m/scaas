@@ -40,10 +40,6 @@ def smooth(data,rect1=1,rect2=1,rect3=1):
   # Create copy of data
   tmp = np.copy(data)
   # Apply kernel
-  print("n1=%d n2=%d dim1=%d"%(n1,n2,dim1))
-  print("%d %d %d"%(ns[0],ns[1],ns[2]))
-  print("%d %d %d"%(rects[0],rects[1],rects[2]))
-  #print(rects,s,tmp)
   smooth2(dim1,n1,n2,ns,rects,s,tmp)
 
   return tmp

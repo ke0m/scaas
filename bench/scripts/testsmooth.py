@@ -1,6 +1,7 @@
 import numpy as np
 import inpout.seppy as seppy
 from scaas.trismooth import smooth
+from utils.movie import viewimgframeskey
 import matplotlib.pyplot as plt
 
 n = 100
@@ -30,3 +31,8 @@ plt.imshow(dat,cmap='gray',vmin=-0.1,vmax=0.1)
 plt.show()
 
 
+arr3d = np.zeros([n,n,n],dtype='float32')
+arr3d[int(n/2),-3,int(n/2)] = 1
+sm3d = smooth(arr3d,rect1=3,rect2=3,rect3=3)
+
+viewimgframeskey(sm3d,vmin=-0.1,vmax=0.1)

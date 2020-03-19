@@ -1,30 +1,18 @@
-#include <stdio.h>
 #include "trismooth.h"
-#include "matplotlibcpp.h"
-
-namespace plt = matplotlibcpp;
 
 void smooth2(int dim1, int n1, int n2, int *n, int *rect, int *s, float *data){
-  fprintf(stderr,"dim1=%d n1=%d n2=%d\n",dim1,n1,n2);
-  fprintf(stderr,"rect1=%d rect2=%d\n",rect[0],rect[1]);
   for(int i2 = 0; i2 < n2; i2++) {
     /* Get a pointer to the data */
     float *x = data + i2*n1;
-    //std::vector<float> vec(x,x+n1);
-    //plt::plot(vec); plt::show();
     for(int i = 0; i <= dim1; ++i) {
       if(rect[i] <= 1) continue;
       /* Filter parameters for the current dimension */
       float wt = 1/(static_cast<float>(rect[i])*static_cast<float>(rect[i]));
-      fprintf(stderr,"wt=%f\n",wt);
       int np = n[i] + 2*rect[i];
-      fprintf(stderr,"nx=%d nb=%d np=%d\n",n[i],rect[i],np);
       /* Temporary array */
       float *tmp = new float[np]();
-      fprintf(stderr,"n1/n[i]=%d\n",n1/n[i]);
       for(int j = 0; j < n1/n[i]; ++j) {
         int i0 = first_index(i,j,dim1+1,n,s);
-        fprintf(stderr,"i0=%d\n",i0);
         /* Smoothing */
         triple2(i0,s[i],n[i],rect[i],x,tmp,wt);
         doubint2(np,tmp,false);

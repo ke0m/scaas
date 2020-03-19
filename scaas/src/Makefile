@@ -25,23 +25,7 @@ halfint: halfint.o kiss_fft.o kiss_fftr.o
 	g++ -O3 -fPIC -ffast-math -fopenmp -std=c++1y -shared -Wall `${CONDA_PREFIX}/bin/python3 -m pybind11 --includes` \
 		-g kiss_fft.o kiss_fftr.o halfint.o halfintpy.cpp -o ../halfint`${CONDA_PREFIX}/bin/python3-config --extension-suffix`
 
-testimshow: testimshow.cpp
-	g++ testimshow.cpp -I${CONDA_PREFIX}/include/python3.5m/ \
-		-Wl,-rpath=${CONDA_PREFIX}/lib \
-		-L${CONDA_PREFIX}/lib -lpython3.5m -o testimshow -std=c++11
-
-testbasic: testbasic.cpp
-	g++ testbasic.cpp -I${CONDA_PREFIX}/include/python3.5m/ \
-		-Wl,-rpath=${CONDA_PREFIX}/lib \
-		-L${CONDA_PREFIX}/lib -lpython3.5m -o $@ -std=c++11
-
-laplaciantest: laplaciantest.cpp laplacian10.o
-	g++ $< -I${CONDA_PREFIX}/include/python3.5m/ \
-		-Wl,-rpath=${CONDA_PREFIX}/lib \
-		-L${CONDA_PREFIX}/lib -lpython3.5m laplacian10.o -o $@ -std=c++11
-
-laplacianoldtest: laplacianoldtest.cpp laplacianold.o
-	g++ $< -I${CONDA_PREFIX}/include/python3.5m/ \
-		-Wl,-rpath=${CONDA_PREFIX}/lib \
-		-L${CONDA_PREFIX}/lib -lpython3.5m laplacianold.o -o $@ -std=c++11
+trismooth: trismooth.o
+	g++ -O3 -fPIC -ffast-math -fopenmp -std=c++1y -shared -Wall `${CONDA_PREFIX}/bin/python3 -m pybind11 --includes` \
+		-g trismooth.o trismoothpy.cpp -o ../trismoothkern`${CONDA_PREFIX}/bin/python3-config --extension-suffix`
 

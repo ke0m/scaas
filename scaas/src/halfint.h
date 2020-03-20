@@ -14,6 +14,7 @@
 
 class halfint {
   public:
+    halfint();
     halfint(bool inv, int n1, float rho);
     void forward(bool add, int n1, float *mod, float *dat);
     void adjoint(bool add, int n1, float *mod, float *dat);

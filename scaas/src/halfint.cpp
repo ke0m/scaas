@@ -37,7 +37,7 @@ halfint::halfint(bool inv, int n1, float rho) {
 
 void halfint::forward(bool add, int n1, float *mod, float *dat) {
 
-  if(add) memset(dat, 0, sizeof(float)*n1);
+  if(!add) memset(dat, 0, sizeof(float)*n1);
 
   /* Allocate temporary arrays */
   float *tmp = new float[_n]();
@@ -67,7 +67,7 @@ void halfint::forward(bool add, int n1, float *mod, float *dat) {
 
 void halfint::adjoint(bool add, int n1, float *mod, float *dat) {
 
-  if(add) memset(mod, 0, sizeof(float)*n1);
+  if(!add) memset(mod, 0, sizeof(float)*n1);
 
   /* Allocate temporary arrays */
   float *tmp = new float[_n];

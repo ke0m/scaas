@@ -31,4 +31,27 @@ ssk.adjoint(False,nt*ns,nt*nx,mytan,myang)
 plt.figure(3)
 plt.imshow(mytan.T,cmap='gray',aspect=5.0,vmin=-1,vmax=1)
 
+# Read in a real offset gather
+oaxes,off = sep.read_file(None,ifname='oneang.H')
+raxes,ran = sep.read_file(None,ifname='onetan.H')
+
+off = off.reshape(oaxes.n,order='F')
+ran = ran.reshape(raxes.n,order='F')
+
+myoff = np.zeros([nx,nt],dtype='float32')
+myran = np.zeros([ns,nt],dtype='float32')
+myoff[:] = off[:].T
+
+ssk.adjoint(False,nt*ns,nt*nx,myran,myoff)
+
+plt.figure(4)
+plt.imshow(off,cmap='gray',aspect=0.1)
+
+plt.figure(5)
+plt.imshow(ran,cmap='gray',aspect=5.0)
+
+plt.figure(6)
+plt.imshow(myran.T,cmap='gray',aspect=5.0)
+
 plt.show()
+

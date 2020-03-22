@@ -21,7 +21,7 @@ slantstk::slantstk(bool rho,
 void slantstk::forward(bool add, int nm, int nd, float *mod, float *dat) {
 
   if(nm != _nt*_ns || nd != _nt*_nx) {
-    fprintf(stderr,"Dimensions don't match passed to constructor.\n");
+    fprintf(stderr,"slantstk: Dimensions don't match passed to constructor.\n");
     exit(EXIT_FAILURE);
   }
 
@@ -75,7 +75,7 @@ void slantstk::forward(bool add, int nm, int nd, float *mod, float *dat) {
 void slantstk::adjoint(bool add, int nm, int nd, float *mod, float *dat) {
 
   if(nm != _nt*_ns || nd != _nt*_nx) {
-    fprintf(stderr,"Dimensions don't match passed to constructor.\n");
+    fprintf(stderr,"slantstk: Dimensions don't match passed to constructor.\n");
     exit(EXIT_FAILURE);
   }
 

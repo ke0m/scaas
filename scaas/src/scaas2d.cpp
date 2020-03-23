@@ -4,10 +4,7 @@
 #include <cstring>
 #include <omp.h>
 #include "scaas2d.h"
-#include <iostream>
-
-#define PBSTR "============================================================="
-#define PBWIDTH 60
+#include "progressbar.h"
 
 scaas2d::scaas2d(int nt, int nx, int nz, float dt, float dx, float dz, float dtu, int bx, int bz, float alpha) {
   /* Lengths */
@@ -273,7 +270,7 @@ void scaas2d::fwdprop_multishot(float *src, int *srcxs, int *srczs, int *nsrcs, 
 
   /* Set up printing if verbosity is desired */
   int *sidx = new int[nthrds]();
-  int csize = (int)nex/nthrds + nex%nthrds;
+  int csize = (int)nex/nthrds;
   bool firstiter = true;
 
   /* Loop over each experiment */
@@ -588,7 +585,7 @@ void scaas2d::gradient_multishot(float *src, int *srcxs, int *srczs, int *nsrcs,
 
   /* Set up printing if verbosity is desired */
   int *sidx = new int[nthrds]();
-  int csize = (int)nex/nthrds + nex%nthrds;
+  int csize = (int)nex/nthrds;
   bool firstiter = true;
 
   /* Loop over each experiment */
@@ -730,7 +727,7 @@ void scaas2d::brnfwd(float *src, int *srcxs, int *srczs, int *nsrcs, int *recxs,
 
   /* Set up printing if verbosity is desired */
   int *sidx = new int[nthrds]();
-  int csize = (int)nex/nthrds + nex%nthrds;
+  int csize = (int)nex/nthrds;
   bool firstiter = true;
 
   /* Loop over each experiment */
@@ -876,7 +873,7 @@ void scaas2d::brnadj(float *src, int *srcxs, int *srczs, int *nsrcs, int *recxs,
 
   /* Set up printing if verbosity is desired */
   int *sidx = new int[nthrds]();
-  int csize = (int)nex/nthrds + nex%nthrds;
+  int csize = (int)nex/nthrds;
   bool firstiter = true;
 
   /* Loop over each experiment */
@@ -1035,7 +1032,7 @@ void scaas2d::brnoffadj(float *src, int *srcxs, int *srczs, int *nsrcs, int *rec
 
   /* Set up printing if verbosity is desired */
   int *sidx = new int[nthrds]();
-  int csize = (int)nex/nthrds + nex%nthrds;
+  int csize = (int)nex/nthrds;
   bool firstiter = true;
 
   /* Loop over each experiment */
@@ -1135,40 +1132,4 @@ void scaas2d::apply_taper(float *tap, float *cur, float *nex) {
       nex[iz*_nx + _nx-ix-1] *= tap[iz*_nx + _nx-ix-1];
     }
   }
-}
-
-void scaas2d::printprogress(std::string prefix, int icur, int tot) {
-  double percentage = (double)icur/tot;
-  int lpad = (int) (percentage * PBWIDTH);
-  int rpad = PBWIDTH - lpad-1;
-  printf ("\r%s [%.*s>%*s] %d/%d", prefix.c_str(), lpad, PBSTR, rpad, "", icur, tot);
-  fflush (stdout);
-  if(icur == tot-1) {
-    printf ("\r%s [%.*s%*s] %d/%d", prefix.c_str(), PBWIDTH, PBSTR, 0, "", tot, tot);
-    printf("\n");
-  }
-}
-
-void scaas2d::printprogress_omp(std::string prefix, int icur, int tot, int thread) {
-  double percentage = (double)icur/tot;
-  int lpad = (int) (percentage * PBWIDTH);
-  int rpad = PBWIDTH - lpad-1;
-  std::string tid;
-  if(thread < 10) {
-    tid = std::string( 1, '0').append(std::to_string(thread));
-
-  }
-  printf ("\r(thd: %s) %s [%.*s>%*s] %d/%d", tid.c_str(), prefix.c_str(), lpad, PBSTR, rpad, "", icur, tot);
-  fflush (stdout);
-  if(icur == tot-1) {
-    printf ("\r(thd: %s) %s [%.*s%*s] %d/%d", tid.c_str(), prefix.c_str(), PBWIDTH, PBSTR, 0, "", tot, tot);
-    printf(" ");
-  }
-}
-
-void scaas2d::get_info() {
-  printf("\n Printing Propagation parameters\n");
-  printf("nt=%d, dt=%f ot=0.0\n",_nt,_dt);
-  printf("nz=%d, dz=%f oz=0.0\n",_nz,_dz);
-  printf("nx=%d, dx=%f ox=0.0\n",_nx,_dx);
 }

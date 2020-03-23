@@ -2,7 +2,7 @@
  * 2D Scalar acoustic wave equation forward 
  * and adjoint (No SEPlib. Yay!)
  * @author: Joseph Jennings
- * @version: 2019.12.12
+ * @version: 2020.03.23
  **/
 
 #ifndef SCAAS2D_H
@@ -44,10 +44,6 @@ class scaas2d {
     void drslc(int *recx, int *recz, int nrec, float *wslc, float *dslc);
     void drslct(int *recx, int *recz, int nrec, float *wslc, float *dslc);
     void shot_interp(int nrec, float *datc, float *datf);
-    /// Miscellaneous
-    void printprogress(std::string prefix, int icur, int tot);
-    void printprogress_omp(std::string prefix, int icur, int tot, int thread);
-    void get_info();
 
   private:
     /// Absorbing boundary functions

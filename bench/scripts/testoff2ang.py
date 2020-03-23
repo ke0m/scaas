@@ -16,6 +16,7 @@ nh = daxes.n[1]; oh = daxes.o[1]; dh = daxes.d[1]
 nx = daxes.n[2]; ox = daxes.o[2]; dx = daxes.d[2]
 
 datt = np.ascontiguousarray(dat.T).astype('float32')
+datw = datt[500:520,:,:]
 #viewimgframeskey(dat.T,pclip=0.5,aratio=0.01)
 
 # Window just one image point
@@ -30,21 +31,30 @@ na = 281; oa = -70; da = 0.5
 
 print(ota,ota+(nta-1)*dta)
 print(oa,oa+(na-1)*da)
+print(iimg.shape)
 
-iang = np.zeros([na,nt],dtype='float32')
-#angs = np.zeros([nx,na,nt],dtype='float32')
+#iang = np.zeros([na,nt],dtype='float32')
+angs = np.zeros([nx,na,nt],dtype='float32')
+angw = np.zeros([20,na,nt],dtype='float32')
+angp = np.zeros([20,na,nt],dtype='float32')
 
 #plt.figure()
 #plt.imshow(iimg,aspect='auto'); plt.show()
-convert2ang(1,1,nh,oh,dh,nta,ota,dta,na,oa,da,nt,ot,dt,4,iimg,iang)
+#convert2ang(1,nh,oh,dh,nta,ota,dta,na,oa,da,nt,ot,dt,4,iimg,iang,1,True)
 
-plt.imshow(iang.T,cmap='gray')
-plt.show()
+#plt.imshow(iang.T,cmap='gray')
+#plt.show()
 
-#convert2ang(1,nx,nh,oh,dh,nta,ota,dta,na,oa,da,nt,ot,dt,4,datt,angs)
+# Parallel test
+convert2ang(20,nh,oh,dh,nta,ota,dta,na,oa,da,nt,ot,dt,4,datw,angw,1,True)
+convert2ang(20,nh,oh,dh,nta,ota,dta,na,oa,da,nt,ot,dt,4,datw,angp,4,True)
 
-#viewimgframeskey(angs,pclip=0.5)
+viewimgframeskey(angw,pclip=0.5,show=False)
+viewimgframeskey(angp,pclip=0.5,show=True)
+
+# Full data
+#convert2ang(nx,nh,oh,dh,nta,ota,dta,na,oa,da,nt,ot,dt,4,datt,angs,4,True)
 
 #oaxes = seppy.axes([nt,na,nx],[ot,oa,ox],[dt,da,dx])
-#sep.write_file(None,oaxes,angs.T,ofname='myangs.H')
+#sep.write_file(None,oaxes,angs.T,ofname='myangspar.H')
 

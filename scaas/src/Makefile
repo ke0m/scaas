@@ -34,10 +34,10 @@ trismooth.o: trismooth.cpp
 		-Wl,-rpath=${CONDA_PREFIX}/lib -fPIC \
 		-L${CONDA_PREFIX}/lib -lpython3.5m -o $@ -std=c++11
 
-adcig.o: adcig.cpp
-	g++ -c adcig.cpp -I${CONDA_PREFIX}/include/python3.5m/ \
-		-Wl,-rpath=${CONDA_PREFIX}/lib -fPIC \
-		-L${CONDA_PREFIX}/lib -lpython3.5m -o $@ -std=c++11
+#adcig.o: adcig.cpp
+#	g++ -c adcig.cpp -I${CONDA_PREFIX}/include/python3.5m/ \
+#		-Wl,-rpath=${CONDA_PREFIX}/lib -fPIC \
+#		-L${CONDA_PREFIX}/lib -lpython3.5m -o $@ -std=c++11
 
 tan2ang.o: tan2ang.cpp
 	g++ -c tan2ang.cpp -I${CONDA_PREFIX}/include/python3.5m/ \

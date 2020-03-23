@@ -9,11 +9,7 @@
 #ifndef TAN2ANG_H_
 #define TAN2ANG_H_
 
-// 1. First build the Toeplitz matrix with the coefficients in spline 4
-// 2. Allocate an array for the spline (don't worry about mute for this one)
-// 3. Solve the matrix
-
-void tan2ang(int nz, int nta, float ota, float dta, int nx,
+void tan2ang(int nz, int nta, float ota, float dta,
     int na, float oa, float da, int ext, float *tan, float *ang);
 
 void build_toeplitz_matrix(int n, float diag, float offd, bool damp, float *d, float *o);

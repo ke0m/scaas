@@ -1,7 +1,7 @@
 #include <math.h>
 #include "tan2ang.h"
 
-void tan2ang(int nz, int nta, float ota, float dta, int nx,
+void tan2ang(int nz, int nta, float ota, float dta,
     int na, float oa, float da, int ext, float *tan, float *ang) {
 
   /* Temporary arrays */
@@ -13,38 +13,33 @@ void tan2ang(int nz, int nta, float ota, float dta, int nx,
   float *o = new float[2*(nta+2*ext)]();
   float *x = new float[2*(nta+2*ext)]();
   /* Build the diagonal and off-diagonal of the toeplitz matrix */
-  float diag = 2/3; float odiag = 1/6;
+  float diag = 2./3.; float odiag = 1./6.;
   build_toeplitz_matrix(nta+2*ext, diag, odiag, false, d, o);
 
-  /* Loop over all spatial locations (CDP)s */
-  for (int ix = 0; ix < nx; ix++) {
-    /* Grab a gather */
-    float *gat = tan + ix*nta*nz;
-    /* Loop over all depths */
-    for (int iz = 0; iz < nz; iz++) {
-      /* Grab a slice along z (interpolate tangents) */
-      for (int ita = 0; ita < nta; ita++) {
-        tmp[ita] = gat[ita*nz + iz];
-      }
-      /* fint1_set */
-      extend1(ext,nta,tmp,spl);             // Pad tmp and save to spl
-      spl[0] *= (5/6.);
-      spl[nta+2*ext-1] *= (5/6.);           // Prepare endpoints for matrix solve
-      solve_toeplitz_matrix(nta,d,o,x,spl); // Solve matrix and store in spl
+  /* Loop over all depths */
+  for (int iz = 0; iz < nz; iz++) {
+    /* Grab a slice along z (interpolate tangents) */
+    for (int ita = 0; ita < nta; ita++) {
+      tmp[ita] = tan[ita*nz + iz];
+    }
+    /* fint1_set */
+    extend1(ext,nta,tmp,spl);             // Pad tmp and save to spl
+    spl[0] *= (5/6.);
+    spl[nta+2*ext-1] *= (5/6.);           // Prepare endpoints for matrix solve
+    solve_toeplitz_matrix(nta,d,o,x,spl); // Solve matrix and store in spl
 
-      /* Loop over angle */
-      for (int ia=0; ia < na; ia++) {
-        float a = oa + ia*da;
-        int n = tanf(a/180*M_PI);
+    /* Loop over angle */
+    for (int ia=0; ia < na; ia++) {
+      float a = oa + ia*da;
+      float n = tanf(a*(M_PI/180));
 
-        float f = (n - ota) / dta;
-        int fint = (int)f;
+      float f = (n - ota) / dta;
+      int fint = (int)f;
 
-        if (fint >= 0 && fint < nta) {
-          ang[ia*nz + iz] = interp(ext,w,spl,fint,f-fint);
-        } else {
-          ang[ia*nz + iz] = 0.;
-        }
+      if (fint >= 0 && fint < nta) {
+        ang[ia*nz + iz] = interp(ext,w,spl,fint,f-fint);
+      } else {
+        ang[ia*nz + iz] = 0.;
       }
     }
   }

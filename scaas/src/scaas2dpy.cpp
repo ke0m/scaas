@@ -19,7 +19,6 @@ PYBIND11_MODULE(scaas2dpy,m) {
           py::arg("nt"),py::arg("nx"),py::arg("nz"),
           py::arg("dt"),py::arg("dx"),py::arg("dz"),py::arg("dtu")=float(0.001),
           py::arg("bx")=int(50),py::arg("bz")=int(50),py::arg("alpha")=float(0.99))
-      .def("get_info", &scaas2d::get_info)
       .def("fwdprop_oneshot",[](scaas2d &sca2d,
               py::array_t<float, py::array::c_style> src,
               py::array_t<int, py::array::c_style> srcxs,

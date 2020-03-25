@@ -4,7 +4,6 @@ Tests the extended linearized adjoint
 @author: Joseph Jennings
 @version: 2019.12.09
 """
-from __future__ import print_function
 import numpy as np
 import inpout.seppy as seppy
 import scaas.scaas2dpy as sca2d

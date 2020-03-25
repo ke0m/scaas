@@ -39,7 +39,7 @@ inline void printprogress_omp(std::string prefix, int icur, int tot, int thread)
   fflush (stdout);
   if(icur == tot-1) {
     printf ("\r(thd: %s) %s [%.*s%*s] %d/%d", tid.c_str(), prefix.c_str(), PBWIDTH, PBSTR, 0, "", tot, tot);
-    printf(" ");
+    printf (" ");
   }
 }
 

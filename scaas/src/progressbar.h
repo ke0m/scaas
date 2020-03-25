@@ -33,7 +33,8 @@ inline void printprogress_omp(std::string prefix, int icur, int tot, int thread)
   std::string tid;
   if(thread < 10) {
     tid = std::string( 1, '0').append(std::to_string(thread));
-
+  } else {
+    tid = std::to_string(thread);
   }
   printf ("\r(thd: %s) %s [%.*s>%*s] %d/%d", tid.c_str(), prefix.c_str(), lpad, PBSTR, rpad, "", icur, tot);
   fflush (stdout);

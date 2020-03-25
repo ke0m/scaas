@@ -1,6 +1,7 @@
 import inpout.seppy as seppy
 import numpy as np
 from scaas.adcig import convert2ang
+from scaas.off2ang import off2ang
 from utils.movie import viewimgframeskey
 import matplotlib.pyplot as plt
 
@@ -46,11 +47,18 @@ angp = np.zeros([20,na,nt],dtype='float32')
 #plt.show()
 
 # Parallel test
+#print(datw.shape)
 convert2ang(20,nh,oh,dh,nta,ota,dta,na,oa,da,nt,ot,dt,4,datw,angw,1,True)
-convert2ang(20,nh,oh,dh,nta,ota,dta,na,oa,da,nt,ot,dt,4,datw,angp,4,True)
+#convert2ang(20,nh,oh,dh,nta,ota,dta,na,oa,da,nt,ot,dt,4,datw,angp,4,True)
+
+# Shape, x,h,z
+# Transp: h,x,z
+# Want: h,z,x
+datwt = np.ascontiguousarray(np.transpose(datw,(1,2,0)))
+angwn = off2ang(datwt,oh,dh,dt,verb=True)
 
 viewimgframeskey(angw,pclip=0.5,show=False)
-viewimgframeskey(angp,pclip=0.5,show=True)
+viewimgframeskey(angwn,pclip=0.5,show=True)
 
 # Full data
 #convert2ang(nx,nh,oh,dh,nta,ota,dta,na,oa,da,nt,ot,dt,4,datt,angs,4,True)

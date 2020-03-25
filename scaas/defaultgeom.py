@@ -7,6 +7,7 @@ and distributed evenly across the surface
 """
 import numpy as np
 import scaas.scaas2dpy as sca2d
+from scaas.off2ang import off2ang
 import matplotlib.pyplot as plt
 
 class defaultgeom:
@@ -14,7 +15,7 @@ class defaultgeom:
   Functions for modeling and imaging with a 
   standard synthetic source receiver geometry 
   """
-  def __init__(self,nx,dx,nz,dz,nsx,osx,dsx,srcz=0.0,nrx=None,orx=0.0,drx=1.0,recz=0.0,alpha=0.99,bx=25,bz=25):
+  def __init__(self,nx,dx,nz,dz,nsx,dsx,osx=0.0,srcz=0.0,nrx=None,drx=1.0,orx=0.0,recz=0.0,alpha=0.99,bx=25,bz=25):
     """
     Creates a default geometry object for scalar acoustic 2D wave propagation
 
@@ -24,12 +25,12 @@ class defaultgeom:
       nz    - Number of z samples of the velocity model
       dz    - z sampling of the velocity model
       nsx   - Total number of sources
-      osx   - x-sample coordinate of first source
       dsx   - Spacing between sources in samples
+      osx   - x-sample coordinate of first source [0.0]
       srcz  - Constant depth of the sources [0.0]
       nrx   - Total number of receivers [One for every gridpoint]
-      orx   - x-sample coordinate of first receiver [0.0]
       drx   - Spacing between receivers in samples [1.0]
+      orx   - x-sample coordinate of first receiver [0.0]
       recz  - Constant depth of the receivers [0.0]
       alpha - Damping parameter of absorbing layer [0.99]
       bx    - Size of absorbing layer in the x direction [25]
@@ -54,6 +55,7 @@ class defaultgeom:
 
     # Image parameters (to be set by wem)
     self.rnh = None; self.oh = None; self.dh = None
+    self.na  = None; self.oa = None; self.da = None
 
   def model_fulldata(self,vel,wav,dtd,dtu=0.001,nthrds=4,verb=False):
     """
@@ -97,7 +99,7 @@ class defaultgeom:
 
     return allshot
 
-  def model_lindata(vel,dvel,wav,dtd,dtu=0.001,nthrds=4,verb=False):
+  def model_lindata(self,vel,dvel,wav,dtd,dtu=0.001,nthrds=4,verb=False):
     """
     Creates synthetic linearized (born) pressure data
 
@@ -132,23 +134,24 @@ class defaultgeom:
                         self.__bx, self.__bz, self.__alpha) # Absorbing boundary
     # Create input wavelet array
     allsrcs = np.zeros([self.__nsx,1,ntu],dtype='float32')  # One source per shot (same length as wavefield)
-    for isx in range(nsx):
-      allsrcs[isx,0,:] = src[:]
+    for isx in range(self.__nsx):
+      allsrcs[isx,0,:] = wav[:]
     # Create output data
     allshot = np.zeros([self.__nsx,ntd,self.__nrx],dtype='float32')
 
     sca.brnfwd(allsrcs,self.allsrcx,self.allsrcz,self.nsrc,   # Source information
                self.allrecx,self.allrecz,self.nrec,           # Receiver information
-               self.__nsx,velp,dvelp,allshot,nthrds,verb)   # Velocity and output
+               self.__nsx,velp,dvelp,allshot,nthrds,verb)     # Velocity and output
 
     return allshot
 
-  def wem(vel,wav,dat,dtd,dtu=0.001,nh=None,nthrds=4,verb=False):
+  def wem(self,vel,dat,wav,dtd,dtu=0.001,nh=None,nthrds=4,verb=False):
     """
     Wave equation migration (WEM) or Image reconstruction
     
     Parameters
-      vel    - migration velocity
+      vel    - Migration velocity
+      dat    - Input data to be imaged
       wav    - Input wavelet (source time function) same size as wavefield
       dtd    - Output data sampling
       dtu    - Wave propagation time step (sampling). Same as wavelet sampling [0.001]
@@ -171,7 +174,7 @@ class defaultgeom:
       imgp = np.zeros([self.__nxp,self.__nzp],dtype='float32')
     else:
       self.rnh = 2*nh + 1; self.oh = -self.__dx*nh; self.dh = self.__dx
-      imgp = np.zeros([rnh,self.__nxp,self.__nzp],dtype='float32')
+      imgp = np.zeros([self.rnh,self.__nxp,self.__nzp],dtype='float32')
 
     # Temporal axis
     ntu = wav.shape[0]
@@ -183,27 +186,48 @@ class defaultgeom:
                         self.__bx, self.__bz, self.__alpha) # Absorbing boundary
     # Create input wavelet array
     allsrcs = np.zeros([self.__nsx,1,ntu],dtype='float32')  # One source per shot (same length as wavefield)
-    for isx in range(nsx):
-      allsrcs[isx,0,:] = src[:]
+    for isx in range(self.__nsx):
+      allsrcs[isx,0,:] = wav[:]
 
     # Form the image
     if(nh == None):
       sca.brnadj(allsrcs,self.allsrcx,self.allsrcz,self.nsrc, # Source information
                  self.allrecx,self.allrecz,self.nrec,         # Receiver information
-                 nsx,velp,imgp,dat,nthrds,verb)               # Velocity and output image
+                 self.__nsx,velp,imgp,dat,nthrds,verb)        # Velocity and output image
       img = self.trunc_model(imgp)
     # Extended image
     else:
-      sca.brnoffadj(allsrcs,self.allsrcx,self.allsrcz,self.nsrc, # Source information
-                    self.allrecx,self.allrecz,self.nrec,         # Receiver information
-                    nsx,velp,self.rnh,imgp,allshot,nthrds,verb)  # Velocity and output image
+      sca.brnoffadj(allsrcs,self.allsrcx,self.allsrcz,self.nsrc,    # Source information
+                    self.allrecx,self.allrecz,self.nrec,            # Receiver information
+                    self.__nsx,velp,self.rnh,imgp,dat,nthrds,verb)  # Velocity and output image
       img = self.trunc_model(imgp)
 
     return img
 
-  def get_ext_axis(self):
+  def to_angle(self,img,amax=70,na=281,nthrds=4,transp=False,verb=False):
+    """
+    Converts the subsurface offset gathers to opening angle gathers
+
+    Parameters
+      img    - Image extended over subsurface offsets
+      amax   - Maximum angle over which to compute angle gathers [70]
+      na     - Number of angles on the angle axis [281]
+      nthrds - Number of OpenMP threads to use (parallelize over image point axis) [4]
+      transp - Transpose the output to have shape [na,nx,nz]
+      verb   - Verbosity flag [False]
+    """
+    amin = -amax; avals = np.linspace(amin,amax,na)
+    # Compute angle axis
+    self.na = na; self.da = avals[1] - avals[0]; self.oa = avals[0]
+    return off2ang(img,self.oh,self.dh,self.__dz,na=na,amax=amax,nta=601,ota=-3,dta=0.01,nthrds=nthrds,transp=transp,verb=verb)
+
+  def get_off_axis(self):
     """ Returns the subsurface offset extension axis """
     return self.rnh, self.oh, self.dh
+
+  def get_ang_axis(self):
+    """ Returns the opening angle extension axis """
+    return self.na, self.oa, self.da
 
   def make_src_coords(self,nsx,osx,dsx,srcz=0.0):
     """ 
@@ -261,7 +285,7 @@ class defaultgeom:
 
     return velp.astype('float32')
 
-  def trunc_model(vel):
+  def trunc_model(self,vel):
     """ Truncate the velocity model """
     if(len(vel.shape) == 2):
       return vel[self.__bz+5:self.__nz+self.__bz+5,self.__bx+5:self.__nx+self.__bx+5]
@@ -277,9 +301,10 @@ class defaultgeom:
     else:
       modp = self.pad_model(mod)
     vmin = np.min(mod); vmax = np.max(mod)
-    fig = plt.figure(figsize=(kwargs.get('wbox',10),kwargs.get('hbox',10)))
+    fig = plt.figure(figsize=(kwargs.get('wbox',14),kwargs.get('hbox',7)))
     ax = fig.gca()
-    im = ax.imshow(modp,extent=[0,self.__nxp,self.__nzp,0],vmin=vmin,vmax=vmax,cmap='jet')
+    im = ax.imshow(modp,extent=[0,self.__nxp,self.__nzp,0],vmin=kwargs.get('vmin',vmin),vmax=kwargs.get('vmax',vmax),
+        cmap=kwargs.get('cmap','jet'))
     ax.set_xlabel(kwargs.get('xlabel','X (gridpoints)'),fontsize=kwargs.get('labelsize',14))
     ax.set_ylabel(kwargs.get('ylabel','Z (gridpoints)'),fontsize=kwargs.get('labelsize',14))
     ax.tick_params(labelsize=kwargs.get('labelsize',14))

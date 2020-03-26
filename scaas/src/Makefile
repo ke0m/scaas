@@ -1,10 +1,10 @@
 NPPATH=${CONDA_PREFIX}/lib/python3.5/site-packages/numpy/core
 
 %.o: %.cpp
-	g++ -O3 -fPIC -ffast-math -fopenmp -shared -Wall -I. -c -fPIC -o $@ $<
+	g++ -std=c++11 -O3 -fPIC -ffast-math -fopenmp -shared -Wall -I. -c -fPIC -o $@ $<
 
 %.o: %.c
-	gcc -O3 -fPIC -ffast-math -fopenmp -shared -Wall -I. -c -fPIC -o $@ $<
+	gcc -std=c++11 -O3 -fPIC -ffast-math -fopenmp -shared -Wall -I. -c -fPIC -o $@ $<
 
 laplacian10.o: laplacian10.ispc
 	${ISPC}/ispc --target=avx $< -o $@

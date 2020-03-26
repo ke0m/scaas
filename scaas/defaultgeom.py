@@ -8,12 +8,13 @@ and distributed evenly across the surface
 import numpy as np
 import scaas.scaas2dpy as sca2d
 from scaas.off2ang import off2ang
+from scaas.gradtaper import build_taper
 import matplotlib.pyplot as plt
 
 class defaultgeom:
-  """ 
-  Functions for modeling and imaging with a 
-  standard synthetic source receiver geometry 
+  """
+  Functions for modeling and imaging with a
+  standard synthetic source receiver geometry
   """
   def __init__(self,nx,dx,nz,dz,nsx,dsx,osx=0.0,srcz=0.0,nrx=None,drx=1.0,orx=0.0,recz=0.0,alpha=0.99,bx=25,bz=25):
     """
@@ -52,6 +53,9 @@ class defaultgeom:
 
     # Boundary parameters
     self.__alpha = alpha
+
+    # Image taper parameters
+    self.tap1d = None; self.tap = None
 
     # Image parameters (to be set by wem)
     self.rnh = None; self.oh = None; self.dh = None
@@ -145,10 +149,10 @@ class defaultgeom:
 
     return allshot
 
-  def wem(self,vel,dat,wav,dtd,dtu=0.001,nh=None,nthrds=4,verb=False):
+  def wem(self,vel,dat,wav,dtd,dtu=0.001,nh=None,trunc=True,lap=False,nthrds=4,verb=False):
     """
-    Wave equation migration (WEM) or Image reconstruction
-    
+    Wave equation migration (WEM) or image reconstruction
+
     Parameters
       vel    - Migration velocity
       dat    - Input data to be imaged
@@ -156,6 +160,8 @@ class defaultgeom:
       dtd    - Output data sampling
       dtu    - Wave propagation time step (sampling). Same as wavelet sampling [0.001]
       nh     - Number of subsurface offsets (output will be 2*nh + 1) [None]
+      trunc  - Flag indicating whether or not to truncate the padded image [True]
+      lap    - Flag indicating whether or not to apply a laplacian to the image [False]
       nthrds - Number of OpenMP threads to use [4]
       verb   - Verbosity flag [False]
 
@@ -171,10 +177,10 @@ class defaultgeom:
     # Pad the model and create the output image
     velp = self.pad_model(vel)
     if(nh == None):
-      imgp = np.zeros([self.__nxp,self.__nzp],dtype='float32')
+      imgp = np.zeros([self.__nzp,self.__nxp],dtype='float32')
     else:
       self.rnh = 2*nh + 1; self.oh = -self.__dx*nh; self.dh = self.__dx
-      imgp = np.zeros([self.rnh,self.__nxp,self.__nzp],dtype='float32')
+      imgp = np.zeros([self.rnh,self.__nzp,self.__nxp],dtype='float32')
 
     # Temporal axis
     ntu = wav.shape[0]
@@ -194,13 +200,40 @@ class defaultgeom:
       sca.brnadj(allsrcs,self.allsrcx,self.allsrcz,self.nsrc, # Source information
                  self.allrecx,self.allrecz,self.nrec,         # Receiver information
                  self.__nsx,velp,imgp,dat,nthrds,verb)        # Velocity and output image
-      img = self.trunc_model(imgp)
+      if(self.tap is not None):
+        # Apply taper
+        imgp *= self.tap
+      if(lap):
+        # Apply laplacian
+        imgl = np.zeros(imgp.shape,dtype='float32')
+        sca.lapimg(imgp,imgl)
+      else:
+        imgl = imgp
+      if(trunc):
+        # Trucate the padding
+        img = self.trunc_model(imgl)
+      else:
+        img = imgl
     # Extended image
     else:
       sca.brnoffadj(allsrcs,self.allsrcx,self.allsrcz,self.nsrc,    # Source information
                     self.allrecx,self.allrecz,self.nrec,            # Receiver information
                     self.__nsx,velp,self.rnh,imgp,dat,nthrds,verb)  # Velocity and output image
-      img = self.trunc_model(imgp)
+      if(self.tap is not None):
+        # Apply taper
+        for ih in range(self.rnh):
+          imgp[ih,:,:] *= self.tap
+      if(lap):
+        # Apply laplacian
+        imgl = np.zeros(imgp.shape,dtype='float32')
+        for ih in range(self.rnh):
+          sca.lapimg(imgp[ih,:,:],imgl[ih,:,:])
+      else:
+        imgl = imgp
+      if(trunc):
+        img = self.trunc_model(imgl)
+      else:
+        img = imgl
 
     return img
 
@@ -223,6 +256,8 @@ class defaultgeom:
 
   def get_off_axis(self):
     """ Returns the subsurface offset extension axis """
+    if(self.rnh is None):
+      raise Exception("Cannot return subsurface offset axis without running extended imaging")
     return self.rnh, self.oh, self.dh
 
   def get_ang_axis(self):
@@ -230,8 +265,8 @@ class defaultgeom:
     return self.na, self.oa, self.da
 
   def make_src_coords(self,nsx,osx,dsx,srcz=0.0):
-    """ 
-    Makes source coordinates assuming the default geometry 
+    """
+    Makes source coordinates assuming the default geometry
 
     Parameters:
       nsx - Number of sources
@@ -240,7 +275,7 @@ class defaultgeom:
     """
     self.__nsx = nsx
     osxp = osx + self.__bx + 5; srczp = srcz + self.__bz + 5
-    nsrc = np.ones(nsx,dtype='int32')               # One source 
+    nsrc = np.ones(nsx,dtype='int32')               # One source
     allsrcx = np.zeros([nsx,1],dtype='int32')  # for each experiment
     allsrcz = np.zeros([nsx,1],dtype='int32')  # (no blending)
     # All source x positions in one array
@@ -252,8 +287,8 @@ class defaultgeom:
     return allsrcx, allsrcz, nsrc
 
   def make_rec_coords(self,nrx,nsx,orx=0.0,drx=1.0,recz=0.0):
-    """ 
-    Makes the receiver coordinates assuming the default geometry 
+    """
+    Makes the receiver coordinates assuming the default geometry
 
     Parameters:
       nrx - Number of receivers
@@ -261,10 +296,10 @@ class defaultgeom:
       drx - Spacing between receivers in samples
     """
     # Create receiver coordinates
-    if(nrx == None): 
+    if(nrx == None):
       nrx = self.__nx; orx = 0.0; drx = 1.0;      # Force orx=0.0 and drx=1.0 for this case
     self.__nrx = nrx
-    orxp = orx + self.__bx + 5; reczp  = recz + self.__bz + 5 
+    orxp = orx + self.__bx + 5; reczp  = recz + self.__bz + 5
     nrec = np.zeros(nrx,dtype='int32') + nrx       # All receivers
     allrecx = np.zeros([self.__nsx,nrx],dtype='int32')    # for each experiment
     allrecz = np.zeros([self.__nsx,nrx],dtype='int32')    # (stationary and always active)
@@ -285,6 +320,10 @@ class defaultgeom:
 
     return velp.astype('float32')
 
+  def get_padsize(self):
+    """ Returns the size of the padded velocity model """
+    return [self.__nzp,self.__nxp]
+
   def trunc_model(self,vel):
     """ Truncate the velocity model """
     if(len(vel.shape) == 2):
@@ -292,11 +331,39 @@ class defaultgeom:
     elif(len(vel.shape) == 3):
       return vel[:,self.__bz+5:self.__nz+self.__bz+5,self.__bx+5:self.__nx+self.__bx+5]
 
-  def plot_acq(self,mod=None,**kwargs):
+  def build_taper(self,z1t,z2t):
+    """ Builds a taper for removing artifacts at the source locations """
+    self.tap1d,self.tap = build_taper(self.__nxp,self.__nzp,z1t,z2t)
+
+  def plot_taper(self,mod=None,show=True,**kwargs):
+    """ Plots the taper and acquisition on a velocity model """
+    if(self.tap is None):
+      raise Exception("Taper has not been built yet. Please first build taper with build_taper function")
+    if(mod is None):
+      mod  = np.zeros([self.__nx, self.__nz],dtype='float32') + 2500.0
+      modp = self.pad_model(mod)
+    else:
+      modp = self.pad_model(mod)
+    vmin = np.min(mod); vmax = np.max(mod)
+    fig = plt.figure(figsize=(kwargs.get('wbox',14),kwargs.get('hbox',7)))
+    ax = fig.gca()
+    im1 = ax.imshow(modp,extent=[0,self.__nxp,self.__nzp,0],vmin=kwargs.get('vmin',vmin),vmax=kwargs.get('vmax',vmax),
+        cmap=kwargs.get('cmap','jet'))
+    im2 = ax.imshow(self.tap,extent=[0,self.__nxp,self.__nzp,0],cmap='jet',alpha=kwargs.get('alpha',0.3))
+    ax.set_xlabel(kwargs.get('xlabel','X (gridpoints)'),fontsize=kwargs.get('labelsize',14))
+    ax.set_ylabel(kwargs.get('ylabel','Z (gridpoints)'),fontsize=kwargs.get('labelsize',14))
+    ax.tick_params(labelsize=kwargs.get('labelsize',14))
+    # Get all source positions
+    plt.scatter(self.allrecx[0,:],self.allrecz[0,:],c='tab:green',marker='v')
+    plt.scatter(self.allsrcx[:,0],self.allsrcz[:,0],c='tab:red',marker='*')
+    if(show):
+      plt.show()
+
+  def plot_acq(self,mod=None,show=True,**kwargs):
     """ Plots the acquisition on a velocity model """
     # Plot velocity model
     if(mod is None):
-      mod  = np.zeros(self.__nx, self.__nz) + 2500.0
+      mod  = np.zeros([self.__nx, self.__nz],dtype='float32') + 2500.0
       modp = self.pad_model(mod)
     else:
       modp = self.pad_model(mod)
@@ -311,5 +378,6 @@ class defaultgeom:
     # Get all source positions
     plt.scatter(self.allrecx[0,:],self.allrecz[0,:],c='tab:green',marker='v')
     plt.scatter(self.allsrcx[:,0],self.allsrcz[:,0],c='tab:red',marker='*')
-    plt.show()
+    if(show):
+      plt.show()
 

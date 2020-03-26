@@ -618,6 +618,7 @@ void scaas2d::gradient_multishot(float *src, int *srcxs, int *srczs, int *nsrcs,
     /* Compute the gradient for this shot */
     gradient_oneshot(isrc, isrcx, isrcz, insrc, iasrc, irecx, irecz, inrec, vel, igrad);
     /* Add gradient to output gradient */
+#pragma omp critical
     for(int k = 0; k < _onestp; ++k) { grad[k] += igrad[k]; };
     /* Free memory */
     delete[] isrcx;  delete[] isrcz;
@@ -906,6 +907,7 @@ void scaas2d::brnadj(float *src, int *srcxs, int *srczs, int *nsrcs, int *recxs,
     /* Compute the gradient for this shot */
     brnadj_oneshot(isrc, isrcx, isrcz, insrc, irecx, irecz, inrec, vel, idvel, iddat);
     /* Add gradient to output gradient */
+#pragma omp critical
     for(int k = 0; k < _onestp; ++k) { dvel[k] += idvel[k]; };
     /* Free memory */
     delete[] isrcx;  delete[] isrcz;
@@ -1065,6 +1067,7 @@ void scaas2d::brnoffadj(float *src, int *srcxs, int *srczs, int *nsrcs, int *rec
     /* Compute the extended image for this shot */
     brnoffadj_oneshot(isrc, isrcx, isrcz, insrc, irecx, irecz, inrec, vel, rnh, idvel, iddat);
     /* Add image to output image */
+#pragma omp critical
     for(int k = 0; k < _onestp*rnh; ++k) { dvel[k] += idvel[k]; };
     /* Free memory */
     delete[] isrcx;  delete[] isrcz;

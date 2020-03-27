@@ -50,10 +50,11 @@ plot_imgpoff(eimg,dx/1000.0,dz/1000.0,zoff=int(nh/2),xloc=int((nx-1)/2),oh=oh/10
 viewimgframeskey(eimg,transp=False,interp='sinc')
 
 # Residual migration
-storm = preresmig(eimg,[dh,dz,dx],nro=10,transp=True)
-nro,oro,dro = get_rho_axis(nro=10,oro=0.0,dro=0.01)
+nro = 20; dro = 0.005
+storm = preresmig(eimg,[dh,dz,dx],nro=20,dro=0.005,transp=True,nthreads=1)
+nro,oro,dro = get_rho_axis(nro=20,oro=0.0,dro=0.005)
 
-viewimgframeskey(storm[:,int(nh/2),:,:],transp=False,interp='sinc',ttlstring="rho=%.2f",ottl=0.91,dttl=0.01)
+viewimgframeskey(storm[:,int(nh/2),:,:],transp=False,interp='sinc',ttlstring="rho=%.3f",ottl=oro,dttl=dro)
 
 # Convert to angle
 #aimg = prp.to_angle(eimg,transp=False,verb=True)

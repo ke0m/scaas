@@ -4,7 +4,8 @@ import scaas.noise_generator as noise_generator
 import scipy.ndimage as flt
 
 def find_optimal_sizes(n,j,nb):
-  """ Finds the optimal size for a provided j along a
+  """
+  Finds the optimal size for a provided j along a
   particular axis
   """
   b = []; e = []
@@ -85,7 +86,8 @@ def create_randptscatmodel(nz,nx,npts,mindist):
   return scats
 
 def create_randomptb(nz,nx,romin,romax,nptsz=1,nptsx=1,octaves=4,period=80,Ngrad=80,persist=0.2,ncpu=2):
-  """ Creates a low wavenumber perturbation given minimum rho
+  """
+  Creates a low wavenumber perturbation given minimum rho
   and maximum rho values
   """
   noise = noise_generator.perlin(x=np.linspace(0,nptsx,nx), y=np.linspace(0,nptsz,nz), octaves=octaves,
@@ -95,8 +97,9 @@ def create_randomptb(nz,nx,romin,romax,nptsz=1,nptsx=1,octaves=4,period=80,Ngrad
   return (noise*(n-romin) + romin).astype('float32')
 
 def create_randomptb_loc(nz,nx,romin,romax,naz,nax,cz,cx,
-                         nptsz=1,nptsx=1,octaves=4,period=80,Ngrad=80,persist=0.2,ncpu=2):
-  """ Creates a low wavenumber perturbation given minimum rho
+                         nptsz=1,nptsx=1,octaves=4,period=80,Ngrad=80,persist=0.2,ncpu=2,sigma=20):
+  """
+  Creates a low wavenumber perturbation given minimum rho
   and maximum rho values
   """
   noise = noise_generator.perlin(x=np.linspace(0,nptsx,nax), y=np.linspace(0,nptsz,naz), octaves=octaves,
@@ -118,14 +121,16 @@ def create_randomptb_loc(nz,nx,romin,romax,naz,nax,cz,cx,
     cx = nax/2
   px2 = nx - cx - int(nax/2)
   noisep   = np.pad(noiseout,((pz1,pz2),(px1,px2)),'constant',constant_values=1)
-  noisepsm = flt.gaussian_filter(noisep,sigma=5)
+  noisepsm = flt.gaussian_filter(noisep,sigma=sigma)
 
   return noisepsm.astype('float32')
 
 def create_layered(nz,nx,dz,dx,z0s=[],vels=[],flat=True,
     npts=2,octaves=3,period=80,Ngrad=80,persist=0.6,scale=200,ncpu=2):
-  """ Creates a layered velocity and reflectivity model. 
-  Can create random undulation in the layers. """
+  """
+  Creates a layered velocity and reflectivity model.
+  Can create random undulation in the layers.
+  """
   # Check the input arguments
   assert(any(z0s) < nz or any(z0s) > 0), "z0 out of range"
   nref = len(z0s); nvels = len(vels)
@@ -142,10 +147,10 @@ def create_layered(nz,nx,dz,dx,z0s=[],vels=[],flat=True,
   for iref in range(nref):
     # Create flat layer
     spk = np.zeros(nz)
-    spk[z0s[iref]] = 1 
+    spk[z0s[iref]] = 1
     rpt = np.tile(spk,(nx,1)).T
     # Calculate shifts
-    if(flat == False): 
+    if(flat == False):
       shp = noise_generator.perlin(x=np.linspace(0,npts,nx), octaves=octaves, period=80, Ngrad=80, persist=persist, ncpu=2)
       shp -= np.mean(shp); shp *= scale
       ishp = shp.astype(int)
@@ -158,7 +163,7 @@ def create_layered(nz,nx,dz,dx,z0s=[],vels=[],flat=True,
 
   # Fill in the velocity
   for iref in range(nref):
-    if(iref == 0): 
+    if(iref == 0):
       ref = refs[iref]
       for ix in range(nx):
         ovel[0:ref[ix],ix] = vels[iref]
@@ -166,7 +171,7 @@ def create_layered(nz,nx,dz,dx,z0s=[],vels=[],flat=True,
       ref1 = refs[iref-1]; ref2 = refs[iref]
       for ix in range(nx):
         ovel[ref1[ix]:ref2[ix],ix] = vels[iref]
-        
+
   # Get the last layer
   ref = refs[-1]
   for ix in range(nx):

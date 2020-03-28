@@ -1,6 +1,6 @@
-from __future__ import print_function
 import numpy as np
 import os,socket,getpass
+import __main__ as main
 import datetime
 import string, random
 import subprocess as sp
@@ -29,7 +29,7 @@ class axes:
 class sep:
   """ Utility for reading, writing and plotting SEP files """
 
-  def __init__(self,argv):
+  def __init__(self,argv=None):
     self.hdict = {}
     self.haxes = {}
     self.argv  = argv
@@ -37,6 +37,8 @@ class sep:
 
   def get_fname(self, tag):
     """ Gets the file name with the associated tag """
+    if(self.argv is None):
+      raise Exception("Must pass sys.argv to constructor in order to use tags")
     fname = None
     for iarg in self.argv:
       keyval = iarg.split('=')
@@ -47,7 +49,7 @@ class sep:
 
     return fname
 
-  def read_header(self,tag,ifname=None):
+  def read_header(self,ifname,tag=None):
     """ Reads a SEP header file from tag and returns the axes """
     self.hdict = {}
     # Get the filename with the given tag
@@ -57,10 +59,12 @@ class sep:
       assert (hin != None), "No file associated with tag '%s'"%(tag)
     else:
       hin = ifname
-    hout = self.get_fname("out")
-    fout = None
-    if(hout != None):
-      fout = open(hout,"w")
+    # Work with tags if argv has been passed
+    if(self.argv is not None):
+      hout = self.get_fname("out")
+      fout = None
+      if(hout != None):
+        fout = open(hout,"w")
     # First read header into dictionary
     for line in open(hin).readlines():
       # If output file, copy history to output
@@ -110,17 +114,20 @@ class sep:
     else:
       return axes(ns,os,ds,lbls)
 
-  def read_header_dict(self,tag,ifname=None):
+  def read_header_dict(self,ifname,tag=None):
     """ Reads a SEP header file and returns a dictionary """
     hdict = {}
     # Get the filename with the given tag
     assert(tag != None or ifname != None), "Need either a tag or inputfile for reading.\n"
     if(tag != None):
-      hin  = self.get_fname(tag)
+      hin  = self.get_fname(tag=tag)
       assert (hin != None), "No file associated with tag '%s'"%(tag)
     else:
       hin = ifname
-    hout = self.get_fname("out")
+    if(self.argv is not None):
+      hout = self.get_fname(tag="out")
+    else:
+      hout = None
     fout = None
     if(hout != None):
       fout = open(hout,"w")
@@ -138,9 +145,9 @@ class sep:
 
     return hdict
 
-  def read_file(self,tag,ifname=None,form='xdr',safe=False):
+  def read_file(self,ifname,form='xdr',safe=False,tag=None):
     """ Reads a SEP file from tag and returns the data and the axes """
-    faxes  = self.read_header(tag,ifname)
+    faxes  = self.read_header(ifname,tag)
     if(safe):
       dat = np.zeros(faxes.get_nelem())
       with open(self.hdict["in"],'rb') as f:
@@ -161,11 +168,11 @@ class sep:
 
     return faxes, dat
 
-  def from_header(self,tag,keys,ifname=None):
+  def from_header(self,ifname,keys,tag=None):
     """ Given a list of keys (strings), returns the values from the header """
     odict= {}
     # Read the header dictionary
-    thdict = self.read_header_dict(tag,ifname)
+    thdict = self.read_header_dict(ifname,tag)
     # Loop over all keys
     for ikey in keys:
       if ikey in thdict:
@@ -173,16 +180,18 @@ class sep:
 
     return odict
 
-  def write_header(self,tag,ofaxes,ofname=None,dpath=None,form='xdr'):
-    """ Writes header information to SEP file and returns
-    the path to the output """
+  def write_header(self,ofname,ns,ors=None,ds=None,ofaxes=None,tag=None,dpath=None,form='xdr'):
+    """ 
+    Writes header information to SEP file and returns
+    the path to the output 
+    """
     fout = None
     assert(tag != None or ofname != None), "Need a tag or output file name to write a header."
     if(tag != None):
       ofname = self.get_fname(tag)
 
     if(tag == "out"):
-      assert(ofname != None), "No output file name found. Did you pass argv to seppy?"
+      assert(ofname != None), "No output file name found. To work with tags you must pass argv to constructor."
       fout = open(ofname,"a")
     else:
       fout = open(ofname,"w+")
@@ -197,14 +206,30 @@ class sep:
     else:
       opath = dpath + ofname + "@"
     fout.write('\t\tsets next: in="%s"\n'%(opath))
-    # Print axes
-    for k in range(ofaxes.ndims):
-      if(ofaxes.label != None):
-        fout.write("\t\tn%d=%d o%d=%f d%d=%.12f label%d=%s\n"%
-            (k+1,ofaxes.n[k],k+1,ofaxes.o[k],k+1,ofaxes.d[k],k+1,ofaxes.label[k]))
+    if(ofaxes is not None):
+      # Print axes
+      for k in range(ofaxes.ndims):
+        if(ofaxes.label != None):
+          fout.write("\t\tn%d=%d o%d=%f d%d=%.12f label%d=%s\n"%
+              (k+1,ofaxes.n[k],k+1,ofaxes.o[k],k+1,ofaxes.d[k],k+1,ofaxes.label[k]))
+        else:
+          fout.write("\t\tn%d=%d o%d=%f d%d=%.12f\n"%
+              (k+1,ofaxes.n[k],k+1,ofaxes.o[k],k+1,ofaxes.d[k]))
+    else:
+      # Write with as much info as they provide
+      ndim = len(ns)
+      if(ors is None):
+        ors = np.zeros(ndim)
+      if(ds is None):
+        ds = np.ones(ndim)
       else:
-        fout.write("\t\tn%d=%d o%d=%f d%d=%.12f\n"%
-            (k+1,ofaxes.n[k],k+1,ofaxes.o[k],k+1,ofaxes.d[k]))
+        if(len(ds) != ndim):
+          ds = np.pad(ds,(0,ndim-len(ds)),mode='constant',constant_values=1)
+        if(len(ors) != ndim):
+          ors = np.pad(ors,(0,ndim-len(ors)),mode='constant',constant_values=0.0)
+        for k in range(ndim):
+          fout.write("\t\tn%d=%d o%d=%f d%d=%.12f\n"%
+              (k+1,ns[k],k+1,ors[k],k+1,ds[k]))
 
     if(form == 'xdr'):
       fout.write('\t\tdata_format="xdr_float" esize=4\n')
@@ -217,11 +242,9 @@ class sep:
 
     return opath
 
-  #TODO: really inefficient for large files (lots of memory and slow)
-  # probably should wrap Huy's code
-  def write_file(self,tag,ofaxes,data,ofname=None,dpath=None,form='xdr'):
+  def write_file(self,ofname,data,ors=None,ds=None,ofaxes=None,tag=None,dpath=None,form='xdr'):
     """ Writes data and axes to a SEP header and binary """
-    opath = self.write_header(tag,ofaxes,ofname,dpath,form)
+    opath = self.write_header(ofname,data.shape,ors,ds,ofaxes,tag,dpath,form)
     with open(opath,'wb') as f:
       if(form == 'xdr'):
         data.flatten('F').astype('>f').tofile(f)
@@ -230,7 +253,7 @@ class sep:
       else:
         print("Failed to write file. Format %s not recognized\n"%(form))
 
-  def to_header(self,tag,info,ofname=None):
+  def to_header(self,ofname,info,tag=None):
     """ Writes any auxiliary information to header """
     fout = None
     assert(tag != None or ofname != None), "Need a tag or output file name to write a header."
@@ -239,14 +262,14 @@ class sep:
 
     # Open file header
     if(tag == "out"):
-      assert(ofname != None), "No output file name found. Did you pass argv to seppy?"
+      assert(ofname != None), "No output file name found. To work with tags, you must pass argv to constructor."
       fout = open(ofname,"a")
     else:
       fout = open(ofname,"a+")
     fout.write('\n' + info)
     fout.close()
 
-  def write_dummyaxis(self,tag,dim,ofname=None):
+  def write_dummyaxis(self,ofname,dim,tag=None):
     """ Writes a single axis to a SEP header """
     if(ofname == None):
       ofname = self.get_fname(tag)
@@ -255,7 +278,7 @@ class sep:
     fout.write("\n\t\tn%d=1 o%d=0.0 d%d=1.0\n"%(dim,dim,dim))
     fout.close()
 
-  def append_to_movie(self,tag,ofaxes,data,niter,ofname=None,dpath=None,form='xdr'):
+  def append_to_movie(self,ofname,ofaxes,data,niter,tag=None,dpath=None,form='xdr'):
     """ Appends to a file for an inversion movie"""
     if(ofname == None):
       ofname = self.get_fname(tag)
@@ -280,8 +303,8 @@ class sep:
 
   def get_fline(self):
     """ Returns the first line of the program header """
-    if(len(self.argv) == 0):
-      fline = "python"
+    if(self.argv is None):
+      fline = "%s"%(main.__file__)
     else:
       fline = self.argv[0]
     # Get user and hostname
@@ -295,9 +318,10 @@ class sep:
 
   def get_datapath(self):
     """ Gets the set datpath for writing SEP binaries """
-    dpath = ''
+    dpath = None
     # Check if passed as argument
-    dpath = self.get_fname("datapath")
+    if(self.argv is not None):
+      dpath = self.get_fname("datapath")
     if(dpath == None):
       # Look in home directory
       datstring = os.environ['HOME'] + "/.datapath"
@@ -315,7 +339,6 @@ class sep:
               break
         if(dpath == None and nohost != None):
           dpath = nohost[0].split('=')[1]
-
     # Lastly, look at environment variable
     elif(dpath == None and "DATAPATH" in os.environ):
       dpath = os.environ['DATAPATH']
@@ -369,21 +392,6 @@ class sep:
         print("Type %s not recognized. Returning default")
         return default
 
-  def create_inttag(self,numin,totnum):
-    """ Creates a tag that is appended with zeros for friendly Unix sorting """
-    nzeroso = int(np.log10(totnum)); nzeros = nzeroso
-    tagout = None
-    for izro in range(1,nzeroso+1):
-      if((numin >= 10**(izro-1) and numin < 10**(izro))):
-        tagout = '0'*(nzeros) + str(numin)
-      nzeros -= 1
-    if(tagout != None):
-      return tagout
-    elif(numin == 0):
-      return '0'*(nzeroso) + str(numin)
-    else:
-      return str(numin)
-
   ## Vplot plotting
   #TODO: For now, I write the file to wherever you are.
   #      This may not be good in the future
@@ -392,12 +400,12 @@ class sep:
     assert(daxes.ndims > 1), "Only use Grey for arrays of ndim=2 or larger"
     # Create random output filename
     rgname = ""
-    if(len(self.argv) == 0):
+    if(self.argv is None):
       rgname = "python" + self.id_generator() + "Grey"
     else:
       rgname = self.argv[0].split("/")[-1] + self.id_generator() + "Grey"
     rghname = rgname + ".H"
-    self.write_file(None,daxes,dat,ofname=rghname)
+    self.write_file(rghname,daxes,dat)
     # Get output figname
     figfile = None; ext = None
     if(figname != None):
@@ -482,8 +490,8 @@ class sep:
     assert(len(dat.shape) > 1), "Only use Grey for arrays of ndim=2 or larger"
     # Create random output filename
     rgname = ""
-    if(len(self.argv) == 0):
-      rgname = "python" + self.id_generator() + "Grey"
+    if(self.argv is None):
+      rgname = main.__file__ + self.id_generator() + "Grey"
     else:
       rgname = self.argv[0].split("/")[-1] + self.id_generator() + "Grey"
     rghname = rgname + ".H"
@@ -525,7 +533,7 @@ class sep:
     assert(len(dat.shape) > 1), "Only use Grey for arrays of ndim=2 or larger"
     # Create random output filename
     rgname = ""
-    if(len(self.argv) == 0):
+    if(self.argv is None):
       rgname = "python" + self.id_generator() + "Grey"
     else:
       rgname = self.argv[0].split("/")[-1] + self.id_generator() + "Grey"
@@ -577,7 +585,7 @@ class sep:
       odat[:,ipl] = dats[ipl]
     # Create random output filename
     rgname = ""
-    if(len(self.argv) == 0):
+    if(self.argv is None):
       rgname = "python" + self.id_generator() + "Graph"
     else:
       rgname = self.argv[0].split("/")[-1] + self.id_generator() + "Graph"
@@ -666,8 +674,8 @@ class sep:
     assert(daxes.ndims < 2), "Only use Dots for arrays of ndim=1"
     # Create random output filename
     rgname = ""
-    if(len(self.argv) == 0):
-      rgname = "python" + self.id_generator() + "Dots"
+    if(self.argv is None):
+      rgname = main.__file__ + self.id_generator() + "Dots"
     else:
       rgname = self.argv[0].split("/")[-1] + self.id_generator() + "Dots"
     rghname = rgname + ".H"

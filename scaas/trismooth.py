@@ -17,6 +17,10 @@ def smooth(data,rect1=1,rect2=1,rect3=1):
     rect2 - Number of points to smooth along second axis [-1, no smoothing]
     rect3 - Number of points to smooth along slow axis [-1, no smoothing]
   """
+  # First check that the input is of type float32
+  if(data.dtype != np.zeros(1,dtype='float32').dtype):
+    raise Exception("Input data array must be of type 'float32'")
+
   # Create the necessary inputs for the kernel function
   dim = len(data.shape)
   ns    = np.ones(3,dtype='int32')

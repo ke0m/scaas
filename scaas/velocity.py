@@ -123,9 +123,11 @@ def create_randomptb_loc(nz,nx,romin,romax,naz,nax,cz,cx,
   return noisepsm.astype('float32')
 
 def create_layered(nz,nx,dz,dx,z0s=[],vels=[],flat=True,
-    npts=2,octaves=3,period=80,Ngrad=80,persist=0.6,scale=200,ncpu=2):
-  """ Creates a layered velocity and reflectivity model. 
-  Can create random undulation in the layers. """
+    npts=2,octaves=3,period=80,Ngrad=80,persist=0.6,scale=200,ncpu=1,interp='lint'):
+  """ 
+  Creates a layered velocity and reflectivity model. 
+  Can create random undulation in the layers. 
+  """
   # Check the input arguments
   assert(any(z0s) < nz or any(z0s) > 0), "z0 out of range"
   nref = len(z0s); nvels = len(vels)
@@ -154,7 +156,10 @@ def create_layered(nz,nx,dz,dx,z0s=[],vels=[],flat=True,
     pos = ishp + z0s[iref]
     refs.append(pos)
     # Put in layer
-    lyrs += np.array([np.roll(rpt[:,ix],ishp[ix]) for ix in range(nx)]).T
+    if(interp == 'lint'):
+      lyrs += np.array([flt.interpolation.shift(rpt[:,ix],shp[ix],order=1) for ix in range(nx)]).T
+    else:
+      lyrs += np.array([np.roll(rpt[:,ix],ishp[ix]) for ix in range(nx)]).T
 
   # Fill in the velocity
   for iref in range(nref):

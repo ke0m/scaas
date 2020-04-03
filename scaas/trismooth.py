@@ -27,7 +27,7 @@ def smooth(data,rect1=1,rect2=1,rect3=1):
   dim1 = -1
   for i in range(dim):
     ns[i] = data.shape[dim-i-1]
-    if(rects[i] > -1): dim1 = i
+    if(rects[i] > 1): dim1 = i
 
   n1 = n2 = 1
   for i in range(dim):

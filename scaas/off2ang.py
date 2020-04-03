@@ -63,7 +63,7 @@ def off2ang(off,oh,dh,dz,oz=0.0,na=281,amax=70,oa=None,da=None,nta=601,ota=-3,dt
   # Loop over rho
   for iro in range(nro):
     if(rverb): printprogress("nrho:",iro,nro)
-    if(cverb): print("rho=%.2f"%(oro + iro*dro))
+    if(cverb): print("rho=%.3f (%d/%d)"%(oro + iro*dro,iro+1,nro))
     convert2ang(nx,nh,oh,dh,nta,ota,dta,na,oa,da,nz,oz,dz,ext,offt[iro],angs[iro],nthrds,cverb)
   if(rverb): printprogress("nrho:",nro,nro)
 
@@ -78,4 +78,11 @@ def off2ang(off,oh,dh,dz,oz=0.0,na=281,amax=70,oa=None,da=None,nta=601,ota=-3,dt
       return angs
     else:
       return angs[0]
+
+def get_ang_axis(amax=70,na=281):
+  """ Given a maximum angle, returns the angle axis """
+  amin = -amax
+  avals = np.linspace(amin,amax,na)
+  da = avals[1] - avals[0]; oa = avals[0]
+  return na,oa,da
 

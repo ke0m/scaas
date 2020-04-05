@@ -1,5 +1,5 @@
 import numpy as np
-import os,socket,getpass
+import socket,getpass
 import __main__ as main
 import datetime
 import string, random
@@ -180,7 +180,7 @@ class sep:
 
     return odict
 
-  def write_header(self,ofname,ns,ors=None,ds=None,ofaxes=None,tag=None,dpath=None,form='xdr'):
+  def write_header(self,ofname,ns,os=None,ds=None,ofaxes=None,tag=None,dpath=None,form='xdr'):
     """ 
     Writes header information to SEP file and returns
     the path to the output 
@@ -218,18 +218,18 @@ class sep:
     else:
       # Write with as much info as they provide
       ndim = len(ns)
-      if(ors is None):
-        ors = np.zeros(ndim)
+      if(os is None):
+        os = np.zeros(ndim)
       if(ds is None):
         ds = np.ones(ndim)
       else:
         if(len(ds) != ndim):
           ds = np.pad(ds,(0,ndim-len(ds)),mode='constant',constant_values=1)
-        if(len(ors) != ndim):
-          ors = np.pad(ors,(0,ndim-len(ors)),mode='constant',constant_values=0.0)
+        if(len(os) != ndim):
+          os = np.pad(os,(0,ndim-len(os)),mode='constant',constant_values=0.0)
       for k in range(ndim):
         fout.write("\t\tn%d=%d o%d=%f d%d=%.12f\n"%
-            (k+1,ns[k],k+1,ors[k],k+1,ds[k]))
+            (k+1,ns[k],k+1,os[k],k+1,ds[k]))
 
     if(form == 'xdr'):
       fout.write('\t\tdata_format="xdr_float" esize=4\n')
@@ -242,9 +242,9 @@ class sep:
 
     return opath
 
-  def write_file(self,ofname,data,ors=None,ds=None,ofaxes=None,tag=None,dpath=None,form='xdr'):
+  def write_file(self,ofname,data,os=None,ds=None,ofaxes=None,tag=None,dpath=None,form='xdr'):
     """ Writes data and axes to a SEP header and binary """
-    opath = self.write_header(ofname,data.shape,ors,ds,ofaxes,tag,dpath,form)
+    opath = self.write_header(ofname,data.shape,os,ds,ofaxes,tag,dpath,form)
     with open(opath,'wb') as f:
       if(form == 'xdr'):
         data.flatten('F').astype('>f').tofile(f)

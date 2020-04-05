@@ -1,5 +1,6 @@
 import numpy as np
-import os,socket,getpass
+import os as opsys
+import socket,getpass
 import __main__ as main
 import datetime
 import string, random
@@ -324,8 +325,8 @@ class sep:
       dpath = self.get_fname("datapath")
     if(dpath == None):
       # Look in home directory
-      datstring = os.environ['HOME'] + "/.datapath"
-      if(os.path.exists(datstring) == True):
+      datstring = opsys.environ['HOME'] + "/.datapath"
+      if(opsys.path.exists(datstring) == True):
         nohost = ''
         # Assumes structure as host datapath=path
         for line in open(datstring).readlines():
@@ -340,8 +341,8 @@ class sep:
         if(dpath == None and nohost != None):
           dpath = nohost[0].split('=')[1]
     # Lastly, look at environment variable
-    elif(dpath == None and "DATAPATH" in os.environ):
-      dpath = os.environ['DATAPATH']
+    elif(dpath == None and "DATAPATH" in opsys.environ):
+      dpath = opsys.environ['DATAPATH']
     #else:
     #  dpath = '/tmp/'
 
@@ -409,7 +410,7 @@ class sep:
     # Get output figname
     figfile = None; ext = None
     if(figname != None):
-      figfile, ext = os.path.splitext(figname)
+      figfile, ext = opsys.path.splitext(figname)
     gpltcmd = 'Grey < %s'%(rghname); gsvecmd = 'Grey < %s'%(rghname)
 
     ## Plot and write figure
@@ -594,7 +595,7 @@ class sep:
     # Get output figname
     figfile = None; ext = None
     if(figname != None):
-      figfile, ext = os.path.splitext(figname)
+      figfile, ext = opsys.path.splitext(figname)
     gpltcmd = 'Graph < %s'%(rghname); gsvecmd = 'Graph < %s'%(rghname)
 
     ## Plot and write figure
@@ -683,7 +684,7 @@ class sep:
     # Get output figname
     figfile = None; ext = None
     if(figname != None):
-      figfile, ext = os.path.splitext(figname)
+      figfile, ext = opsys.path.splitext(figname)
     gpltcmd = 'Dots < %s'%(rghname); gsvecmd = 'Dots < %s'%(rghname)
 
     ## Plot and write figure

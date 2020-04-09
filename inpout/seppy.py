@@ -228,9 +228,9 @@ class sep:
           ds = np.pad(ds,(0,ndim-len(ds)),mode='constant',constant_values=1)
         if(len(os) != ndim):
           os = np.pad(os,(0,ndim-len(os)),mode='constant',constant_values=0.0)
-        for k in range(ndim):
-          fout.write("\t\tn%d=%d o%d=%f d%d=%.12f\n"%
-              (k+1,ns[k],k+1,os[k],k+1,ds[k]))
+      for k in range(ndim):
+        fout.write("\t\tn%d=%d o%d=%f d%d=%.12f\n"%
+            (k+1,ns[k],k+1,os[k],k+1,ds[k]))
 
     if(form == 'xdr'):
       fout.write('\t\tdata_format="xdr_float" esize=4\n')

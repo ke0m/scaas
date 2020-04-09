@@ -2,6 +2,7 @@
 import numpy as np
 import scaas.noise_generator as noise_generator
 import scipy.ndimage as flt
+from utils.rand import randfloat
 
 def find_optimal_sizes(n,j,nb):
   """
@@ -112,11 +113,13 @@ def create_randomptb_loc(nz,nx,romin,romax,naz,nax,cz,cx,
   # cz = p1 + naz
   #pz = int((nz-naz)/2); px = int((nx-nax)/2)
   pz1 = cz - int(naz/2)
+  if(naz%2 != 0): pz1 -= 1
   if(pz1 < 0):
     cz = naz/2
   pz2 = nz - cz - int(naz/2)
   #print(pz1,int(naz/2),pz2)
   px1 = cx - int(nax/2)
+  if(nax%2 != 0): px1 -= 1
   if(px1 < 0):
     cx = nax/2
   px2 = nx - cx - int(nax/2)
@@ -124,6 +127,69 @@ def create_randomptb_loc(nz,nx,romin,romax,naz,nax,cz,cx,
   noisepsm = flt.gaussian_filter(noisep,sigma=sigma)
 
   return noisepsm.astype('float32')
+
+def create_randomptbs_loc(nz,nx,nptbs,romin=0.95,romax=1.06,minnaz=150,maxnaz=300,minnax=150,maxnax=300,mindist=200,
+    mincz=None,mincx=None,maxcz=None,maxcx=None,nptsz=1,nptsx=1,octaves=4,period=80,Ngrad=80,
+    persist=0.2,ncpu=1,sigma=20):
+  """
+  Creates randomly positioned velocity anomalies in a velocity model
+
+  Parameters
+    nz      - number of z samples of velocity model
+    nx      - number of x samples of velocity model
+    romins  - a list of minimum % magnitudes of velocity perturbation
+    romaxs  - a list of maximum % magnitudes of velocity perturbation
+    nazs    - list of average sizes of anomalies in z-direction
+    naxs    - list of average sizes of anomalies in x-direction
+    mindist - minimum distance between centers of anomalies
+    mincx   - minimum x sample to place center of anomaly [0]
+    mincz   - minimum z sample to place center of anomaly [0]
+    maxcx   - maximum x sample to place center of anomaly [0]
+    maxcz   - maximum z sample to place center of anomaly [0]
+  """
+  # Get ranges
+  if(mincz is None): mincz = 50
+  if(maxcz is None): maxcz = nz/2
+  if(mincx is None): mincx = 20
+  if(maxcx is None): maxcx = nz-20
+  # Find centers
+  ctrs = []; k = 0
+  while(len(ctrs) < nptbs):
+    ctr = []
+    ctr.append(np.random.randint(mincz,maxcz))
+    ctr.append(np.random.randint(mincx,maxcx))
+    if(k == 0):
+      ctr.append(ctr)
+    else:
+      keeppoint = True
+      for ict in ctrs:
+        if(distance(ctr,ict) < mindist):
+          keeppoint = False
+          break
+      if(keeppoint == True):
+        ctrs.append(ctr)
+    k += 1
+
+  # Create each perturbation
+  velout = np.ones([nz,nx],dtype='float32')
+  for iptb in range(nptbs):
+    # Create naz and nax from the min and the max
+    nax = np.random.randint(minnax,maxnax)
+    naz = np.random.randint(minnaz,maxnaz)
+    # Create romin and romax from the min and max
+    if(romin < 1.0 and romax > 1.0 and nptbs > 1):
+      if(np.random.choice([0,1])):
+        iromin = romin + randfloat(0.001,0.01); iromax = 1.0 + randfloat(0.001,0.01)
+      else:
+        iromax = romax + randfloat(0.001,0.01); iromin = 1.0 - randfloat(0.001,0.01)
+    else:
+      iromin = romin; iromax = romax
+    ptb = create_randomptb_loc(nz,nx,iromin,iromax,naz,nax,ctrs[iptb][0],ctrs[iptb][1],
+                               nptsz=nptsz,nptsx=nptsx,octaves=octaves,period=period,Ngrad=Ngrad,
+                               persist=persist,ncpu=1,sigma=sigma)
+    velout *= ptb
+
+  return velout
 
 def create_layered(nz,nx,dz,dx,z0s=[],vels=[],flat=True,
     npts=2,octaves=3,period=80,Ngrad=80,persist=0.6,scale=200,ncpu=1,interp='lint'):

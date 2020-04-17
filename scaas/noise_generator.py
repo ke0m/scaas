@@ -1,14 +1,23 @@
-# A perlin noise generator
-# @author: Anu Chandran
+"""
+A Perlin noise generator. Generates Perlin noise up to 3D
+
+@author: Anu Chandran
+@version: 2020.04.17
+"""
 import numpy as np
 from numpy import random
 from collections import Iterable
 from multiprocessing import Pool, cpu_count
 
 def fade(t):
+    """ 
+    An ease curve to smooth the transition between gradients
+    6t^5 - 15t^4 + 10t^3
+    """
     return t*t*t*(t*(6*t-15)+10)
 
 def lerp(a,b,c):
+    """ Linear interpolation """
     return a+c*(b-a)
 
 def dotp(a,b):
@@ -28,6 +37,9 @@ def generate_grad_map_linear(N):
     return (np.array([grad_3d(random.randint(len(grads))) for i in range(N)]))
 
 def perlin_3d_hash(x=np.array([0.5]),y=np.array([0.5]),z=np.array([0.5]),period=2,Ngrad=80,amp=128):
+    """
+    Creates perlin noise for a single octave
+    """
     grads = generate_grad_map_linear(Ngrad)
     # Prepare for tiling
     xfull=x.copy(); yfull=y.copy(); zfull=z.copy()
@@ -80,6 +92,19 @@ def perlin_wrapper(kwargs):
     return perlin_3d_hash(**kwargs)
 
 def perlin(x=np.array([0.5]),y=np.array([0.5]),z=np.array([0.5]),period=10.0,amp=1.0,persist=0.5,octaves=7, Ngrad=80, ncpu=cpu_count()):
+    """ 
+    Perlin noise generator 
+
+      x       - the gradient grid for the fast axis 
+      y       - the gradient grid for the middle axis
+      z       - the gradient grid for the slow axis
+      period  - determines the periodicity of the noise [10.0]
+      amp     - a scaling factor to increase the amplitude of the noise [1.0]
+      persist - the influence of each success octave [0.5]
+      octaves - one set of noise. An increase in one octave doubles the frequency content [7]
+      Ngrad   - Unsure of what this does really...
+      ncpu    - Number of CPUs to use for parallelization
+    """
     x=np.array(x); y=np.array(y); z=np.array(z)
     maxval=amp*np.sum([persist**octave for octave in range(octaves)])
     # Set up args for multiprocessing
@@ -95,7 +120,8 @@ def perlin(x=np.array([0.5]),y=np.array([0.5]),z=np.array([0.5]),period=10.0,amp
       out = []
       # Loop and sum over octaves
       for octave in range(octaves):
-        out.append(perlin_3d_hash(x=x*(2**octave), y=y*(2**octave), z=z*(2**octave), amp=amp*(persist)**octave, period=period*2**octave, Ngrad=Ngrad))
+        out.append(perlin_3d_hash(x=x*(2**octave), y=y*(2**octave), z=z*(2**octave), 
+                   amp=amp*(persist)**octave, period=period*2**octave, Ngrad=Ngrad))
       noise=(np.sum(np.array(out),axis=0)/maxval).squeeze()
     return noise
 

@@ -248,6 +248,8 @@ class defaultgeom:
       nthrds - Number of OpenMP threads to use (parallelize over image point axis) [4]
       transp - Transpose the output to have shape [na,nx,nz]
       verb   - Verbosity flag [False]
+
+    Returns the angle gathers [nro,nx,na,nz]
     """
     amin = -amax; avals = np.linspace(amin,amax,na)
     # Compute angle axis

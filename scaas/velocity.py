@@ -115,7 +115,7 @@ def create_randomptb_loc(nz,nx,romin,romax,naz,nax,cz,cx,
   pz1 = cz - int(naz/2)
   if(naz%2 != 0): pz1 -= 1
   if(pz1 < 0):
-    cz = naz/2
+    cz = int(naz/2)
   pz2 = nz - cz - int(naz/2)
   #print(pz1,int(naz/2),pz2)
   px1 = cx - int(nax/2)

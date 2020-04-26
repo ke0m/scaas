@@ -56,14 +56,14 @@ def off2ang(off,oh,dh,dz,oz=0.0,na=281,amax=70,oa=None,da=None,nta=601,ota=-3,dt
   # Verbosity
   rverb = False; cverb = False
   if(verb):
-    if(oro is None or dro is None):
+    if((oro is None or dro is None) and nro > 1):
       rverb = True
     else:
       cverb = True
   # Loop over rho
   for iro in range(nro):
     if(rverb): printprogress("nrho:",iro,nro)
-    if(cverb): print("rho=%.3f (%d/%d)"%(oro + iro*dro,iro+1,nro))
+    if(cverb and nro > 1): print("rho=%.3f (%d/%d)"%(oro + iro*dro,iro+1,nro))
     convert2ang(nx,nh,oh,dh,nta,ota,dta,na,oa,da,nz,oz,dz,ext,offt[iro],angs[iro],nthrds,cverb)
   if(rverb): printprogress("nrho:",nro,nro)
 

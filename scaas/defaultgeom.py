@@ -237,7 +237,7 @@ class defaultgeom:
 
     return img
 
-  def to_angle(self,img,amax=70,na=281,nthrds=4,transp=False,verb=False):
+  def to_angle(self,img,amax=70,na=281,nthrds=4,transp=False,oro=None,dro=None,verb=False):
     """
     Converts the subsurface offset gathers to opening angle gathers
 
@@ -248,11 +248,14 @@ class defaultgeom:
       nthrds - Number of OpenMP threads to use (parallelize over image point axis) [4]
       transp - Transpose the output to have shape [na,nx,nz]
       verb   - Verbosity flag [False]
+
+    Returns the angle gathers [nro,nx,na,nz]
     """
     amin = -amax; avals = np.linspace(amin,amax,na)
     # Compute angle axis
     self.na = na; self.da = avals[1] - avals[0]; self.oa = avals[0]
-    return off2ang(img,self.oh,self.dh,self.__dz,na=na,amax=amax,nta=601,ota=-3,dta=0.01,nthrds=nthrds,transp=transp,verb=verb)
+    return off2ang(img,self.oh,self.dh,self.__dz,na=na,amax=amax,nta=601,ota=-3,dta=0.01,
+                   nthrds=nthrds,transp=transp,oro=oro,dro=dro,verb=verb)
 
   def get_off_axis(self):
     """ Returns the subsurface offset extension axis """

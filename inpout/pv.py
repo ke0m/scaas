@@ -24,14 +24,24 @@ def write_nrrd(ofname,dat,ds=[1.0,1.0,1.0],dpath='/scratch/',endian='little'):
   # Write nrrd header file
   hfo = open(ofname,'w+')
   hfo.write('NRRD0001\n')
-  hfo.write('dimension: 3\n')
-  hfo.write('type: float\n')
-  hfo.write('sizes: %d %d %d\n'%(dat.shape[0],dat.shape[1],dat.shape[2]))
-  hfo.write('spacings: %f %f %f\n'%(ds[0],ds[1],ds[2]))
-  hfo.write('encoding: raw\n')
-  hfo.write('endian: %s\n'%(endian))
-  hfo.write('data file: %s\n'%(opath))
-  hfo.close()
+  if(len(dat.shape) == 3):
+    hfo.write('dimension: 3\n')
+    hfo.write('type: float\n')
+    hfo.write('sizes: %d %d %d\n'%(dat.shape[0],dat.shape[1],dat.shape[2]))
+    hfo.write('spacings: %f %f %f\n'%(ds[0],ds[1],ds[2]))
+    hfo.write('encoding: raw\n')
+    hfo.write('endian: %s\n'%(endian))
+    hfo.write('data file: %s\n'%(opath))
+    hfo.close()
+  elif(len(dat.shape) == 2):
+    hfo.write('dimension: 2\n')
+    hfo.write('type: float\n')
+    hfo.write('sizes: %d %d\n'%(dat.shape[1],dat.shape[0]))
+    hfo.write('spacings: %f %f\n'%(ds[0],ds[1]))
+    hfo.write('encoding: raw\n')
+    hfo.write('endian: %s\n'%(endian))
+    hfo.write('data file: %s\n'%(opath))
+    hfo.close()
   with open(opath,'wb') as f:
     if(endian == 'big'):
       dat.flatten().astype('>f').tofile(f)

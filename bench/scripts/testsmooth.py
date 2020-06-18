@@ -38,8 +38,8 @@ sep = seppy.sep([])
 #viewimgframeskey(sm3d,vmin=-0.1,vmax=0.1)
 
 # Read in velocity model
-vaxes,vel = sep.read_file(None,ifname='/home/joe/phd/projects/fwitut/Dat/marmvel.H')
-saxes,smo = sep.read_file(None,ifname='marmsm.H')
+vaxes,vel = sep.read_file('/home/joe/phd/projects/fwitut/Dat/marmvel.H')
+saxes,smo = sep.read_file('marmsm2.H')
 
 vel = np.ascontiguousarray(vel.reshape(vaxes.n,order='F')).astype('float32')
 smo = np.ascontiguousarray(smo.reshape(vaxes.n,order='F')).astype('float32')
@@ -50,10 +50,13 @@ plt.imshow(vel,cmap='jet')
 velsm = smooth(vel,rect1=150,rect2=150)
 
 plt.figure(5)
-plt.imshow(velsm,cmap='jet')
+plt.imshow(velsm,cmap='jet',vmin=np.min(smo),vmax=np.max(smo))
 
 plt.figure(6)
-plt.imshow(smo,cmap='jet')
+plt.imshow(smo,cmap='jet',vmin=np.min(smo),vmax=np.max(smo))
+
+plt.figure(7)
+plt.imshow(velsm-smo,cmap='jet',vmin=np.min(smo),vmax=np.max(smo))
 
 plt.show()
 

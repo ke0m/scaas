@@ -2,7 +2,7 @@
 Functions for a least-squares conjugate directions solver
 
 @author: Joseph Jennings
-@version: 2020.03.10
+@version: 2020.06.17
 """
 import numpy as np
 from opt.linopt.opr8tr import operator
@@ -10,8 +10,8 @@ from opt.linopt.combops import colop
 from opt.optqc import optqc
 from utils.ptyprint import create_inttag
 
-def cd(op,dat,mod,regop=None,rdat=None,grdop=None,eps=None,niter=None,toler=None,
-       optqc=None,objs=None,mods=None,grds=None,ress=None,verb=True) -> None:
+def cd(op,dat,mod0,regop=None,rdat=None,grdop=None,shpop=None,eps=None,niter=None,toler=None,
+       optqc=None,objs=None,mods=None,grds=None,ress=None,verb=True):
   """
   Conjugate direction solver as described in GIEE by Jon Claerbout 
   Minimizes the objective 
@@ -25,11 +25,12 @@ def cd(op,dat,mod,regop=None,rdat=None,grdop=None,eps=None,niter=None,toler=None
   Parameters
     op    - the operator (L)
     dat   - the input data vector (d)
-    mod   - the output solution vector (m)
+    mod0  - the initial model vector (m)
     regop - the regularization operator (A) [None]
     rdat  - the regularization data (q) [None]
     eps   - a regularization parameters [None]
     grdop - a gradient operator (e.g., a gradient taper or smoother) [None]
+    shpop - a shaping regularization operator (e.g., triangular smoother)
     niter - number of iterations for which to run the optimization [None]
     toler - tolerance to reach before terminating the optimization
     optqc - a optimization qc object for writing to SEP files or PNG/PDF figures [None]
@@ -38,33 +39,43 @@ def cd(op,dat,mod,regop=None,rdat=None,grdop=None,eps=None,niter=None,toler=None
     grds  - an empty list for saving the gradients [None]
     ress  - an empty list for saving the residuals [None]
     verb  - whether to print solver output at each iteration [True]
+
+  Returns the estimated model (same shape as mod0)
   """
   # Form the column op if the regularization operator is set
-  if(regop != None):
-    if(eps == None):
+  if(regop is not None):
+    if(eps is None):
       raise Exception("Please provide an epsilon value to run regularized solver")
     # Create operators and data
     ops  = [op,regop]
     dats = [dat,eps*rdat]
     # Make dimensions
     ddim = {}; rdim = {}
-    ddim['ncols'] = mod.shape; ddim['nrows'] = dat.shape
-    rdim['ncols'] = mod.shape; rdim['nrows'] = rdat.shape
+    ddim['ncols'] = mod0.shape; ddim['nrows'] = dat.shape
+    rdim['ncols'] = mod0.shape; rdim['nrows'] = rdat.shape
     dims = [ddim,rdim]
     # Total operator
     epss = np.asarray([1.0,eps])
     top = colop(ops,dims,epss)
   else:
     top = op; dats = dat
+  # Make copy of the model
+  mod0i = np.copy(mod0)
   # Run the solver
-  if(niter is not None):
-    run_niter(top,dats,mod,niter,grdop,objs,mods,grds,ress,optqc,verb)
+  if(shpop is not None):
+    if(eps   is None): eps   = 1.0
+    if(toler is None): toler = 1.e-6 
+    run_cgshape(top,dats,mod0i,shpop,eps,niter,toler,objs,mods,grds,ress,optqc,verb)
+  elif(niter is not None):
+    run_niter(top,dats,mod0i,niter,grdop,shpop,objs,mods,grds,ress,optqc,verb)
   elif(toler is not None):
-    run_toler(top,dats,mod,toler,grdop,objs,mods,grds,ress,optqc,verb)
+    run_toler(top,dats,mod0i,toler,grdop,objs,mods,grds,ress,optqc,verb)
   else:
     raise Exception("Must specify niter or tolerance to run solver")
 
-def run_niter(op,dat,mod,niter,grdop,objs,mods,grds,ress,optqc,verb):
+  return mod0i
+
+def run_niter(op,dat,mod,niter,grdop,shpop,objs,mods,grds,ress,optqc,verb):
   """ Runs conjugate direction solver for niter iterations """
   # Temporary data space arrays
   if(isinstance(dat,list)):
@@ -80,14 +91,16 @@ def run_niter(op,dat,mod,niter,grdop,objs,mods,grds,ress,optqc,verb):
 
   # Temporary model space arrays
   if(isinstance(mod,list)):
-    grd = []; tap = []; msz = []
+    grd = []; tap = []; shp = []; msz = []
     for imod in mod:
       grd.append(np.zeros(imod.shape,dtype='float32'))
       tap.append(np.zeros(imod.shape,dtype='float32'))
+      shp.append(np.zeros(imod.shape,dtype='float32'))
       msz.append(imod.shape)
   else:
     grd = np.zeros(mod.shape,dtype='float32')
     tap = np.zeros(mod.shape,dtype='float32')
+    shp = np.zeros(mod.shape,dtype='float32')
     msz = mod.shape
 
   # Create a stepper object
@@ -106,6 +119,10 @@ def run_niter(op,dat,mod,niter,grdop,objs,mods,grds,ress,optqc,verb):
       grdop.forward(False,grd,tap)
     else:
       tap = grd
+    # Shaping regularization
+    if(shpop is not None):
+      shpop.adjoint(False,shp,tap)
+      shpop.forward(False,shp,tap)
     # Compute the data space gradient
     op.forward(False,tap,drs)
     # Compute the step length and update
@@ -115,17 +132,15 @@ def run_niter(op,dat,mod,niter,grdop,objs,mods,grds,ress,optqc,verb):
     if(f1 >= f0):
       print("Objective function did not reduce, terminating solver")
       break
-    #TODO: only saves the last result
     # Save results to provided lists
     save_results(mod,mods,tap,grds,res,ress,f1,objs)
     # Save to SEPlib file or image if desired
     if(optqc is not None):
       optqc.output(f1,mod,tap,res)
     if(verb):
-      #TODO: format the %f so it is always the same length
-      print("iter=%s objf=%f gnrm=%f"%(create_inttag(iiter+1,niter),f1,np.linalg.norm(tap)))
+      print("iter=%s objf=%.6f gnrm=%.6f"%(create_inttag(iiter+1,niter),f1,np.linalg.norm(tap)))
 
-def run_toler(op,dat,mod,toler,grdop,mods,objs,grds,ress,verb):
+def run_toler(op,dat,mod,toler,grdop,mods,objs,grds,ress,optqc,verb):
   """ Runs conjugate direction solver until a tolerance is reached """
   # Temporary data space arrays
   if(isinstance(dat,list)):
@@ -183,19 +198,100 @@ def run_toler(op,dat,mod,toler,grdop,mods,objs,grds,ress,verb):
     if(optqc is not None):
       optqc.output(f1,mod,tap,res)
     if(verb):
-      print("iter=%s objf=%f gnrm=%f"%(create_inttag(iiter+1,10000),f1,np.linalg.norm(tap)))
+      print("iter=%s objf=%.6f gnrm=%.6f"%(create_inttag(iiter+1,10000),f1,np.linalg.norm(tap)))
     iiter += 1
+
+def run_cgshape(op,dat,mod,shpop,eps,niter,toler,objs,mods,grds,ress,optqc,verb):
+  """ Sergey Fomel's conjugate gradient with shaping regularization """
+  ## Allocate memory
+  # Model and residual
+  pod = np.zeros(mod.shape,dtype='float32')
+  res = np.zeros(dat.shape,dtype='float32')
+  # Gradients
+  grp = np.zeros(mod.shape,dtype='float32')
+  grm = np.zeros(mod.shape,dtype='float32')
+  grr = np.zeros(dat.shape,dtype='float32')
+  # Search directions
+  srp = np.zeros(mod.shape,dtype='float32')
+  srm = np.zeros(mod.shape,dtype='float32')
+  srr = np.zeros(dat.shape,dtype='float32')
+
+  # Epsilon scaling
+  eps2 = eps*eps
+
+  # Compute the initial residual
+  res[:] = -dat[:]
+  op.forward(True,mod,res)
+
+  dg = g0 = gnp = 0.0
+  r0 = gdot(res,res)
+  if(r0 == 0.0):
+    print("Residual is zero: r0=%f"%(r0))
+    return
+
+  # Iteration loop
+  for iiter in range(niter):
+    grp[:] = eps*pod[:]; grm = -eps*mod[:]
+
+    # Compute the traditional gradient
+    op.adjoint(True,grm,res)
+
+    # Symmetrized shaping operator
+    shpop.adjoint(True,grp,grm)
+    shpop.forward(False,grp,grm)
+
+    # Data space gradient
+    op.forward(False,grm,grr)
+
+    gn = gdot(grp,grp)
+
+    if(iiter == 0):
+      # Use only current gradient for first iteration
+      g0 = gn; srp[:] = grp[:]; srm[:] = grm[:]; srr[:] = grr[:]
+    else:
+      alpha = gn/gnp
+      dg    = gn/g0
+
+      if(alpha < toler or dg < toler):
+        print("converged in %d iterations, alpha=%f gd=%f"%(iiter,alpha,dg))
+        break
+
+      scale_add(grp,1.0,srp,alpha); swap(srp,grp)
+      scale_add(grm,1.0,srm,alpha); swap(srm,grm)
+      scale_add(grr,1.0,srr,alpha); swap(srr,grr)
+
+    beta = gdot(srr,srr) + eps*(gdot(srp,srp) - gdot(srm,srm))
+
+    # Compute step length
+    alpha = -gn/beta
+
+    # Update model and residual
+    scale_add(pod,1.0,srp,alpha)
+    scale_add(mod,1.0,srm,alpha)
+    scale_add(res,1.0,srr,alpha)
+
+    # Verbosity
+    rout = gdot(res,res)/r0
+    # Save results to provided lists
+    save_results(mod,mods,grm,grds,res,ress,rout,objs)
+    # Save to SEPlib file or image if desired
+    if(optqc is not None):
+      optqc.output(rout,mod,grm,res)
+    if(verb):
+      print("iter=%s res=%.6f grd=%.6f"%(create_inttag(iiter+1,niter),rout,dg))
+
+    gnp = gn
 
 def save_results(mod,mods,grd,grds,res,ress,obj,objs):
   """ Saves the iterates to provided lists """
   if(mods is not None):
-    mods.append(mod)
+    mods.append(np.copy(mod))
   if(grds is not None):
-    grd.append(grd)
+    grd.append(np.copy(grd))
   if(ress is not None):
-    ress.append(res)
+    ress.append(np.copy(res))
   if(objs is not None):
-    objs.append(obj)
+    objs.append(np.copy(obj))
 
 class cdstep:
   """ Performs one step of conjugate directions """
@@ -301,6 +397,19 @@ def gdot(la,lb):
     for k in range(len(la)):
       dd += np.dot(la[k].flatten(),lb[k].flatten())
     return dd
+
+def swap(a,b):
+  """
+  Swaps a with b
+
+  Parameters:
+    a - input numpy array
+    b - input numpy array
+  """
+  t = np.zeros(a.shape,dtype='float32')
+  t[:] = a[:]
+  a[:] = b[:]
+  b[:] = t[:]
 
 def scale_add(a,sca,b,scb) -> None:
   """

@@ -1,3 +1,9 @@
+"""
+Identity operator
+
+@author: Joseph Jennings
+@version: 2020.06.18
+"""
 from opt.linopt.opr8tr import operator
 
 class identity(operator):

@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 sep = seppy.sep()
 
-n = 100
+n = 512
 x = np.zeros([n,n],dtype='float32')
 x0 = np.zeros([n,n],dtype='float32')
 y = np.zeros([n,n],dtype='float32')
@@ -21,8 +21,9 @@ sep.write_file('num.H',x)
 sep.write_file('den.H',y)
 
 wop = weight(y)
+wop.dottest()
 
-smop = smoothop([n,n],rect1=5,rect2=5)
+smop = smoothop([n,n],rect1=20,rect2=20)
 
 div = cd(wop,x,x0,shpop=smop,niter=100)
 

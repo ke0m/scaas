@@ -67,7 +67,7 @@ def cd(op,dat,mod0,regop=None,rdat=None,grdop=None,shpop=None,eps=None,niter=Non
     if(toler is None): toler = 1.e-6 
     run_cgshape(top,dats,mod0i,shpop,eps,niter,toler,objs,mods,grds,ress,optqc,verb)
   elif(niter is not None):
-    run_niter(top,dats,mod0i,niter,grdop,shpop,objs,mods,grds,ress,optqc,verb)
+    run_niter(top,dats,mod0i,niter,grdop,objs,mods,grds,ress,optqc,verb)
   elif(toler is not None):
     run_toler(top,dats,mod0i,toler,grdop,objs,mods,grds,ress,optqc,verb)
   else:
@@ -75,7 +75,7 @@ def cd(op,dat,mod0,regop=None,rdat=None,grdop=None,shpop=None,eps=None,niter=Non
 
   return mod0i
 
-def run_niter(op,dat,mod,niter,grdop,shpop,objs,mods,grds,ress,optqc,verb):
+def run_niter(op,dat,mod,niter,grdop,objs,mods,grds,ress,optqc,verb):
   """ Runs conjugate direction solver for niter iterations """
   # Temporary data space arrays
   if(isinstance(dat,list)):
@@ -91,16 +91,14 @@ def run_niter(op,dat,mod,niter,grdop,shpop,objs,mods,grds,ress,optqc,verb):
 
   # Temporary model space arrays
   if(isinstance(mod,list)):
-    grd = []; tap = []; shp = []; msz = []
+    grd = []; tap = []; msz = []
     for imod in mod:
       grd.append(np.zeros(imod.shape,dtype='float32'))
       tap.append(np.zeros(imod.shape,dtype='float32'))
-      shp.append(np.zeros(imod.shape,dtype='float32'))
       msz.append(imod.shape)
   else:
     grd = np.zeros(mod.shape,dtype='float32')
     tap = np.zeros(mod.shape,dtype='float32')
-    shp = np.zeros(mod.shape,dtype='float32')
     msz = mod.shape
 
   # Create a stepper object
@@ -119,10 +117,6 @@ def run_niter(op,dat,mod,niter,grdop,shpop,objs,mods,grds,ress,optqc,verb):
       grdop.forward(False,grd,tap)
     else:
       tap = grd
-    # Shaping regularization
-    if(shpop is not None):
-      shpop.adjoint(False,shp,tap)
-      shpop.forward(False,shp,tap)
     # Compute the data space gradient
     op.forward(False,tap,drs)
     # Compute the step length and update

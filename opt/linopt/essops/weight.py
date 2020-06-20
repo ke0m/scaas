@@ -2,7 +2,7 @@
 Weights vector by a supplied weighting operator
 
 @author: Joseph Jennings
-@version: 2020.06.17
+@version: 2020.06.20
 """
 import numpy as np
 from opt.linopt.opr8tr import operator
@@ -17,8 +17,8 @@ class weight(operator):
     Parameters:
       wgt - input matrix (ND numpy array)
     """
-    self.__wmat = np.diag(wgt.flatten())
-    self.__n = self.__wmat.shape[0]
+    self.__wgt = wgt
+    self.__wshape = wgt.shape
 
   def forward(self,add,mod,dat):
     """ 
@@ -31,17 +31,13 @@ class weight(operator):
     """
     if(dat.shape != mod.shape):
       raise Exception("data and model must have same shape")
-    # Flatten the vectors
-    modf = mod.flatten(); datf = dat.flatten()
-    if(modf.shape[0] != self.__n):
-      raise Exception("model shape does not match weight matrix")
+    if(dat.shape != self.__wshape):
+      raise Exception("data and weight operator must have same shape")
 
     if(not add):
-      datf[:] = 0.0
+      dat[:] = 0.0
 
-    datf += np.dot(self.__wmat,modf)
-
-    dat[:] = datf.reshape(dat.shape)
+    dat[:] += self.__wgt*mod
 
   def adjoint(self,add,mod,dat):
     """
@@ -54,23 +50,19 @@ class weight(operator):
     """
     if(dat.shape != mod.shape):
       raise Exception("data and model must have same shape")
-    # Flatten the vectors
-    modf = mod.flatten(); datf = dat.flatten()
-    if(datf.shape[0] != self.__n):
-      raise Exception("data shape does not match weight matrix")
+    if(mod.shape != self.__wshape):
+      raise Exception("model and weight operator must have same shape")
 
     if(not add):
-      modf[:] = 0.0
+      mod[:] = 0.0
 
-    modf += np.dot(self.__wmat.T,datf)
-
-    mod[:] = modf.reshape(mod.shape)
+    mod[:] += self.__wgt*dat
 
   def dottest(self,add=False):
-    m  = np.random.rand(self.__n).astype('float32')
-    mh = np.zeros(self.__n,dtype='float32')
-    d  = np.random.rand(self.__n).astype('float32')
-    dh = np.zeros(self.__n,dtype='float32')
+    m  = np.random.rand(*self.__wshape).astype('float32')
+    mh = np.zeros(self.__wshape,dtype='float32')
+    d  = np.random.rand(*self.__wshape).astype('float32')
+    dh = np.zeros(self.__wshape,dtype='float32')
 
     if(add):
       self.forward(True,m ,dh)

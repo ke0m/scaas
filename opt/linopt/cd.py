@@ -247,7 +247,7 @@ def run_cgshape(op,dat,mod,shpop,eps,niter,toler,objs,mods,grds,ress,optqc,verb)
       dg    = gn/g0
 
       if(alpha < toler or dg < toler):
-        print("converged in %d iterations, alpha=%f gd=%f"%(iiter,alpha,dg))
+        if(verb): print("converged in %d iterations, alpha=%f gd=%f"%(iiter,alpha,dg))
         break
 
       scale_add(grp,1.0,srp,alpha); swap(srp,grp)

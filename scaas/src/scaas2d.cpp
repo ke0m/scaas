@@ -244,9 +244,7 @@ void scaas2d::fwdprop_lapwfld(float *src, int *srcxs, int *srczs, int nsrc, floa
     /* Save wavefield on coarse time grid */
     if((it-1)%_skip == 0) {
       /* Copy to wavefield vector */
-      //memcpy(&lappsol[kt*_onestp],sou2,sizeof(float)*_onestp);
-			long long int idx = (long long int)kt * (long long int)_onestp;
-      memcpy(&lappsol[idx],sou2,sizeof(float)*_onestp);
+      memcpy(&lappsol[kt*_onestp],sou2,sizeof(float)*_onestp);
       kt++;
     }
     /* Pointer swap */
@@ -926,9 +924,7 @@ void scaas2d::brnadj(float *src, int *srcxs, int *srczs, int *nsrcs, int *recxs,
 void scaas2d::brnoffadj_oneshot(float *src, int *srcxs, int *srczs, int nsrc, int *recxs, int *reczs, int nrec, float *vel, int rnh, float *dv, float *ddat) {
 
   /* First calculate laplacian of background wavefield */
-  //float *lappsol = new float[_nt*_onestp]();
-	long long int ntb = (long long int)_nt * (long long int)_onestp;
-  float *lappsol = new float[ntb]();
+  float *lappsol = new float[_nt*_onestp]();
   fwdprop_lapwfld(src, srcxs, srczs, nsrc, vel, lappsol);
 
   /* Subsample the source wavelet */
@@ -1007,10 +1003,7 @@ void scaas2d::brnoffadj_oneshot(float *src, int *srcxs, int *srczs, int nsrc, in
       for(int ih = -nh; ih <= nh; ++ih) {
         for(int iz = 0; iz < _nz; ++iz) {
           for(int ix = nh; ix < _nx-nh; ++ix) {
-            //dv[(ih+nh)*_onestp + iz*_nx + ix] += ivel[iz*_nx + ix] * (pre[iz*_nx + ix+ih] * lappsol[kt*_onestp + iz*_nx + ix-ih] +
-            //    pre[iz*_nx + ix+ih] * tsrc[iz*_nx + ix-ih])*(_dx*_dz);
-	          long long idx = (long long)kt * (long long)_onestp + (long long)iz * (long long)_nx + (long long)ix - (long long)ih;
-            dv[(ih+nh)*_onestp + iz*_nx + ix] += ivel[iz*_nx + ix] * (pre[iz*_nx + ix+ih] * lappsol[idx] +
+            dv[(ih+nh)*_onestp + iz*_nx + ix] += ivel[iz*_nx + ix] * (pre[iz*_nx + ix+ih] * lappsol[kt*_onestp + iz*_nx + ix-ih] +
                 pre[iz*_nx + ix+ih] * tsrc[iz*_nx + ix-ih])*(_dx*_dz);
           }
         }

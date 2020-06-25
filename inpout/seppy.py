@@ -5,7 +5,6 @@ import __main__ as main
 import datetime
 import string, random
 import subprocess as sp
-import matplotlib.pyplot as plt
 
 class axes:
   """ Axes of regularly sampled data"""
@@ -182,9 +181,9 @@ class sep:
     return odict
 
   def write_header(self,ofname,ns,os=None,ds=None,ofaxes=None,tag=None,dpath=None,form='xdr'):
-    """ 
+    """
     Writes header information to SEP file and returns
-    the path to the output 
+    the path to the output
     """
     fout = None
     assert(tag != None or ofname != None), "Need a tag or output file name to write a header."

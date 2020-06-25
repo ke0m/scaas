@@ -6,25 +6,20 @@
 ssr3::ssr3(int nx, int ny, int nz, int nh, int nw,
     float dx, float dy, float dz, float dh, float dw, float dtmax,
     float ow, float eps,
-    int ntx, int nty, int px, int py, int nrmax, float *slo) {
+    int ntx, int nty, int px, int py, int nrmax) {
   /* Dimensions */
   _nx  = nx;  _ny  = ny;  _nz = nz; _nh = nh; _nw = nw;
   _ntx = ntx; _nty = nty; _px = px; _py = py; _nrmax = nrmax;
   _bx = nx + px; _by = ny + py;
-  _onestp = _nx*_ny;
   /* Samplings */
   _dx = dx; _dy = dy; _dz = dz; _dh = dh; _dw = dw;
   _dsmax = dtmax/_dz; _dsmax2 = _dsmax*_dsmax*_dsmax*_dsmax; // (slowness squared squared)
   /* Frequency origin and stability */
   _ow = ow; _eps = eps;
-  /* Save a pointer to slowness */
-  _slo = slo;
   /* Allocate reference slowness, taper, and wavenumber arrays */
   _sloref = new float[nrmax*nz](); _nr = new int[nz]();
   _tapx = new float[_ntx](); _tapy = new float[_nty]();
   _kk = new float[_bx*_by]();
-  /* Build reference slownesses */
-  build_refs(nz, _onestp, nrmax, _dsmax, slo, _nr, _sloref);
   /* Initialize taper */
   build_taper(ntx,nty,_tapx,_tapy);
   /* Build spatial frequencies */
@@ -34,6 +29,26 @@ ssr3::ssr3(int nx, int ny, int nz, int nh, int nw,
   _inv1 = kiss_fft_alloc(_bx,1,NULL,NULL);
   _fwd2 = kiss_fft_alloc(_by,0,NULL,NULL);
   _inv2 = kiss_fft_alloc(_by,1,NULL,NULL);
+  /* Save a pointer to slowness */
+  _slo = NULL;
+}
+
+void ssr3::set_slows(float *slo) {
+
+  /* First set the migration slowness */
+  _slo = slo;
+
+  /* Compute number of reference slownesses with depth */
+  for(int iz = 0; iz < _nz; ++iz) {
+    _nr[iz] = nrefs(_nrmax, _dsmax, _nx*_ny, slo + iz*_nx*_ny, _sloref + _nrmax*iz);
+  }
+
+  /* Build reference slownesses */
+  for(int iz = 0; iz < _nz-1; ++iz) {
+    for(int ir = 0; ir < _nr[iz]; ++ir) {
+      _sloref[iz*_nrmax + ir] = 0.5*(_sloref[iz*_nrmax + ir] + _sloref[(iz+1)*_nrmax + ir]);
+    }
+  }
 }
 
 void ssr3::ssr3ssf_modallw(float *ref, std::complex<float> *wav, std::complex<float> *dat) {
@@ -42,19 +57,22 @@ void ssr3::ssr3ssf_modallw(float *ref, std::complex<float> *wav, std::complex<fl
   // w is slowest
   // y is middle
   // x is fastest
+  if(_slo == NULL) {
+    fprintf(stderr,"Must run set_slows before modeling or migration\n");
+  }
 
   /* Loop over frequency (will be parallelized with OpenMP/TBB) */
   for(int iw = 0; iw < _nw; ++iw) {
-    /* Get wavelet for current frequency */
-    ssr3ssf_modonew(iw, ref, wav + iw*_onestp, dat + iw*_onestp);
+    /* Get wavelet and model data for current frequency */
+    ssr3ssf_modonew(iw, ref, wav + iw*_nx*_ny, dat + iw*_nx*_ny);
   }
 }
 
 void ssr3::ssr3ssf_modonew(int iw, float *ref, std::complex<float> *wav, std::complex<float> *dat) {
 
   /* Allocate two temporary arrays */
-  std::complex<float> *sslc = new std::complex<float>[_nx*_ny*_nz]();
-  std::complex<float> *rslc = new std::complex<float>[_onestp]();
+  std::complex<float> *sslc = new std::complex<float>[_ny*_nx*_nz]();
+  std::complex<float> *rslc = new std::complex<float>[_ny*_nx]();
 
   /* Current frequency */
   std::complex<float> w(_eps*_dw,_ow + iw*_dw);
@@ -65,7 +83,7 @@ void ssr3::ssr3ssf_modonew(int iw, float *ref, std::complex<float> *wav, std::co
   /* Source loop over depth */
   for(int iz = 0; iz < _nz-1; ++iz) {
     /* Depth extrapolation */
-    ssr3ssf(w, iz, _slo+(iz)*_onestp, _slo+(iz+1)*_onestp, sslc + iz*_ny*_nx);
+    ssr3ssf(w, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, sslc + iz*_nx*_ny);
   }
 
   /* Receiver loop over depth */
@@ -80,7 +98,7 @@ void ssr3::ssr3ssf_modonew(int iw, float *ref, std::complex<float> *wav, std::co
     }
 
     /* Depth extrapolation */
-    ssr3ssf(w, iz, _slo+(iz)*_onestp, _slo+(iz-1)*_onestp, rslc);
+    ssr3ssf(w, iz, _slo+(iz)*_nx*_ny, _slo+(iz-1)*_nx*_ny, rslc);
   }
 
   /* Taper the receiver wavefield */
@@ -95,7 +113,7 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
   /* Temporary arrays */
   std::complex<float> *pk  = new std::complex<float>[_bx*_by]();
   std::complex<float> *wk  = new std::complex<float>[_bx*_by]();
-  float *wt = new float[_onestp]();
+  float *wt = new float[_nx*_ny]();
 
   std::complex<float> w2 = w*w;
 
@@ -108,7 +126,7 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
   }
 
   /* FFT (w-x-y) -> (w-kx-ky) */
-  memcpy(pk,wx,sizeof(std::complex<float>)*_onestp);
+  memcpy(pk,wx,sizeof(std::complex<float>)*_nx*_ny);
   fft2(false,(kiss_fft_cpx*)pk);
 
   memset(wx,0,sizeof(std::complex<float>)*(_bx*_by));

@@ -1,10 +1,11 @@
-#include <stdio.h>
+#include <iostream>
 #include <vector>
 #include <math.h>
 #include <cstring>
 #include <omp.h>
 #include "scaas2d.h"
 #include "progressbar.h"
+#include "progresstimer.h"
 
 scaas2d::scaas2d(int nt, int nx, int nz, float dt, float dx, float dz, float dtu, int bx, int bz, float alpha) {
   /* Lengths */
@@ -269,20 +270,13 @@ void scaas2d::fwdprop_multishot(float *src, int *srcxs, int *srczs, int *nsrcs, 
   }
 
   /* Set up printing if verbosity is desired */
-  int *sidx = new int[nthrds]();
-  int csize = (int)nex/nthrds;
-  bool firstiter = true;
+  ProgressBar pg; pg.start(nex);
 
   /* Loop over each experiment */
   omp_set_num_threads(nthrds);
 #pragma omp parallel for default(shared)
   for(int iex = 0; iex < nex; ++iex) {
-    if(firstiter && verb) {
-      sidx[omp_get_thread_num()] = iex;
-    }
-    if(verb) {
-      printprogress_omp("nshots:", iex - sidx[omp_get_thread_num()], csize, omp_get_thread_num());
-    }
+    if(verb) pg.update(iex);
     /* Get number of sources and receivers for this shot */
     int insrc = nsrcs[iex]; int inrec = nrecs[iex];
     /* Get the source positions for this shot */
@@ -303,11 +297,9 @@ void scaas2d::fwdprop_multishot(float *src, int *srcxs, int *srczs, int *nsrcs, 
     delete[] isrcx;  delete[] isrcz;
     delete[] irecx;  delete[] irecz;
     delete[] isrc; delete[] idat;
-    /* For parallel printing */
-    firstiter = false;
   }
-  if(verb) printf("\n");
-  delete[] soffsets; delete[] roffsets; delete[] sidx;
+  if(verb) std::cout << std::endl;
+  delete[] soffsets; delete[] roffsets;
 }
 
 void scaas2d::adjprop_wfld(float *asrc, int *recxs, int *reczs, int nrec, float *vel, float *lsol) {
@@ -584,21 +576,13 @@ void scaas2d::gradient_multishot(float *src, int *srcxs, int *srczs, int *nsrcs,
   }
 
   /* Set up printing if verbosity is desired */
-  int *sidx = new int[nthrds]();
-  int csize = (int)nex/nthrds;
-  bool firstiter = true;
+  ProgressBar pg; pg.start(nex);
 
   /* Loop over each experiment */
   omp_set_num_threads(nthrds);
 #pragma omp parallel for default(shared)
   for(int iex = 0; iex < nex; ++iex) {
-    /* Set up the parallel printing */
-    if(firstiter && verb) {
-      sidx[omp_get_thread_num()] = iex;
-    }
-    if(verb) {
-      printprogress_omp("nshots:", iex - sidx[omp_get_thread_num()], csize, omp_get_thread_num());
-    }
+    if(verb) pg.update(iex);
     /* Get number of sources and receivers for this shot */
     int insrc = nsrcs[iex]; int inrec = nrecs[iex];
     /* Get the source positions for this shot */
@@ -625,11 +609,9 @@ void scaas2d::gradient_multishot(float *src, int *srcxs, int *srczs, int *nsrcs,
     delete[] irecx;  delete[] irecz;
     delete[] isrc;   delete[] iasrc;
     delete[] igrad;
-    /* For parallel printing */
-    firstiter = false;
   }
-  if(verb) printf("\n");
-  delete[] soffsets; delete[] roffsets; delete [] sidx;
+  std::cout << std::endl;
+  delete[] soffsets; delete[] roffsets;
 }
 
 void scaas2d::brnfwd_oneshot(float *src, int *srcxs, int *srczs, int nsrc, int *recxs, int *reczs, int nrec, float *vel, float *dvel, float *ddat) {
@@ -727,21 +709,14 @@ void scaas2d::brnfwd(float *src, int *srcxs, int *srczs, int *nsrcs, int *recxs,
   }
 
   /* Set up printing if verbosity is desired */
-  int *sidx = new int[nthrds]();
-  int csize = (int)nex/nthrds;
-  bool firstiter = true;
+  ProgressBar pg; pg.start(nex);
 
   /* Loop over each experiment */
   omp_set_num_threads(nthrds);
 #pragma omp parallel for default(shared)
   for(int iex = 0; iex < nex; ++iex) {
     /* Set up the parallel printing */
-    if(firstiter && verb) {
-      sidx[omp_get_thread_num()] = iex;
-    }
-    if(verb) {
-      printprogress_omp("nshots:", iex - sidx[omp_get_thread_num()], csize, omp_get_thread_num());
-    }
+    if(verb) pg.update(iex);
     /* Get number of sources and receivers for this shot */
     int insrc = nsrcs[iex]; int inrec = nrecs[iex];
     /* Get the source positions for this shot */
@@ -762,11 +737,9 @@ void scaas2d::brnfwd(float *src, int *srcxs, int *srczs, int *nsrcs, int *recxs,
     delete[] isrcx;  delete[] isrcz;
     delete[] irecx;  delete[] irecz;
     delete[] isrc; delete[] iddat;
-    /* For parallel printing */
-    firstiter = false;
   }
-  if(verb) printf("\n");
-  delete[] soffsets; delete[] roffsets; delete[] sidx;
+  std::cout << std::endl;
+  delete[] soffsets; delete[] roffsets;
 }
 
 void scaas2d::brnadj_oneshot(float *src, int *srcxs, int *srczs, int nsrc, int *recxs, int *reczs, int nrec, float *vel, float *dv, float *ddat) {
@@ -873,21 +846,14 @@ void scaas2d::brnadj(float *src, int *srcxs, int *srczs, int *nsrcs, int *recxs,
   }
 
   /* Set up printing if verbosity is desired */
-  int *sidx = new int[nthrds]();
-  int csize = (int)nex/nthrds;
-  bool firstiter = true;
+  ProgressBar pg; pg.start(nex);
 
   /* Loop over each experiment */
   omp_set_num_threads(nthrds);
 #pragma omp parallel for default(shared)
   for(int iex = 0; iex < nex; ++iex) {
     /* Set up the parallel printing */
-    if(firstiter && verb) {
-      sidx[omp_get_thread_num()] = iex;
-    }
-    if(verb) {
-      printprogress_omp("nshots:", iex - sidx[omp_get_thread_num()], csize, omp_get_thread_num());
-    }
+    if(verb) pg.update(iex);
     /* Get number of sources and receivers for this shot */
     int insrc = nsrcs[iex]; int inrec = nrecs[iex];
     /* Get the source positions for this shot */
@@ -914,11 +880,9 @@ void scaas2d::brnadj(float *src, int *srcxs, int *srczs, int *nsrcs, int *recxs,
     delete[] irecx;  delete[] irecz;
     delete[] isrc;   delete[] iddat;
     delete[] idvel;
-    /* For parallel printing */
-    firstiter = false;
   }
-  if(verb) printf("\n");
-  delete[] soffsets; delete[] roffsets; delete[] sidx;
+  if(verb) std::cout << std::endl;
+  delete[] soffsets; delete[] roffsets;
 }
 
 void scaas2d::brnoffadj_oneshot(float *src, int *srcxs, int *srczs, int nsrc, int *recxs, int *reczs, int nrec, float *vel, int rnh, float *dv, float *ddat) {
@@ -1033,21 +997,14 @@ void scaas2d::brnoffadj(float *src, int *srcxs, int *srczs, int *nsrcs, int *rec
   }
 
   /* Set up printing if verbosity is desired */
-  int *sidx = new int[nthrds]();
-  int csize = (int)nex/nthrds;
-  bool firstiter = true;
+  ProgressBar pg; pg.start(nex);
 
   /* Loop over each experiment */
   omp_set_num_threads(nthrds);
 #pragma omp parallel for default(shared)
   for(int iex = 0; iex < nex; ++iex) {
     /* Set up the parallel printing */
-    if(firstiter && verb) {
-      sidx[omp_get_thread_num()] = iex;
-    }
-    if(verb) {
-      printprogress_omp("nshots:", iex - sidx[omp_get_thread_num()], csize, omp_get_thread_num());
-    }
+    if(verb) pg.update(iex);
     /* Get number of sources and receivers for this shot */
     int insrc = nsrcs[iex]; int inrec = nrecs[iex];
     /* Get the source positions for this shot */
@@ -1074,11 +1031,9 @@ void scaas2d::brnoffadj(float *src, int *srcxs, int *srczs, int *nsrcs, int *rec
     delete[] irecx;  delete[] irecz;
     delete[] isrc;   delete[] iddat;
     delete[] idvel;
-    /* For parallel printing */
-    firstiter = false;
   }
-  if(verb) printf("\n");
-  delete[] soffsets; delete[] roffsets; delete[] sidx;
+  if(verb) std::cout << std::endl;
+  delete[] soffsets; delete[] roffsets;
 }
 
 void scaas2d::build_taper(float *tap) {

@@ -25,7 +25,6 @@ class axes:
     self.d.append(din);
     self.ndims += 1
 
-#TODO: Need to be able to read and write complex data
 class sep:
   """ Utility for reading, writing and plotting SEP files """
 
@@ -329,7 +328,7 @@ class sep:
 
   def get_fline(self):
     """ Returns the first line of the program header """
-    if(__IPYTHON__):
+    if(self.isnotebook()):
       fline = 'ipython'
     elif(self.argv is None):
       fline = "%s"%(main.__file__)
@@ -375,7 +374,7 @@ class sep:
 
     return dpath
 
-  def gethostname(alias=True):
+  def gethostname(self,alias=True):
     """
     An extension of socket.gethostname() where the hostname alias
     is returned if requested. This makes this code more
@@ -391,6 +390,17 @@ class sep:
               hname = cols[2]
 
     return hname
+  
+  def isnotebook(self):
+    """ Checks if running in a notebook/ipython """
+    try:
+      shell = get_ipython().__class__.__name__
+      if (shell == 'ZMQInteractiveShell' or shell == 'TerminalInteractiveShell'):
+        return True   # Jupyter notebook or IPython
+      else:
+        return False  # Other type (?)
+    except NameError:
+      return False  
 
   def id_generator(self,size=6, chars=string.ascii_uppercase + string.digits):
     """ Creates a random string with uppercase letters and integers """

@@ -14,7 +14,7 @@ laplacianold.o: laplacianFWDISPC.ispc #laplacian10.ispc
 
 scaas2d.o: scaas2d.cpp
 	g++ -O3 -fPIC -ffast-math -fopenmp -std=c++1y -shared -Wall -I${CONDA_PREFIX}/include/python3.5m \
-		-I${NPPATH}/include -Wl,-rpath=${CONDA_PREFIX}/lib -L${CONDA_PREFIX}/lib -lpython3.5m -c $< -o $@
+		-I${NPPATH}/include -Wl,-rpath=${CONDA_PREFIX}/lib -L${CONDA_PREFIX}/lib -lpython3.7m -c $< -o $@
 
 #XXX: The -shared is necessary for linking
 scaas2dpy: scaas2d.o laplacian10.o laplacianold.o

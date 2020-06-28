@@ -329,7 +329,9 @@ class sep:
 
   def get_fline(self):
     """ Returns the first line of the program header """
-    if(self.argv is None):
+    if(__IPYTHON__):
+      fline = 'ipython'
+    elif(self.argv is None):
       fline = "%s"%(main.__file__)
     else:
       fline = self.argv[0]

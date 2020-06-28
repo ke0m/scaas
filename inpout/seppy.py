@@ -5,7 +5,6 @@ import __main__ as main
 import datetime
 import string, random
 import subprocess as sp
-import matplotlib.pyplot as plt
 
 class axes:
   """ Axes of regularly sampled data"""
@@ -149,23 +148,34 @@ class sep:
   def read_file(self,ifname,form='xdr',safe=False,tag=None):
     """ Reads a SEP file from tag and returns the data and the axes """
     faxes  = self.read_header(ifname,tag)
+    # Get the correct data type
+    esize = int(self.hdict['esize'])
+    # Real
+    if(esize == 4):
+      if(form == 'xdr'):
+        dtype = '>f'
+      elif(form == 'native'):
+        dtype = '<f'
+      else:
+        print("Failed to read in file. Format %s not recognized\n"%(form))
+    # Complex
+    elif(esize == 8):
+      if(form == 'xdr'):
+        dtype = '>c8'
+      elif(form == 'native'):
+        dtype = '<c8'
+      else:
+        print("Failed to read in file. Format %s not recognized\n"%(form))
+    else:
+      print("Failed to read in file. Must have esize 4 or 8 (esize=%d)"%(esize))
+    # Read in the file
     if(safe):
       dat = np.zeros(faxes.get_nelem())
       with open(self.hdict["in"],'rb') as f:
-        if(form == 'xdr'):
-          dat[:] = np.fromfile(f, dtype='>f')
-        elif(form == 'native'):
-          dat[:] = np.fromfile(f, dtype='<f')
-        else:
-          print("Failed to read in file. Format %s not recognized\n"%(form))
+        dat[:] = np.fromfile(f, dtype=dtype)
     else:
       with open(self.hdict["in"],'rb') as f:
-        if(form == 'xdr'):
-          dat = np.fromfile(f, dtype='>f')
-        elif(form == 'native'):
-          dat = np.fromfile(f, dtype='<f')
-        else:
-          print("Failed to read in file. Format %s not recognized\n"%(form))
+        dat = np.fromfile(f, dtype=dtype)
 
     return faxes, dat
 
@@ -181,10 +191,10 @@ class sep:
 
     return odict
 
-  def write_header(self,ofname,ns,os=None,ds=None,ofaxes=None,tag=None,dpath=None,form='xdr'):
-    """ 
+  def write_header(self,ofname,ns,esize,os=None,ds=None,ofaxes=None,tag=None,dpath=None,form='xdr'):
+    """
     Writes header information to SEP file and returns
-    the path to the output 
+    the path to the output
     """
     fout = None
     assert(tag != None or ofname != None), "Need a tag or output file name to write a header."
@@ -233,9 +243,9 @@ class sep:
             (k+1,ns[k],k+1,os[k],k+1,ds[k]))
 
     if(form == 'xdr'):
-      fout.write('\t\tdata_format="xdr_float" esize=4\n')
+      fout.write('\t\tdata_format="xdr_float" esize=%d\n'%(esize))
     elif(form == 'native'):
-      fout.write('\t\tdata_format="native_float" esize=4\n')
+      fout.write('\t\tdata_format="native_float" esize=%d\n'%(esize))
     else:
       print("Error: format %s not recognized"%(form))
 
@@ -245,14 +255,29 @@ class sep:
 
   def write_file(self,ofname,data,os=None,ds=None,ofaxes=None,tag=None,dpath=None,form='xdr'):
     """ Writes data and axes to a SEP header and binary """
-    opath = self.write_header(ofname,data.shape,os,ds,ofaxes,tag,dpath,form)
-    with open(opath,'wb') as f:
+    # Get data type and esize (real or complex)
+    if("f" in "%s"%(data.dtype)):
+      esize = 4
       if(form == 'xdr'):
-        data.flatten('F').astype('>f').tofile(f)
+        dtype = '>f'
       elif(form == 'native'):
-        data.flatten('F').astype('<f').tofile(f)
+        dtype = '<f'
       else:
-        print("Failed to write file. Format %s not recognized\n"%(form))
+        print('Failed to write file. Format %s not recognized\n'%(form))
+    elif("c" in "%s"%(data.dtype)):
+      esize = 8
+      if(form == 'xdr'):
+        dtype = '>c8'
+      elif(form == 'native'):
+        dtype = '<c8'
+      else:
+        print('Failed to write file. Format %s not recognized\n'%(form))
+    else:
+      print("Error: can only write real or complex data")
+    # Write header
+    opath = self.write_header(ofname,data.shape,esize,os,ds,ofaxes,tag,dpath,form)
+    with open(opath,'wb') as f:
+      data.flatten('F').astype(dtype).tofile(f)
 
   def to_header(self,ofname,info,tag=None):
     """ Writes any auxiliary information to header """

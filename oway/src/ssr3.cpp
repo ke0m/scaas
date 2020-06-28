@@ -5,9 +5,9 @@
 
 ssr3::ssr3(int nx,   int ny,   int nz,   int nh,
            float dx, float dy, float dz, float dh,
-           int nw,   float ow, float dw,
-           float dtmax, float eps,
-           int ntx, int nty, int px, int py, int nrmax) {
+           int nw,   float ow, float dw, float eps,
+           int ntx, int nty, int px, int py,
+           float dtmax, int nrmax) {
   /* Dimensions */
   _nx  = nx;  _ny  = ny;  _nz = nz; _nh = nh; _nw = nw;
   _ntx = ntx; _nty = nty; _px = px; _py = py; _nrmax = nrmax;
@@ -156,7 +156,7 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
     }
   }
 
-  /* w-x part 2 */
+  /* w-x-y part 2 */
   for(int iy = 0; iy < _ny; ++iy) {
     for(int ix = 0; ix < _nx; ++ix) {
       wx[iy*_nx + ix] /= wt[iy*_nx + ix];

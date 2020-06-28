@@ -377,6 +377,7 @@ class defaultgeom:
         cmap=kwargs.get('cmap','jet'))
     ax.set_xlabel(kwargs.get('xlabel','X (gridpoints)'),fontsize=kwargs.get('labelsize',14))
     ax.set_ylabel(kwargs.get('ylabel','Z (gridpoints)'),fontsize=kwargs.get('labelsize',14))
+    ax.set_title(kwargs.get('title',''),fontsize=kwargs.get('labelsize',14))
     ax.tick_params(labelsize=kwargs.get('labelsize',14))
     # Get all source positions
     plt.scatter(self.allrecx[0,:],self.allrecz[0,:],c='tab:green',marker='v')

@@ -7,6 +7,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
+#include <pybind11/iostream.h>
 #include "scaas2d.h"
 
 namespace py = pybind11;
@@ -53,6 +54,7 @@ PYBIND11_MODULE(scaas2dpy,m) {
               int verb
               )
               {
+                py::scoped_ostream_redirect stream(std::cout, py::module::import("sys").attr("stdout"));
                 sca2d.fwdprop_multishot(src.mutable_data(),srcxs.mutable_data(), srczs.mutable_data(), nsrc.mutable_data(),
                     recxs.mutable_data(), reczs.mutable_data(), nrec.mutable_data(), nex,
                     vel.mutable_data(), dat.mutable_data(), nthrds, verb);
@@ -209,6 +211,7 @@ PYBIND11_MODULE(scaas2dpy,m) {
               int verb
               )
               {
+                py::scoped_ostream_redirect stream(std::cout, py::module::import("sys").attr("stdout"));
                 sca2d.gradient_multishot(src.mutable_data(), srcxs.mutable_data(), srczs.mutable_data(), nsrcs.mutable_data(),
                     asrc.mutable_data(), recxs.mutable_data(), reczs.mutable_data(), nrecs.mutable_data(), nex,
                     vel.mutable_data(), grad.mutable_data(), nthrds, verb);
@@ -254,6 +257,7 @@ PYBIND11_MODULE(scaas2dpy,m) {
              int verb
             )
             {
+             py::scoped_ostream_redirect stream(std::cout, py::module::import("sys").attr("stdout"));
              sca2d.brnfwd(src.mutable_data(),srcxs.mutable_data(), srczs.mutable_data(), nsrc.mutable_data(),
                      recxs.mutable_data(), reczs.mutable_data(), nrec.mutable_data(), nex,
                      vel.mutable_data(), dvel.mutable_data(), ddat.mutable_data(), nthrds, verb);
@@ -300,6 +304,7 @@ PYBIND11_MODULE(scaas2dpy,m) {
              int verb
              )
              {
+               py::scoped_ostream_redirect stream(std::cout, py::module::import("sys").attr("stdout"));
                sca2d.brnadj(src.mutable_data(), srcxs.mutable_data(), srczs.mutable_data(), nsrcs.mutable_data(),
                    recxs.mutable_data(), reczs.mutable_data(), nrecs.mutable_data(), nex,
                     vel.mutable_data(), dvel.mutable_data(), ddat.mutable_data(), nthrds, verb);
@@ -348,6 +353,7 @@ PYBIND11_MODULE(scaas2dpy,m) {
                int verb
                )
                {
+                 py::scoped_ostream_redirect stream(std::cout, py::module::import("sys").attr("stdout"));
                  sca2d.brnoffadj(src.mutable_data(), srcxs.mutable_data(), srczs.mutable_data(), nsrcs.mutable_data(),
                      recxs.mutable_data(), reczs.mutable_data(), nrecs.mutable_data(), nex,
                       vel.mutable_data(), rnh, dvel.mutable_data(), ddat.mutable_data(), nthrds, verb);

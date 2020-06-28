@@ -101,13 +101,14 @@ class smoothop(operator):
     if(list(mod.shape) != self.__nsin):
       raise Exception("trismoothop: shape of input must match shape passed to constructor")
 
-    #TODO: need to handle the add == True case
+    if(not add):
+      dat[:] = 0.0
 
     # Create copy of data
     tmp = np.copy(mod)
     # Apply kernel
     smooth2(self.__dim1,self.__n1,self.__n2,self.__ns,self.__rects,self.__s,tmp)
-    dat[:] = tmp
+    dat[:] += tmp
 
   def adjoint(self,add,mod,dat):
     """
@@ -124,13 +125,14 @@ class smoothop(operator):
     if(list(mod.shape) != self.__nsin):
       raise Exception("trismoothop: shape of input must match shape passed to constructor")
 
-    #TODO: need to handle the add == True case
+    if(not add):
+      mod[:] = 0.0
 
     # Create copy of data
     tmp = np.copy(dat)
     # Apply kernel
     smooth2(self.__dim1,self.__n1,self.__n2,self.__ns,self.__rects,self.__s,tmp)
-    mod[:] = tmp
+    mod[:] += tmp
 
   def dottest(self,add=False):
     """ Performs the dot product test of the operator """

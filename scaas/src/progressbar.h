@@ -13,6 +13,7 @@
 
 #include <stdio.h>
 #include <string>
+#include <iostream>
 
 inline void printprogress(std::string prefix, int icur, int tot) {
   double percentage = (double)icur/tot;

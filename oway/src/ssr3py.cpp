@@ -18,16 +18,14 @@ PYBIND11_MODULE(ssr3,m) {
   py::class_<ssr3>(m,"ssr3")
       .def(py::init<int,  int,  int,  int,
                     float,float,float,float,
-                    int,float,float,
-                    float,float,
+                    int,float,float,float,
                     int,int,int,int,
-                    int>(),
+                    float,int>(),
           py::arg("nx"),py::arg("ny"),py::arg("nz"),py::arg("nh"),
           py::arg("dx"),py::arg("dy"),py::arg("dz"),py::arg("dh"),
-          py::arg("nw"), py::arg("ow"), py::arg("dw"),
-          py::arg("dtmax"),py::arg("eps"),
+          py::arg("nw"), py::arg("ow"), py::arg("dw"), py::arg("eps"),
           py::arg("ntx"),py::arg("nty"),py::arg("px"),py::arg("py"),
-          py::arg("nrmax"))
+          py::arg("dtmax"),py::arg("nrmax"))
       .def("set_slows", [] (ssr3 &sr3d,
               py::array_t<float, py::array::c_style> slo
               )

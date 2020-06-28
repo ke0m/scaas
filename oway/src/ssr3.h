@@ -17,9 +17,9 @@ class ssr3{
   public:
     ssr3(int nx,   int ny,   int nz,   int nh,
          float dx, float dy, float dz, float dh,
-         int nw, float ow, float dw,
-         float dtmax, float eps,
-         int ntx, int nty, int px, int py, int nrmax);
+         int nw, float ow, float dw, float eps,
+         int ntx, int nty, int px, int py,
+         float dtmax, int nrmax);
     void set_slows(float *slo);
     void ssr3ssf_modonew(int iw, float *ref, std::complex<float> *wav, std::complex<float> *dat);
     void ssr3ssf_modallw(float *ref, std::complex<float> *wav, std::complex<float> *dat);

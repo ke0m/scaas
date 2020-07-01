@@ -25,6 +25,7 @@ class ssr3{
     void ssr3ssf_modallw(float *ref, std::complex<float> *wav, std::complex<float> *dat);
     void ssr3ssf_migonew();
     void ssr3ssf_migallw();
+    void ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std::complex<float> *slccur, std::complex<float> *slcnex);
     void ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std::complex<float> *slc);
     void build_refs(int nz, int nrmax, int ns, float dsmax, float *slo, int *nr, float *sloref);
     int nrefs(int nrmax, float dsmax, int ns, float *slo, float *sloref);

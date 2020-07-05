@@ -2,6 +2,8 @@
 #include <cstring>
 #include "kiss_fft.h"
 #include "ssr3.h"
+#include <map>
+#include <string>
 #include "/opt/matplotlib-cpp/matplotlibcpp.h"
 
 namespace plt = matplotlibcpp;
@@ -20,7 +22,9 @@ void plotimg_cmplx(int n1,int n2,std::complex<float> *arr,int option) {
       }
     }
   }
-  plt::imshow((const float *)tmp,n1,n2,1); plt::show();
+  std::map<std::string,std::string> vals;
+  //vals["vmax"] = "0.01"; //vals["vmin"] = "0.0";
+  plt::imshow((const float *)tmp,n1,n2,1,vals); plt::show();
 
   delete [] tmp;
 }
@@ -152,11 +156,15 @@ void ssr3::ssr3ssf_modonew(int iw, float *ref, std::complex<float> *wav, std::co
       for(int ix = 0; ix < _nx; ++ix) {
         sslc[iz*_ny*_nx + iy*_nx + ix] *= ref[iz*_ny*_nx + iy*_nx + ix];
         rslc[iy*_nx + ix] += sslc[iz*_ny*_nx + iy*_nx + ix];
+//        fprintf(stderr,"iz=%d ix=%d ref=%g sslc=%g+%gi rslc=%g+%gi\n",iz,ix,ref[iz*_ny*_nx + iy*_nx + ix],
+//                real(sslc[iz*_ny*_nx + iy*_nx + ix]),imag(sslc[iz*_ny*_nx + iy*_nx + ix]),
+//                real(rslc[iy*_nx + ix]),imag(rslc[iy*_nx + ix]));
       }
     }
 
     /* Depth extrapolation */
     ssr3ssf(w, iz, _slo+(iz)*_nx*_ny, _slo+(iz-1)*_nx*_ny, rslc);
+    //plotplt_cmplx(_nx, rslc, 0);
   }
 
   /* Taper the receiver wavefield */
@@ -181,9 +189,9 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
   for(int iy = 0; iy < _ny; ++iy) {
     for(int ix = 0; ix < _nx; ++ix) {
       float s = 0.5 * scur[iy*_nx + ix];
-      //fprintf(stderr,"ix=%d s=%f wx=%f+%fi\n",ix,s,real(wx[iy*_nx+ix]),imag(wx[iy*_nx+ix]));
+      //fprintf(stderr,"ix=%d s=%g wxin=%g+%gi\n",ix,s,real(wxin[iy*_nx+ix]),imag(wxin[iy*_nx+ix]));
       wxot[iy*_nx + ix] = wxin[iy*_nx+ix]*exp(-w*s*_dz);
-      //fprintf(stderr,"ix=%d s=%f wx=%f+%fi\n",ix,s,real(wx[iy*_nx+ix]),imag(wx[iy*_nx+ix]));
+      //fprintf(stderr,"ix=%d s=%g wxot=%g+%gi\n",ix,s,real(wxot[iy*_nx+ix]),imag(wxot[iy*_nx+ix]));
     }
   }
 
@@ -223,6 +231,7 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
         d = _dsmax2/(d*d + _dsmax2);
         wxot[iy*_nx + ix] += wk[iy*_bx + ix]*d;
         wt  [iy*_nx + ix] += d;
+        //fprintf(stderr,"ix=%d d=%f wxot=%f+%fi wt=%f\n",ix,d,real(wxot[iy*_nx+ix]),imag(wxot[iy*_nx+ix]),wt[iy*_nx+ix]);
       }
     }
   }
@@ -233,7 +242,7 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
       wxot[iy*_nx + ix] /= wt[iy*_nx + ix];
       float s = 0.5 * snex[iy*_nx + ix];
       wxot[iy*_nx + ix] *= exp(-w*s*_dz);
-      //fprintf(stderr,"ix=%d s=%f wx=%g+%gi\n",ix,s,real(wx[iy*_nx+ix]),imag(wx[iy*_nx+ix]));
+      //fprintf(stderr,"ix=%d wt=%f s=%f wx=%g+%gi\n",ix,wt[iy*_nx+ix],s,real(wxot[iy*_nx+ix]),imag(wxot[iy*_nx+ix]));
     }
   }
 

@@ -43,9 +43,13 @@ class defaultgeom:
     Returns:
       a default geom object
     """
+    # Spatial axes
     self.__nx = nx; self.__dx = dx
     self.__ny = ny; self.__dy = dy
     self.__nz = nz; self.__dz = dz
+    # Frequency axis
+    self.__nw   = None; self.__dw   = None;
+    self.__begw = None; self.__endw = None;
 
   def model_data(self,wav,minf,maxf,vel,ref):
     """
@@ -88,14 +92,38 @@ class defaultgeom:
     n1 = wav.shape[0]
     nt = 2*self.next_fast_size(int((n1+1)/2))
     if(nt%2): nt += 1
-    nw = int(nt/2+1)
-    dw = 1/(nt*dt)
+    self.__nw = int(nt/2+1)
+    self.__dw = 1/(nt*dt)
     # Min and max frequencies
-    beg = int(minf/dw); end = int(maxf/dw)
+    self.__begw = int(minf/self.__dw) 
+    self.__endw = int(maxf/self.__dw)
     wavp = np.pad(wav,(0,nt),mode='constant')
-    wfft = np.fft.fft(wav)[beg:end]
+    wfft = np.fft.fft(wav)[self.__begw:self.__endw]
 
-    return wfft,minf,dw
+    return wfft,minf,self.__dw
+
+  def convert_data(self,d1,dat,f2t=True):
+    """
+    Converts the data from either time to frequency or back
+
+    Parameters:
+      d1  - time or frequency sampling of data
+      dat - input data [nw/t,ny,nx]
+      f2t - flag indicating frequency to time [True]
+    """
+    if(f2t):
+      # Get number of frequencies
+      n1 = dat.shape[0]
+      # Transpose the data so frequency is on fast axis
+      datt = np.transpose(dat,(1,2,0))
+      if(self.__nw is not None and self.__begw is not None):
+        # Pad to the original frequency range
+        padb = self.__begw; pade = self.__nw - n1 - self.__begw
+        dattpad = np.pad(datt,((0,0),(0,0),(padb,pade)),mode='constant')
+        # Inverse FFT
+        odat = np.fft.ifft1(dattpad)
+     
+    return odat
 
   def next_fast_size(self,n):
     """ Gets the optimal size for computing the FFT """

@@ -15,8 +15,8 @@
 
 class ssr3{
   public:
-    ssr3(int nx,   int ny,   int nz,   int nh,
-         float dx, float dy, float dz, float dh,
+    ssr3(int nx,   int ny,   int nz,
+         float dx, float dy, float dz,
          int nw, float ow, float dw, float eps,
          int ntx, int nty, int px, int py,
          float dtmax, int nrmax);
@@ -43,11 +43,11 @@ class ssr3{
     }
 
   private:
-    int _nx, _ny, _nz, _nh, _nw;
+    int _nx, _ny, _nz, _nw;
     int _ntx, _nty, _px, _py, _bx, _by;
     int _onestp;
     int _nrmax, *_nr;
-    float _dx, _dy, _dz, _dh, _dw, _dsmax, _dsmax2;
+    float _dx, _dy, _dz, _dw, _dsmax, _dsmax2;
     float _ow;
     float _eps;
     float *_slo, *_sloref;

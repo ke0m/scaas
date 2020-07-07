@@ -7,6 +7,7 @@ and distributed evenly across the surface
 """
 import numpy as np
 from oway.ssr3 import ssr3
+from utils.ptyprint import printprogress
 import matplotlib.pyplot as plt
 
 class defaultgeom:
@@ -47,14 +48,84 @@ class defaultgeom:
     self.__nx = nx; self.__dx = dx
     self.__ny = ny; self.__dy = dy
     self.__nz = nz; self.__dz = dz
+    # Source gometry
+    self.__nsx = nsx; self.__osx = osx; self.__dsx = dsx
+    self.__nsy = nsy; self.__osy = osy; self.__dsy = dsy
     # Frequency axis
-    self.__nw   = None; self.__dw   = None;
-    self.__begw = None; self.__endw = None;
+    self.__nwo = None; self.__ow = None; self.__dw = None;
 
-  def model_data(self,wav,minf,maxf,vel,ref):
+  def model_data(self,wav,dt,t0,minf,maxf,vel,ref,nrmax=3,eps=0.01,dtmax=5e-05,time=True,
+                 ntx=0,nty=0,px=0,py=0,verb=True):
     """
+    Models single scattered (Born) data with the one-way
+    wave equation (single square root (SSR), split-step Fourier method).
+
+    Parameters:
+      wav   - the input wavelet (source time function) [nt]
+      dt    - sampling interval of wavelet
+      t0    - time-zero of wavelet (e.g., peak of ricker wavelet)
+      minf  - minimum frequency to propagate [Hz]
+      maxf  - maximum frequency to propagate [Hz]
+      vel   - input velocity model [nz,ny,nx]
+      ref   - input reflectivity model [nz,ny,nx]
+      nrmax - maximum number of reference velocities [3]
+      eps   - stability parameter [0.01]
+      dtmax - maximum time error [5e-05]
+      time  - return the data back in the time domain [True]
+      ntx   - size of taper in x direction (samples) [0]
+      nty   - size of taper in y direction (samples) [0]
+      px    - amount of padding in x direction (samples)
+      py    - amount of padding in y direction (samples)
+      verb  - verbosity flag
+    
+    Returns the data at the surface (in time or frequency) [nw,nry,nrx]
     """
-    pass
+    # Save wavelet temporal parameters
+    nt = wav.shape[0]; it0 = int(t0/dt)
+
+    # Create the input frequency domain source and get original frequency axis
+    self.__nwo,self.__ow,self.__dw,wfft = self.convert_source(dt,wav,minf=minf,maxf=maxf)
+    self.__nwc = wfft.shape[0] # Get the number of frequencies to compute
+
+    # Single square root object
+    ssf = ssr3(self.__nx ,self.__ny,self.__nz,     # Spatial Sizes
+               self.__dx ,self.__dy,self.__dz,     # Spatial Samplings
+               self.__nwc,self.__ow,self.__dw,eps, # Frequency axis
+               ntx,nty,px,py,                      # Taper and padding
+               dtmax,nrmax)                        # Reference velocities
+
+    # Compute slowness and reference slownesses
+    slo = 1/vel
+    ssf.set_slows(slo)
+
+    # Allocate output data (surface wavefield)
+    datw = np.zeros([self.__nsy,self.__nsx,self.__nwc,self.__ny,self.__nx],dtype='complex64')
+
+    # Allocate the source for one shot
+    sou = np.zeros([self.__nwc,self.__ny,self.__nx],dtype='complex64')
+
+    # Loop over sources
+    if(verb):
+      k = 0; tot = self.__nsx*self.__nsy;
+    for isy in range(self.__nsy):
+      sy = int(self.__osy + isy*self.__dsy)
+      for isx in range(self.__nsx):
+        if(verb): printprogress("nexp:",k,tot)
+        sx = int(self.__osx + isx*self.__dsx)
+        # Create the source for this shot
+        sou[:] = 0.0; 
+        sou[:,sy,sx]  = wfft[:]
+        # Downward continuation
+        ssf.modallw(ref,sou,datw[isy,isx,:,:,:])
+        if(verb): k += 1
+    if(verb): printprogress("nexp:",tot,tot)
+
+    if(time):
+      # Inverse fourier transform
+      datt = self.convert_data(datw,self.__nwo,self.__ow,self.__dw,nt,it0)
+      return datt
+    else:
+      return datw
 
   def inject_source(self,ix,iy,wav):
     """
@@ -74,6 +145,7 @@ class defaultgeom:
 
     return sou
 
+  #TODO: handle the source and the data
   def convert_source(self,dt,wav,minf,maxf):
     """
     Creates a frequency domain source from a minimum
@@ -92,36 +164,43 @@ class defaultgeom:
     n1 = wav.shape[0]
     nt = 2*self.next_fast_size(int((n1+1)/2))
     if(nt%2): nt += 1
-    self.__nw = int(nt/2+1)
-    self.__dw = 1/(nt*dt)
+    nw = int(nt/2+1)
+    dw = 1/(nt*dt)
     # Min and max frequencies
-    self.__begw = int(minf/self.__dw) 
-    self.__endw = int(maxf/self.__dw)
+    begw = int(minf/dw); endw = int(maxf/dw)
     wavp = np.pad(wav,(0,nt),mode='constant')
-    wfft = np.fft.fft(wav)[self.__begw:self.__endw]
+    wfft = np.fft.fft(wav)[begw:endw]
 
-    return wfft,minf,self.__dw
+    return nw,minf,dw,wfft
 
-  def convert_data(self,d1,dat,f2t=True):
+  def convert_data(self,dat,nw,ow,dw,nt,it0=None):
     """
-    Converts the data from either time to frequency or back
+    Converts the data from frequency to time
 
     Parameters:
-      d1  - time or frequency sampling of data
       dat - input data [nw/t,ny,nx]
-      f2t - flag indicating frequency to time [True]
+      nw  - original number of frequencies
+      ow  - frequency origin (minf)
+      dw  - frequency sampling interval
+      nt  - output number of time samples
+      it0 - sample index of t0 [0]
     """
-    if(f2t):
-      # Get number of frequencies
-      n1 = dat.shape[0]
-      # Transpose the data so frequency is on fast axis
-      datt = np.transpose(dat,(1,2,0))
-      if(self.__nw is not None and self.__begw is not None):
-        # Pad to the original frequency range
-        padb = self.__begw; pade = self.__nw - n1 - self.__begw
-        dattpad = np.pad(datt,((0,0),(0,0),(padb,pade)),mode='constant')
-        # Inverse FFT
-        odat = np.fft.ifft1(dattpad)
+    # Get number of computed frequencies
+    nwc = dat.shape[2]
+    # Transpose the data so frequency is on fast axis
+    datt = np.transpose(dat,(0,1,3,4,2)) # [nsy,nsx,nwc,ny,nx] -> [nsy,nsx,ny,nx,nwc]
+    # Pad to the original frequency range
+    padb = int(ow/dw); pade = nw - nwc - padb
+    dattpad = np.pad(datt,((0,0),(0,0),(0,0),(0,0),(padb,pade)),mode='constant') # [*,nwc] -> [*,nw]
+    # Inverse FFT and window to t0 (wavelet shift)
+    datf2t = np.real(np.fft.ifft(dattpad))
+    if(it0 is not None):
+      datf2tw = datf2t[:,:,:,:,it0:]
+    else:
+      datf2tw = datf2t
+    # Pad and transpose
+    datf2tp = np.pad(datf2tw,((0,0),(0,0),(0,0),(0,0),(0,nt-(nw-it0))),mode='constant')
+    odat = np.transpose(datf2tp,(0,1,4,2,3)) # [nsy,nsx,ny,nx,nt] -> [nsy,nsx,nt,ny,nx]
      
     return odat
 

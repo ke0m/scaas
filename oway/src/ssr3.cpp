@@ -54,17 +54,17 @@ void print_cmplx(int n1, std::complex<float> *arr,std::string name) {
   }
 }
 
-ssr3::ssr3(int nx,   int ny,   int nz,   int nh,
-    float dx, float dy, float dz, float dh,
+ssr3::ssr3(int nx,   int ny,   int nz,
+    float dx, float dy, float dz,
     int nw,   float ow, float dw, float eps,
     int ntx, int nty, int px, int py,
     float dtmax, int nrmax) {
   /* Dimensions */
-  _nx  = nx;  _ny  = ny;  _nz = nz; _nh = nh; _nw = nw;
+  _nx  = nx;  _ny  = ny;  _nz = nz; _nw = nw;
   _ntx = ntx; _nty = nty; _px = px; _py = py; _nrmax = nrmax;
   _bx = nx + px; _by = ny + py;
   /* Samplings */
-  _dx = dx; _dy = dy; _dz = dz; _dh = dh; _dw = 2*M_PI*dw;
+  _dx = dx; _dy = dy; _dz = dz; _dw = 2*M_PI*dw;
   _dsmax = dtmax/_dz; _dsmax2 = _dsmax*_dsmax*_dsmax*_dsmax; // (slowness squared squared)
   /* Frequency origin and stability */
   _ow = 2*M_PI*ow; _eps = eps;
@@ -201,8 +201,8 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
 //  for(int ix = 0; ix < _nx; ++ix) {
 //    fprintf(stderr,"ix=%d pk=%f+%fi\n",ix,real(pk[ix]),imag(pk[ix]));
 //  }
-
-  memset(wxot,0,sizeof(std::complex<float>)*(_bx*_by));
+//
+  memset(wxot,0,sizeof(std::complex<float>)*(_nx*_ny));
 
   /* Loop over reference velocities */
   for(int ir = 0; ir < _nr[iz]; ++ir) {
@@ -280,7 +280,7 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
 //    fprintf(stderr,"ix=%d pk=%f+%fi\n",ix,real(pk[ix]),imag(pk[ix]));
 //  }
 
-  memset(wx,0,sizeof(std::complex<float>)*(_bx*_by));
+  memset(wx,0,sizeof(std::complex<float>)*(_nx*_ny));
 
   /* Loop over reference velocities */
   for(int ir = 0; ir < _nr[iz]; ++ir) {

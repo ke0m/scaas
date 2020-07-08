@@ -3,11 +3,11 @@ Default geometry for synthetics
 Sources and receivers on the surface
 and distributed evenly across the surface
 @author: Joseph Jennings
-@version: 2020.06.25
+@version: 2020.07.07
 """
 import numpy as np
 from oway.ssr3 import ssr3
-from utils.ptyprint import printprogress
+from utils.ptyprint import progressbar
 import matplotlib.pyplot as plt
 
 class defaultgeom:
@@ -51,13 +51,29 @@ class defaultgeom:
     # Source gometry
     self.__nsx = nsx; self.__osx = osx; self.__dsx = dsx
     self.__nsy = nsy; self.__osy = osy; self.__dsy = dsy
+    # Build source coordinates
+    self.__scoords = []
+    for isy in range(nsy):
+      sy = int(osy + isy*dsy)
+      for isx in range(nsx):
+        sx = int(osx + isx*dsx)
+        self.__scoords.append([sy,sx])
+    self.__nexp = len(self.__scoords)
+    #TODO: 
+    # might also consider the offset sorting like Paul does
+    # basically, will want to replicate sfsrsyn here
+
     # Frequency axis
     self.__nwo = None; self.__ow = None; self.__dw = None;
+
+  def get_freq_axis(self):
+    """ Returns the frequency axis """
+    return self.__nwc,self.__ow,self.__dw
 
   def model_data(self,wav,dt,t0,minf,maxf,vel,ref,nrmax=3,eps=0.01,dtmax=5e-05,time=True,
                  ntx=0,nty=0,px=0,py=0,verb=True):
     """
-    Models single scattered (Born) data with the one-way
+    3D modeling of single scattered (Born) data with the one-way
     wave equation (single square root (SSR), split-step Fourier method).
 
     Parameters:
@@ -84,7 +100,7 @@ class defaultgeom:
     nt = wav.shape[0]; it0 = int(t0/dt)
 
     # Create the input frequency domain source and get original frequency axis
-    self.__nwo,self.__ow,self.__dw,wfft = self.convert_source(dt,wav,minf=minf,maxf=maxf)
+    self.__nwo,self.__ow,self.__dw,wfft = self.source_t2f(wav,dt,minf=minf,maxf=maxf)
     self.__nwc = wfft.shape[0] # Get the number of frequencies to compute
 
     # Single square root object
@@ -99,33 +115,103 @@ class defaultgeom:
     ssf.set_slows(slo)
 
     # Allocate output data (surface wavefield)
-    datw = np.zeros([self.__nsy,self.__nsx,self.__nwc,self.__ny,self.__nx],dtype='complex64')
+    datw = np.zeros([self.__nexp,self.__nwc,self.__ny,self.__nx],dtype='complex64')
 
     # Allocate the source for one shot
     sou = np.zeros([self.__nwc,self.__ny,self.__nx],dtype='complex64')
 
     # Loop over sources
-    if(verb):
-      k = 0; tot = self.__nsx*self.__nsy;
-    for isy in range(self.__nsy):
-      sy = int(self.__osy + isy*self.__dsy)
-      for isx in range(self.__nsx):
-        if(verb): printprogress("nexp:",k,tot)
-        sx = int(self.__osx + isx*self.__dsx)
-        # Create the source for this shot
-        sou[:] = 0.0; 
-        sou[:,sy,sx]  = wfft[:]
-        # Downward continuation
-        ssf.modallw(ref,sou,datw[isy,isx,:,:,:])
-        if(verb): k += 1
-    if(verb): printprogress("nexp:",tot,tot)
+    k = 0
+    for icrd in progressbar(self.__scoords,"nexp:"):
+      # Get the source coordinates
+      sy = icrd[0]; sx = icrd[1]
+      # Create the source for this shot
+      sou[:] = 0.0; 
+      sou[:,sy,sx]  = wfft[:]
+      # Downward continuation
+      ssf.modallw(ref,sou,datw[k,:,:,:])
+      k += 1
+
+    # Reshape output data
+    datwr = datw.reshape([self.__nsy,self.__nsx,self.__nwc,self.__ny,self.__nx])
 
     if(time):
       # Inverse fourier transform
-      datt = self.convert_data(datw,self.__nwo,self.__ow,self.__dw,nt,it0)
+      datt = self.data_f2t(datwr,self.__nwo,self.__ow,self.__dw,nt,it0)
       return datt
     else:
-      return datw
+      return datwr
+
+  def image_data(self,dat,dt,minf,maxf,vel,nhx=1,nhy=1,nrmax=3,eps=0.01,dtmax=5e-05,wav=None,
+                 ntx=0,nty=0,px=0,py=0,verb=True):
+    """
+    3D migration of shot profile data via the one-way wave equation (single-square
+    root split-step fourier method). Input data are assumed to follow
+    the default geometry (sources and receivers on a regular grid)
+
+    Parameters:
+      dat   - input shot profile data [nsy,nsx,nry,nrx,nt]
+      dt    - temporal sampling of input data
+      minf  - minimum frequency to image in the data [Hz]
+      maxf  - maximum frequency to image in the data [Hz]
+      vel   - input migration velocity model [nz,ny,nx]
+      nhx   - number of subsurface offsets in x to compute [1]
+      nhy   - number of subsurface offsets in y to compute [1]
+      nrmax - maximum number of reference velocities [3]
+      eps   - stability parameter [0.01]
+      dtmax - maximum time error [5e-05]
+      wav   - input wavelet [None,assumes an impulse at zero lag]
+      ntx   - size of taper in x direction [0]
+      nty   - size of taper in y direction [0]
+      px    - amount of padding in x direction (samples) [0]
+      py    - amount of padding in y direction (samples) [0]
+      verb  - verbosity flag [True]
+
+    Returns:
+      an image created from the data [nhy,nhx,nz,ny,nx]
+    """
+    # Get temporal axis
+    nt = dat.shape[0]
+
+    # Create frequency domain source
+    if(wav is None):
+      wav    = np.zeros(nt,dtype='float32')
+      wav[0] = 1.0
+    self.__nwo,self.__ow,self.__dw,wfft = self.source_t2f(wav,dt,minf=minf,maxf=maxf)
+    self.__nwc = wfft.shape[0] # Get the number of frequencies for imaging
+
+    # Create frequency domain data
+    _,_,_,dfft = self.data_t2f(dat,dt,minf=minf,maxf=maxf)
+
+    # Allocate partial image array 
+    if(nhx == 1 and nhy == 1):
+      imgar = np.zeros([self.__nexp,self.__nz,self.__ny,self.__nx],dtype='float32')
+    else:
+      imgar = np.zeros([self.__nexp,nhy,nhx,self.__nz,self.__ny,self.__nx],dtype='float32')
+
+    # Allocate the source for one shot
+    sou = np.zeros([self.__nwc,self.__ny,self.__nx],dtype='complex64')
+
+    # Loop over sources
+    k = 0
+    for icrd in progressbar(self.__scoords,"nexp:"):
+      # Get the source coordinates
+      sy = icrd[0]; sx = icrd[1]
+      # Create the source for this shot
+      sou[:] = 0.0
+      sou[:,sy,sx]  = wfft[:]
+      if(nhx == 1 and nhy == 1):
+        # Conventional imaging
+        pass
+      else:
+        # Extended imaging
+        pass
+      k += 1
+
+    # Sum over all partial images
+    img = np.sum(imgar,axis=0)
+
+    return img
 
   def inject_source(self,ix,iy,wav):
     """
@@ -145,20 +231,19 @@ class defaultgeom:
 
     return sou
 
-  #TODO: handle the source and the data
-  def convert_source(self,dt,wav,minf,maxf):
+  def source_t2f(self,wav,dt,minf,maxf):
     """
     Creates a frequency domain source from a minimum
     to a maximum specified frequency
 
     Parameters:
-      dt   - temporal sampling of wavelet
       wav  - the input source time function [nt]
+      dt   - temporal sampling of wavelet
       minf - the lowest frequency to propagate  [Hz]
       maxf - the highest frequency to propagate [Hz]
 
     Returns:
-      a frequency domain source and the frequency axis [nw]
+      a frequency domain source and the frequency axis [nw,ow,dw]
     """
     # Get sizes for time and frequency domain
     n1 = wav.shape[0]
@@ -169,11 +254,43 @@ class defaultgeom:
     # Min and max frequencies
     begw = int(minf/dw); endw = int(maxf/dw)
     wavp = np.pad(wav,(0,nt),mode='constant')
-    wfft = np.fft.fft(wav)[begw:endw]
+    wfft = np.fft.fft(wavp)[begw:endw]
 
     return nw,minf,dw,wfft
 
-  def convert_data(self,dat,nw,ow,dw,nt,it0=None):
+  def data_t2f(dat,dt,minf,maxf,transp=True):
+    """
+    Creates the frequency domain receiver wavefields
+    within a frequency range
+
+    Parameters:
+      dat    - the input data [nt,nsy,nsx,nry,nrx]/[nsy,nsx,nry,nrx,nt]
+      dt     - temporal sampling of data
+      minf   - the lowest frequency to image in the data [Hz]
+      maxf   - the highest frequency to image in the data [Hz]
+      transp - transpose so that frequency is fast axis [True]
+
+    Returns:
+      the frequency axis (nw,ow,dw) and the frequency domain data 
+      filtered to the specified frequency range [nw,nsy,nsx,nry,nrx]
+    """
+    if(transp):
+      datt = np.transpose(dat,(1,2,3,4,0))
+    else:
+      datt = dat
+    n1 = datt.shape[0]
+    nt = 2*self.next_fast_size(int(n1+1)/2)
+    if(nt%2): nt += 1
+    dw = 1/(nt*dt)
+    # Min and max frequencies
+    begw  = int(minf/dw); endw = int(maxf/dw)
+    datp  = np.pad(datt,(0,0),(0,0),(0,0),(0,0),(0,nt),mode='constant')
+    dfft  = np.fft.fft(datp)[begw:endw]
+    dfftt = np.ascontiguousarray(np.transpose(dfft,(4,0,1,2,3)))
+
+    return nw,minf,dw,dfftt
+
+  def data_f2t(self,dat,nw,ow,dw,nt,it0=None):
     """
     Converts the data from frequency to time
 
@@ -200,9 +317,8 @@ class defaultgeom:
       datf2tw = datf2t
     # Pad and transpose
     datf2tp = np.pad(datf2tw,((0,0),(0,0),(0,0),(0,0),(0,nt-(nw-it0))),mode='constant')
-    odat = np.transpose(datf2tp,(0,1,4,2,3)) # [nsy,nsx,ny,nx,nt] -> [nsy,nsx,nt,ny,nx]
-     
-    return odat
+
+    return datf2tp
 
   def next_fast_size(self,n):
     """ Gets the optimal size for computing the FFT """

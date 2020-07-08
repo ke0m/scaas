@@ -174,6 +174,39 @@ void ssr3::ssr3ssf_modonew(int iw, float *ref, std::complex<float> *wav, std::co
   delete[] sslc; delete[] rslc;
 }
 
+void ssr3::ssr3ssf_migallw(std::complex<float> *dat, std::complex<float> *wav, float *img) {
+  /* Check if built reference velocities */
+  if(_slo == NULL) {
+    fprintf(stderr,"Must run set_slows before modeling or migration\n");
+  }
+
+  // wav dimensions (w, y, x)
+  /* Loop over frequency (will be parallelized with OpenMP/TBB) */
+  for(int iw = 0; iw < _nw; ++iw) {
+    /* Temporary array */
+    float *imgtmp = new float[_nz*_ny*_nx]();
+    /* Migrate data for current frequency */
+    ssr3ssf_migonew(iw, wav + iw*_nx*_ny, dat + iw*_nx*_ny, imgtmp);
+    /* Add to output image */
+    //XXX: probably need an omp critical here. Perhaps can store and accumulate images for each thread
+    // to do that, will need to pass the thread number to migonew and allocate an array
+    // to store each image for each thread
+    for(int k = 0; k < _nz*_nx*_ny; ++k) img[k] += imgtmp;
+    /* Free memory */
+    delete[] imgtmp;
+  }
+}
+
+void ssr3::ssr3ssf_migonew(int iw, std::complex<float> *dat, std::complex<float> *wav, float *img) {
+}
+
+void ssr3::ssr3ssf_migoffallw(std::complex<float> *dat, std::complex<float> *wav, int nhx, int nhy, float *img) {
+  //TODO: compute the bounds for the lags in the imaging condition
+}
+
+void ssr3::ssr3ssf_migoffonew(int iw, std::complex<float> *dat, std::complex<float>*wav, int nhx, int nhy, float *img) {
+}
+
 void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std::complex<float> *wxin, std::complex<float> *wxot) {
 
   /* Temporary arrays */

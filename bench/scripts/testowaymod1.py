@@ -31,13 +31,18 @@ waxes,wav = sep.read_file("../oway/src/srmodmig/wav.rsf",form='native')
 t0 = 50*d1
 
 wei = geom.defaultgeom(nx=nx,dx=dx,ny=ny,dy=dy,nz=nz,dz=dz,
-                       nsx=2,dsx=100,osx=400,nsy=1,dsy=1.0)
+                       nsx=1,dsx=1,osx=400,nsy=1,dsy=1.0)
 
-dat = wei.model_data(wav,d1,t0,minf=1.0,maxf=31.0,vel=velin,ref=refsm,time=False,ntx=15,px=0)
+dat = wei.model_data(wav,d1,t0,minf=1.0,maxf=31.0,vel=velin,ref=refsm,time=False,ntx=15)
+
+nw,ow,dw = wei.get_freq_axis()
+
+#sep.write_file("mycmplxdat.H",dat.T,os=[0,0,ow,0,0],ds=[dx,dy,dw,1.0,1.0])
+#sep.write_file("mydat.H",dat.T,os=[0,0,0,0,0],ds=[d1,dx,dy,1.0,1.0])
 
 plt.figure(figsize=(10,10))
 plt.imshow(np.real(dat[0,0,:,0,:]),cmap='gray',interpolation='sinc')
-plt.figure(figsize=(10,10))
-plt.imshow(np.real(dat[0,1,:,0,:]),cmap='gray',interpolation='sinc')
+#plt.figure(figsize=(10,10))
+#plt.imshow(np.real(dat[0,1,:,0,:]),cmap='gray',interpolation='sinc')
 plt.show()
 

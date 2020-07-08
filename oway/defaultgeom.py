@@ -253,7 +253,7 @@ class defaultgeom:
     dw = 1/(nt*dt)
     # Min and max frequencies
     begw = int(minf/dw); endw = int(maxf/dw)
-    wavp = np.pad(wav,(0,nt),mode='constant')
+    wavp = np.pad(wav,(0,nt-n1),mode='constant')
     wfft = np.fft.fft(wavp)[begw:endw]
 
     return nw,minf,dw,wfft
@@ -284,39 +284,43 @@ class defaultgeom:
     dw = 1/(nt*dt)
     # Min and max frequencies
     begw  = int(minf/dw); endw = int(maxf/dw)
-    datp  = np.pad(datt,(0,0),(0,0),(0,0),(0,0),(0,nt),mode='constant')
+    datp  = np.pad(datt,(0,0),(0,0),(0,0),(0,0),(0,nt-n1),mode='constant')
     dfft  = np.fft.fft(datp)[begw:endw]
     dfftt = np.ascontiguousarray(np.transpose(dfft,(4,0,1,2,3)))
 
     return nw,minf,dw,dfftt
 
-  def data_f2t(self,dat,nw,ow,dw,nt,it0=None):
+  def data_f2t(self,dat,nw,ow,dw,n1,it0=None):
     """
     Converts the data from frequency to time
 
     Parameters:
-      dat - input data [nw/t,ny,nx]
+      dat - input data [nw,ny,nx]
       nw  - original number of frequencies
       ow  - frequency origin (minf)
       dw  - frequency sampling interval
-      nt  - output number of time samples
+      n1  - output number of time samples
       it0 - sample index of t0 [0]
     """
     # Get number of computed frequencies
     nwc = dat.shape[2]
+    # Compute size for FFT
+    nt = 2*(nw-1)
     # Transpose the data so frequency is on fast axis
     datt = np.transpose(dat,(0,1,3,4,2)) # [nsy,nsx,nwc,ny,nx] -> [nsy,nsx,ny,nx,nwc]
     # Pad to the original frequency range
     padb = int(ow/dw); pade = nw - nwc - padb
-    dattpad = np.pad(datt,((0,0),(0,0),(0,0),(0,0),(padb,pade)),mode='constant') # [*,nwc] -> [*,nw]
+    dattpad  = np.pad(datt,((0,0),(0,0),(0,0),(0,0),(padb,pade)),mode='constant')  # [*,nwc] -> [*,nw]
+    # Pad for the inverse FFT
+    dattpadp = np.pad(dattpad,((0,0),(0,0),(0,0),(0,0),(0,nt-nw)),mode='constant') # [*,nw] -> [*,nt]
     # Inverse FFT and window to t0 (wavelet shift)
-    datf2t = np.real(np.fft.ifft(dattpad))
+    datf2t = np.real(np.fft.ifft(dattpadp))
     if(it0 is not None):
       datf2tw = datf2t[:,:,:,:,it0:]
     else:
       datf2tw = datf2t
     # Pad and transpose
-    datf2tp = np.pad(datf2tw,((0,0),(0,0),(0,0),(0,0),(0,nt-(nw-it0))),mode='constant')
+    datf2tp = np.pad(datf2tw,((0,0),(0,0),(0,0),(0,0),(0,n1-(nt-it0))),mode='constant')
 
     return datf2tp
 

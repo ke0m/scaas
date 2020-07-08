@@ -191,7 +191,7 @@ void ssr3::ssr3ssf_migallw(std::complex<float> *dat, std::complex<float> *wav, f
     //XXX: probably need an omp critical here. Perhaps can store and accumulate images for each thread
     // to do that, will need to pass the thread number to migonew and allocate an array
     // to store each image for each thread
-    for(int k = 0; k < _nz*_nx*_ny; ++k) img[k] += imgtmp;
+    for(int k = 0; k < _nz*_nx*_ny; ++k) img[k] += imgtmp[k];
     /* Free memory */
     delete[] imgtmp;
   }

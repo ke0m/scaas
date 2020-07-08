@@ -4,6 +4,55 @@
 #include "ssr3.h"
 #include <map>
 #include <string>
+#include "/opt/matplotlib-cpp/matplotlibcpp.h"
+
+namespace plt = matplotlibcpp;
+
+void plotimg_cmplx(int n1,int n2,std::complex<float> *arr,int option) {
+  float * tmp = new float[n1*n2];
+
+  for(int i1 = 0; i1 < n1; ++i1) {
+    for(int i2 = 0; i2 < n2; ++i2) {
+      if(option == 0) {
+        tmp[i1*n2 + i2] = real(arr[i1*n2 + i2]);
+      } else if(option == 1) {
+        tmp[i1*n2 + i2] = imag(arr[i1*n2 + i2]);
+      } else {
+        tmp[i1*n2 + i2] = abs(arr[i1*n2 + i2]);
+      }
+    }
+  }
+  std::map<std::string,std::string> vals;
+  //vals["vmax"] = "0.01"; //vals["vmin"] = "0.0";
+  plt::imshow((const float *)tmp,n1,n2,1,vals); plt::show();
+
+  delete [] tmp;
+}
+
+void plotplt_cmplx(int n1, std::complex<float> *arr, int option) {
+  float * tmp = new float[n1];
+
+  for(int i1 = 0; i1 < n1; ++i1) {
+    if(option == 0) {
+      tmp[i1] = real(arr[i1]);
+    } else if(option == 1) {
+      tmp[i1] = imag(arr[i1]);
+    } else {
+      tmp[i1] = abs(arr[i1]);
+    }
+  }
+  std::vector<float> v {tmp,tmp+n1};
+  plt::plot(v); plt::show();
+
+  delete [] tmp;
+
+}
+
+void print_cmplx(int n1, std::complex<float> *arr,std::string name) {
+  for(int i1 = 0; i1 < n1; ++i1) {
+    fprintf(stderr,"i1=%d arr.r=%f arr.i=%f\n",i1,real(arr[i1]),imag(arr[i1]));
+  }
+}
 
 ssr3::ssr3(int nx,   int ny,   int nz,
     float dx, float dy, float dz,
@@ -61,6 +110,11 @@ void ssr3::ssr3ssf_modallw(float *ref, std::complex<float> *wav, std::complex<fl
     fprintf(stderr,"Must run set_slows before modeling or migration\n");
   }
 
+  //plt::imshow((const float *)ref,_nz,_nx,1); plt::show();
+  //plotimg_cmplx(_nz,_nx,wav,0);
+  //plt::imshow((const float *)_slo,_nz,_nx,1); plt::show();
+  //plt::imshow((const float *)_sloref,_nz,_nrmax,1); plt::show();
+
   // wav dimensions (w, y, x)
   /* Loop over frequency (will be parallelized with OpenMP/TBB) */
   for(int iw = 0; iw < _nw; ++iw) {
@@ -77,14 +131,21 @@ void ssr3::ssr3ssf_modonew(int iw, float *ref, std::complex<float> *wav, std::co
 
   /* Current frequency */
   std::complex<float> w(_eps*_dw,_ow + iw*_dw);
+  //fprintf(stderr,"w=%f+i%f\n",real(w),imag(w));
 
   /* Taper the source wavefield */
+  //plotplt_cmplx(_nx, wav, 0);
   apply_taper(wav, sslc);
+  //plotplt_cmplx(_nx, sslc, 0);
+//  for(int ix = 0; ix < _nx; ++ix) {
+//    fprintf(stderr,"ix=%d sslc=%f+i%f\n",ix,real(sslc[ix]),imag(sslc[ix]));
+//  }
 
   /* Source loop over depth */
   for(int iz = 0; iz < _nz-1; ++iz) {
     /* Depth extrapolation */
     ssr3ssf(w, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, sslc + (iz)*_nx*_ny, sslc + (iz+1)*_nx*_ny);
+    //plotimg_cmplx(_nz, _nx, sslc, 0);
   }
 
   /* Receiver loop over depth */
@@ -95,11 +156,15 @@ void ssr3::ssr3ssf_modonew(int iw, float *ref, std::complex<float> *wav, std::co
       for(int ix = 0; ix < _nx; ++ix) {
         sslc[iz*_ny*_nx + iy*_nx + ix] *= ref[iz*_ny*_nx + iy*_nx + ix];
         rslc[iy*_nx + ix] += sslc[iz*_ny*_nx + iy*_nx + ix];
+//        fprintf(stderr,"iz=%d ix=%d ref=%g sslc=%g+%gi rslc=%g+%gi\n",iz,ix,ref[iz*_ny*_nx + iy*_nx + ix],
+//                real(sslc[iz*_ny*_nx + iy*_nx + ix]),imag(sslc[iz*_ny*_nx + iy*_nx + ix]),
+//                real(rslc[iy*_nx + ix]),imag(rslc[iy*_nx + ix]));
       }
     }
 
     /* Depth extrapolation */
     ssr3ssf(w, iz, _slo+(iz)*_nx*_ny, _slo+(iz-1)*_nx*_ny, rslc);
+    //plotplt_cmplx(_nx, rslc, 0);
   }
 
   /* Taper the receiver wavefield */
@@ -109,6 +174,39 @@ void ssr3::ssr3ssf_modonew(int iw, float *ref, std::complex<float> *wav, std::co
   delete[] sslc; delete[] rslc;
 }
 
+void ssr3::ssr3ssf_migallw(std::complex<float> *dat, std::complex<float> *wav, float *img) {
+  /* Check if built reference velocities */
+  if(_slo == NULL) {
+    fprintf(stderr,"Must run set_slows before modeling or migration\n");
+  }
+
+  // wav dimensions (w, y, x)
+  /* Loop over frequency (will be parallelized with OpenMP/TBB) */
+  for(int iw = 0; iw < _nw; ++iw) {
+    /* Temporary array */
+    float *imgtmp = new float[_nz*_ny*_nx]();
+    /* Migrate data for current frequency */
+    ssr3ssf_migonew(iw, wav + iw*_nx*_ny, dat + iw*_nx*_ny, imgtmp);
+    /* Add to output image */
+    //XXX: probably need an omp critical here. Perhaps can store and accumulate images for each thread
+    // to do that, will need to pass the thread number to migonew and allocate an array
+    // to store each image for each thread
+    for(int k = 0; k < _nz*_nx*_ny; ++k) img[k] += imgtmp;
+    /* Free memory */
+    delete[] imgtmp;
+  }
+}
+
+void ssr3::ssr3ssf_migonew(int iw, std::complex<float> *dat, std::complex<float> *wav, float *img) {
+}
+
+void ssr3::ssr3ssf_migoffallw(std::complex<float> *dat, std::complex<float> *wav, int nhx, int nhy, float *img) {
+  //TODO: compute the bounds for the lags in the imaging condition
+}
+
+void ssr3::ssr3ssf_migoffonew(int iw, std::complex<float> *dat, std::complex<float>*wav, int nhx, int nhy, float *img) {
+}
+
 void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std::complex<float> *wxin, std::complex<float> *wxot) {
 
   /* Temporary arrays */
@@ -116,19 +214,27 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
   std::complex<float> *wk  = new std::complex<float>[_bx*_by]();
   float *wt = new float[_nx*_ny]();
 
+  //print_cmplx(_nx, wx);
+
   std::complex<float> w2 = w*w;
 
   /* w-x-y part 1 */
   for(int iy = 0; iy < _ny; ++iy) {
     for(int ix = 0; ix < _nx; ++ix) {
       float s = 0.5 * scur[iy*_nx + ix];
+      //fprintf(stderr,"ix=%d s=%g wxin=%g+%gi\n",ix,s,real(wxin[iy*_nx+ix]),imag(wxin[iy*_nx+ix]));
       wxot[iy*_nx + ix] = wxin[iy*_nx+ix]*exp(-w*s*_dz);
+      //fprintf(stderr,"ix=%d s=%g wxot=%g+%gi\n",ix,s,real(wxot[iy*_nx+ix]),imag(wxot[iy*_nx+ix]));
     }
   }
 
   /* FFT (w-x-y) -> (w-kx-ky) */
   memcpy(pk,wxot,sizeof(std::complex<float>)*_nx*_ny);
   fft2(false,(kiss_fft_cpx*)pk);
+//  for(int ix = 0; ix < _nx; ++ix) {
+//    fprintf(stderr,"ix=%d pk=%f+%fi\n",ix,real(pk[ix]),imag(pk[ix]));
+//  }
+//
   memset(wxot,0,sizeof(std::complex<float>)*(_nx*_ny));
 
   /* Loop over reference velocities */
@@ -138,13 +244,18 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
     std::complex<float> co = sqrt(w2 * _sloref[iz*_nrmax + ir]);
     for(int iky = 0; iky < _by; ++iky) {
       for(int ikx = 0; ikx < _bx; ++ikx) {
+        //fprintf(stderr,"co=%f+%fi w2=%f+%fi sloref=%f kk=%f\n",real(co),imag(co),real(w2),imag(w2),_sloref[iz*_nrmax+ir],_kk[iky*_bx + ikx]);
         std::complex<float> cc = sqrt(w2*_sloref[iz*_nrmax + ir] + _kk[iky*_bx + ikx]);
         wk[iky*_bx + ikx] = pk[iky*_bx + ikx] * exp((co-cc)*_dz);
+        //fprintf(stderr,"ikx=%d wk=%f+%fi\n",ikx,real(wk[iky*_bx + ikx]),imag(wk[iky*_bx+ikx]));
       }
     }
 
     /* Inverse FFT (w-kx-ky) -> (w-x-y) */
     fft2(true,(kiss_fft_cpx*)wk);
+//    for(int ix = 0; ix < _nx; ++ix) {
+//      fprintf(stderr,"ix=%d wk=%f+%fi\n",ix,real(wk[ix]),imag(wk[ix]));
+//    }
 
     /* Interpolate (accumulate) */
     for(int iy = 0; iy < _ny; ++iy) {
@@ -153,6 +264,7 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
         d = _dsmax2/(d*d + _dsmax2);
         wxot[iy*_nx + ix] += wk[iy*_bx + ix]*d;
         wt  [iy*_nx + ix] += d;
+        //fprintf(stderr,"ix=%d d=%f wxot=%f+%fi wt=%f\n",ix,d,real(wxot[iy*_nx+ix]),imag(wxot[iy*_nx+ix]),wt[iy*_nx+ix]);
       }
     }
   }
@@ -163,6 +275,7 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
       wxot[iy*_nx + ix] /= wt[iy*_nx + ix];
       float s = 0.5 * snex[iy*_nx + ix];
       wxot[iy*_nx + ix] *= exp(-w*s*_dz);
+      //fprintf(stderr,"ix=%d wt=%f s=%f wx=%g+%gi\n",ix,wt[iy*_nx+ix],s,real(wxot[iy*_nx+ix]),imag(wxot[iy*_nx+ix]));
     }
   }
 
@@ -187,13 +300,19 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
   for(int iy = 0; iy < _ny; ++iy) {
     for(int ix = 0; ix < _nx; ++ix) {
       float s = 0.5 * scur[iy*_nx + ix];
+      //fprintf(stderr,"ix=%d s=%f wx=%f+%fi\n",ix,s,real(wx[iy*_nx+ix]),imag(wx[iy*_nx+ix]));
       wx[iy*_nx + ix] *= exp(-w*s*_dz);
+      //fprintf(stderr,"ix=%d s=%f wx=%f+%fi\n",ix,s,real(wx[iy*_nx+ix]),imag(wx[iy*_nx+ix]));
     }
   }
 
   /* FFT (w-x-y) -> (w-kx-ky) */
   memcpy(pk,wx,sizeof(std::complex<float>)*_nx*_ny);
   fft2(false,(kiss_fft_cpx*)pk);
+//  for(int ix = 0; ix < _nx; ++ix) {
+//    fprintf(stderr,"ix=%d pk=%f+%fi\n",ix,real(pk[ix]),imag(pk[ix]));
+//  }
+
   memset(wx,0,sizeof(std::complex<float>)*(_nx*_ny));
 
   /* Loop over reference velocities */
@@ -203,13 +322,18 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
     std::complex<float> co = sqrt(w2 * _sloref[iz*_nrmax + ir]);
     for(int iky = 0; iky < _by; ++iky) {
       for(int ikx = 0; ikx < _bx; ++ikx) {
+        //fprintf(stderr,"co=%f+%fi w2=%f+%fi sloref=%f kk=%f\n",real(co),imag(co),real(w2),imag(w2),_sloref[iz*_nrmax+ir],_kk[iky*_bx + ikx]);
         std::complex<float> cc = sqrt(w2*_sloref[iz*_nrmax + ir] + _kk[iky*_bx + ikx]);
         wk[iky*_bx + ikx] = pk[iky*_bx + ikx] * exp((co-cc)*_dz);
+        //fprintf(stderr,"ikx=%d wk=%f+%fi\n",ikx,real(wk[iky*_bx + ikx]),imag(wk[iky*_bx+ikx]));
       }
     }
 
     /* Inverse FFT (w-kx-ky) -> (w-x-y) */
     fft2(true,(kiss_fft_cpx*)wk);
+//    for(int ix = 0; ix < _nx; ++ix) {
+//      fprintf(stderr,"ix=%d wk=%f+%fi\n",ix,real(wk[ix]),imag(wk[ix]));
+//    }
 
     /* Interpolate (accumulate) */
     for(int iy = 0; iy < _ny; ++iy) {
@@ -228,6 +352,7 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
       wx[iy*_nx + ix] /= wt[iy*_nx + ix];
       float s = 0.5 * snex[iy*_nx + ix];
       wx[iy*_nx + ix] *= exp(-w*s*_dz);
+      //fprintf(stderr,"ix=%d s=%f wx=%g+%gi\n",ix,s,real(wx[iy*_nx+ix]),imag(wx[iy*_nx+ix]));
     }
   }
 
@@ -237,6 +362,7 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
   delete[] pk; delete[] wk; delete[] wt;
 
 }
+
 
 
 int ssr3::nrefs(int nrmax, float ds, int ns, float *slo, float *sloref) {
@@ -288,6 +414,7 @@ void ssr3::apply_taper(std::complex<float> *slcin, std::complex<float> *slcot) {
 
   /* Copy slcin to slcot */
   memcpy(slcot,slcin,sizeof(std::complex<float>)*_nx*_ny);
+  //plotimg_cmplx(_nz, _nx, slcot, 0);
 
   for (int it = 0; it < _nty; it++) {
     float gain = _tapy[it];
@@ -374,7 +501,9 @@ void ssr3::fft2(bool inv, kiss_fft_cpx *pp) {
     /* Scaling */
     for(int iy = 0; iy < _by; ++iy) {
       for(int ix = 0; ix < _bx; ++ix) {
+        //fprintf(stderr,"ix=%d pp=%f+%fi\n",ix,pp[iy*_bx+ix].r,pp[iy*_bx+ix].i);
         pp[iy*_bx + ix] = cmul(pp[iy*_bx + ix],1/sqrtf(_bx*_by));
+        //fprintf(stderr,"ix=%d pp=%f+%fi\n",ix,pp[iy*_bx+ix].r,pp[iy*_bx+ix].i);
       }
     }
 

@@ -23,8 +23,10 @@ class ssr3{
     void set_slows(float *slo);
     void ssr3ssf_modonew(int iw, float *ref, std::complex<float> *wav, std::complex<float> *dat);
     void ssr3ssf_modallw(float *ref, std::complex<float> *wav, std::complex<float> *dat);
-    void ssr3ssf_migonew();
-    void ssr3ssf_migallw();
+    void ssr3ssf_migonew(int iw, std::complex<float> *dat, std::complex<float> *wav, float *img);
+    void ssr3ssf_migallw(std::complex<float> *dat, std::complex<float> *wav, float *img);
+    void ssr3ssf_migoffonew(int iw, std::complex<float> *dat, std::complex<float> *wav, int nhx, int nhy, float *img);
+    void ssr3ssf_migoffallw(std::complex<float> *dat, std::complex<float> *wav, int nhx, int nhy, float *img);
     void ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std::complex<float> *slccur, std::complex<float> *slcnex);
     void ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std::complex<float> *slc);
     void build_refs(int nz, int nrmax, int ns, float dsmax, float *slo, int *nr, float *sloref);

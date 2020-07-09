@@ -14,11 +14,11 @@ void plotimg_cmplx(int n1,int n2,std::complex<float> *arr,int option) {
   for(int i1 = 0; i1 < n1; ++i1) {
     for(int i2 = 0; i2 < n2; ++i2) {
       if(option == 0) {
-        tmp[i1*n2 + i2] = real(arr[i1*n2 + i2]);
+        tmp[i1*n2 + i2] = std::real(arr[i1*n2 + i2]);
       } else if(option == 1) {
-        tmp[i1*n2 + i2] = imag(arr[i1*n2 + i2]);
+        tmp[i1*n2 + i2] = std::imag(arr[i1*n2 + i2]);
       } else {
-        tmp[i1*n2 + i2] = abs(arr[i1*n2 + i2]);
+        tmp[i1*n2 + i2] = std::abs(arr[i1*n2 + i2]);
       }
     }
   }
@@ -34,11 +34,11 @@ void plotplt_cmplx(int n1, std::complex<float> *arr, int option) {
 
   for(int i1 = 0; i1 < n1; ++i1) {
     if(option == 0) {
-      tmp[i1] = real(arr[i1]);
+      tmp[i1] = std::real(arr[i1]);
     } else if(option == 1) {
-      tmp[i1] = imag(arr[i1]);
+      tmp[i1] = std::imag(arr[i1]);
     } else {
-      tmp[i1] = abs(arr[i1]);
+      tmp[i1] = std::abs(arr[i1]);
     }
   }
   std::vector<float> v {tmp,tmp+n1};
@@ -50,7 +50,7 @@ void plotplt_cmplx(int n1, std::complex<float> *arr, int option) {
 
 void print_cmplx(int n1, std::complex<float> *arr,std::string name) {
   for(int i1 = 0; i1 < n1; ++i1) {
-    fprintf(stderr,"i1=%d arr.r=%f arr.i=%f\n",i1,real(arr[i1]),imag(arr[i1]));
+    fprintf(stderr,"i1=%d arr.r=%f arr.i=%f\n",i1,std::real(arr[i1]),std::imag(arr[i1]));
   }
 }
 
@@ -137,9 +137,9 @@ void ssr3::ssr3ssf_modonew(int iw, float *ref, std::complex<float> *wav, std::co
   //plotplt_cmplx(_nx, wav, 0);
   apply_taper(wav, sslc);
   //plotplt_cmplx(_nx, sslc, 0);
-//  for(int ix = 0; ix < _nx; ++ix) {
-//    fprintf(stderr,"ix=%d sslc=%f+i%f\n",ix,real(sslc[ix]),imag(sslc[ix]));
-//  }
+  //  for(int ix = 0; ix < _nx; ++ix) {
+  //    fprintf(stderr,"ix=%d sslc=%f+i%f\n",ix,real(sslc[ix]),imag(sslc[ix]));
+  //  }
 
   /* Source loop over depth */
   for(int iz = 0; iz < _nz-1; ++iz) {
@@ -156,9 +156,9 @@ void ssr3::ssr3ssf_modonew(int iw, float *ref, std::complex<float> *wav, std::co
       for(int ix = 0; ix < _nx; ++ix) {
         sslc[iz*_ny*_nx + iy*_nx + ix] *= ref[iz*_ny*_nx + iy*_nx + ix];
         rslc[iy*_nx + ix] += sslc[iz*_ny*_nx + iy*_nx + ix];
-//        fprintf(stderr,"iz=%d ix=%d ref=%g sslc=%g+%gi rslc=%g+%gi\n",iz,ix,ref[iz*_ny*_nx + iy*_nx + ix],
-//                real(sslc[iz*_ny*_nx + iy*_nx + ix]),imag(sslc[iz*_ny*_nx + iy*_nx + ix]),
-//                real(rslc[iy*_nx + ix]),imag(rslc[iy*_nx + ix]));
+        //        fprintf(stderr,"iz=%d ix=%d ref=%g sslc=%g+%gi rslc=%g+%gi\n",iz,ix,ref[iz*_ny*_nx + iy*_nx + ix],
+        //                real(sslc[iz*_ny*_nx + iy*_nx + ix]),imag(sslc[iz*_ny*_nx + iy*_nx + ix]),
+        //                real(rslc[iy*_nx + ix]),imag(rslc[iy*_nx + ix]));
       }
     }
 
@@ -183,28 +183,111 @@ void ssr3::ssr3ssf_migallw(std::complex<float> *dat, std::complex<float> *wav, f
   // wav dimensions (w, y, x)
   /* Loop over frequency (will be parallelized with OpenMP/TBB) */
   for(int iw = 0; iw < _nw; ++iw) {
-    /* Temporary array */
-    float *imgtmp = new float[_nz*_ny*_nx]();
     /* Migrate data for current frequency */
-    ssr3ssf_migonew(iw, wav + iw*_nx*_ny, dat + iw*_nx*_ny, imgtmp);
-    /* Add to output image */
+    ssr3ssf_migonew(iw, wav + iw*_nx*_ny, dat + iw*_nx*_ny, img);
     //XXX: probably need an omp critical here. Perhaps can store and accumulate images for each thread
     // to do that, will need to pass the thread number to migonew and allocate an array
     // to store each image for each thread
-    for(int k = 0; k < _nz*_nx*_ny; ++k) img[k] += imgtmp;
-    /* Free memory */
-    delete[] imgtmp;
   }
 }
 
 void ssr3::ssr3ssf_migonew(int iw, std::complex<float> *dat, std::complex<float> *wav, float *img) {
+
+  /* Temporary arrays (depth slices) */
+  std::complex<float> *sslc = new std::complex<float>[_ny*_nx]();
+  std::complex<float> *rslc = new std::complex<float>[_ny*_nx]();
+
+  /* Current frequency */
+  std::complex<float> ws(_eps*_dw,+(_ow + iw*_dw)); // Causal
+  std::complex<float> wr(_eps*_dw,-(_ow + iw*_dw)); // Anti-causal
+
+  apply_taper(wav, sslc);
+  apply_taper(dat, rslc);
+
+  /* Loop over all depths */
+  for(int iz = 0; iz < _nz-1; ++iz) {
+    /* Depth extrapolation of source and receiver wavefields */
+    ssr3ssf(wr, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, rslc);
+    ssr3ssf(ws, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, sslc);
+    /* Imaging condition (should do this on ISPC) */
+    for(int iy = 0; iy < _ny; ++iy) {
+      for(int ix = 0; ix < _nx; ++ix) {
+        img[iz*_nx*_ny + iy*_nx + ix] += std::real(std::conj(sslc[iy*_nx + ix])*rslc[iy*_nx + ix]);
+      }
+    }
+  }
+  /* Free memory */
+  delete[] sslc; delete[] rslc;
 }
 
-void ssr3::ssr3ssf_migoffallw(std::complex<float> *dat, std::complex<float> *wav, int nhx, int nhy, float *img) {
-  //TODO: compute the bounds for the lags in the imaging condition
+void ssr3::ssr3ssf_migoffallw(std::complex<float> *dat, std::complex<float> *wav, int nhx, int nhy, bool sym, float *img) {
+  /* Check if built reference velocities */
+  if(_slo == NULL) {
+    fprintf(stderr,"Must run set_slows before modeling or migration\n");
+  }
+
+  /* Compute the bounds for the lags in the imaging condition */
+  int blx, elx, bly, ely;
+  if(sym) {
+    blx = -nhx; elx = nhx;
+    bly = -nhy; ely = nhy;
+  } else {
+    blx = 0; elx = nhx;
+    bly = 0; ely = nhy;
+  }
+
+  // wav dimensions (w, y, x)
+  /* Loop over frequency (will be parallelized with OpenMP/TBB) */
+  for(int iw = 0; iw < _nw; ++iw) {
+    /* Migrate data for current frequency */
+    ssr3ssf_migoffonew(iw, wav + iw*_nx*_ny, dat + iw*_nx*_ny, bly, ely, blx, elx, img);
+    //XXX: probably need an omp critical here. Perhaps can store and accumulate images for each thread
+    // to do that, will need to pass the thread number to migonew and allocate an array
+    // to store each image for each thread
+  }
 }
 
-void ssr3::ssr3ssf_migoffonew(int iw, std::complex<float> *dat, std::complex<float>*wav, int nhx, int nhy, float *img) {
+void ssr3::ssr3ssf_migoffonew(int iw, std::complex<float> *dat, std::complex<float>*wav,
+                              int bly, int ely, int blx, int elx, float *img) {
+  /* Temporary arrays (depth slices) */
+  std::complex<float> *sslc = new std::complex<float>[_ny*_nx]();
+  std::complex<float> *rslc = new std::complex<float>[_ny*_nx]();
+
+  /* Current frequency */
+  std::complex<float> ws(_eps*_dw,+(_ow + iw*_dw)); // Causal
+  std::complex<float> wr(_eps*_dw,-(_ow + iw*_dw)); // Anti-causal
+
+  /* Sizes and shifts */
+  int begx = elx; int endx = _nx - begx;
+  int begy = ely; int endy = _ny - begy;
+  int nhx  = elx - blx;
+  int shfx = abs(blx); int shfy = abs(bly);
+
+
+  apply_taper(wav, sslc);
+  apply_taper(dat, rslc);
+
+  /* Loop over all depths */
+  for(int iz = 0; iz < _nz-1; ++iz) {
+    /* Depth extrapolation of source and receiver wavefields */
+    ssr3ssf(wr, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, rslc);
+    ssr3ssf(ws, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, sslc);
+    /* Loops over lags */
+    for(int ily = bly; ily <= ely; ++ily) {
+      for(int ilx = blx; ilx <= elx; ++ilx) {
+        /* Imaging condition (should do this on ISPC) */
+        for(int iy = begy; iy < endy; ++iy) {
+          for(int ix = begx; ix < endx; ++ix) {
+            int imgidx = iz*_nx*_ny + iy*_nx + ix;
+            img[(ily+shfy)*_nx*_ny*_nz*nhx + (ilx+shfx)*_nx*_ny*_nz + imgidx]  +=
+                                 std::real(std::conj(sslc[(iy-ily)*_nx + (ix-ilx)])*rslc[(iy+ily)*_nx + (ix+ilx)]);
+          } // x
+        } // y
+      } // lx
+    } // ly
+  } // z
+  /* Free memory */
+  delete[] sslc; delete[] rslc;
 }
 
 void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std::complex<float> *wxin, std::complex<float> *wxot) {
@@ -231,10 +314,10 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
   /* FFT (w-x-y) -> (w-kx-ky) */
   memcpy(pk,wxot,sizeof(std::complex<float>)*_nx*_ny);
   fft2(false,(kiss_fft_cpx*)pk);
-//  for(int ix = 0; ix < _nx; ++ix) {
-//    fprintf(stderr,"ix=%d pk=%f+%fi\n",ix,real(pk[ix]),imag(pk[ix]));
-//  }
-//
+  //  for(int ix = 0; ix < _nx; ++ix) {
+  //    fprintf(stderr,"ix=%d pk=%f+%fi\n",ix,real(pk[ix]),imag(pk[ix]));
+  //  }
+  //
   memset(wxot,0,sizeof(std::complex<float>)*(_nx*_ny));
 
   /* Loop over reference velocities */
@@ -253,9 +336,9 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
 
     /* Inverse FFT (w-kx-ky) -> (w-x-y) */
     fft2(true,(kiss_fft_cpx*)wk);
-//    for(int ix = 0; ix < _nx; ++ix) {
-//      fprintf(stderr,"ix=%d wk=%f+%fi\n",ix,real(wk[ix]),imag(wk[ix]));
-//    }
+    //    for(int ix = 0; ix < _nx; ++ix) {
+    //      fprintf(stderr,"ix=%d wk=%f+%fi\n",ix,real(wk[ix]),imag(wk[ix]));
+    //    }
 
     /* Interpolate (accumulate) */
     for(int iy = 0; iy < _ny; ++iy) {
@@ -309,9 +392,9 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
   /* FFT (w-x-y) -> (w-kx-ky) */
   memcpy(pk,wx,sizeof(std::complex<float>)*_nx*_ny);
   fft2(false,(kiss_fft_cpx*)pk);
-//  for(int ix = 0; ix < _nx; ++ix) {
-//    fprintf(stderr,"ix=%d pk=%f+%fi\n",ix,real(pk[ix]),imag(pk[ix]));
-//  }
+  //  for(int ix = 0; ix < _nx; ++ix) {
+  //    fprintf(stderr,"ix=%d pk=%f+%fi\n",ix,real(pk[ix]),imag(pk[ix]));
+  //  }
 
   memset(wx,0,sizeof(std::complex<float>)*(_nx*_ny));
 
@@ -331,9 +414,9 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
 
     /* Inverse FFT (w-kx-ky) -> (w-x-y) */
     fft2(true,(kiss_fft_cpx*)wk);
-//    for(int ix = 0; ix < _nx; ++ix) {
-//      fprintf(stderr,"ix=%d wk=%f+%fi\n",ix,real(wk[ix]),imag(wk[ix]));
-//    }
+    //    for(int ix = 0; ix < _nx; ++ix) {
+    //      fprintf(stderr,"ix=%d wk=%f+%fi\n",ix,real(wk[ix]),imag(wk[ix]));
+    //    }
 
     /* Interpolate (accumulate) */
     for(int iy = 0; iy < _ny; ++iy) {
@@ -362,7 +445,6 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
   delete[] pk; delete[] wk; delete[] wt;
 
 }
-
 
 
 int ssr3::nrefs(int nrmax, float ds, int ns, float *slo, float *sloref) {

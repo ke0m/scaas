@@ -100,7 +100,7 @@ class defaultgeom:
     nt = wav.shape[0]; it0 = int(t0/dt)
 
     # Create the input frequency domain source and get original frequency axis
-    self.__nwo,self.__ow,self.__dw,wfft = self.source_t2f(wav,dt,minf=minf,maxf=maxf)
+    self.__nwo,self.__ow,self.__dw,wfft = self.fft1(wav,dt,minf=minf,maxf=maxf)
     self.__nwc = wfft.shape[0] # Get the number of frequencies to compute
 
     # Single square root object
@@ -177,11 +177,24 @@ class defaultgeom:
     if(wav is None):
       wav    = np.zeros(nt,dtype='float32')
       wav[0] = 1.0
-    self.__nwo,self.__ow,self.__dw,wfft = self.source_t2f(wav,dt,minf=minf,maxf=maxf)
+    self.__nwo,self.__ow,self.__dw,wfft = self.fft1(wav,dt,minf=minf,maxf=maxf)
     self.__nwc = wfft.shape[0] # Get the number of frequencies for imaging
 
     # Create frequency domain data
-    _,_,_,dfft = self.data_t2f(dat,dt,minf=minf,maxf=maxf)
+    _,_,_,dfft = self.fft1(dat,dt,minf=minf,maxf=maxf)
+    datt = np.ascontiguousarray(np.transpose(dfft,(0,1,4,2,3)))
+
+
+    # Single square root object
+    ssf = ssr3(self.__nx ,self.__ny,self.__nz,     # Spatial Sizes
+               self.__dx ,self.__dy,self.__dz,     # Spatial Samplings
+               self.__nwc,self.__ow,self.__dw,eps, # Frequency axis
+               ntx,nty,px,py,                      # Taper and padding
+               dtmax,nrmax)                        # Reference velocities
+
+    # Compute slowness and reference slownesses
+    slo = 1/vel
+    ssf.set_slows(slo)
 
     # Allocate partial image array 
     if(nhx == 1 and nhy == 1):
@@ -231,6 +244,37 @@ class defaultgeom:
 
     return sou
 
+  def fft1(self,sig,dt,minf,maxf):
+    """
+    Computes the FFT along the fast axis. Input
+    array can be N-dimensional
+
+    Parameters:
+      sig  - the input time-domain signal (time is fast axis)
+      dt   - temporal sampling of input data
+      minf - the minimum frequency for windowing the spectrum [Hz]
+      maxf - the maximum frequency for windowing the spectrum
+
+    Returns: 
+      the frequency domain data (frequency is fast axis) and the
+      frequency axis [nw,ow,dw]
+    """
+    n1 = sig.shape[-1]
+    nt = 2*self.next_fast_size(int((n1+1)/2))
+    if(nt%2): nt += 1
+    nw = int(nt/2+1)
+    dw = 1/(nt*dt)
+    # Min and max frequencies
+    begw = int(minf/dw); endw = int(maxf/dw)
+    # Create the padded dimensions (only last axis)
+    paddims = [(0,0)]*(sig.ndim-1)
+    paddims.append((0,nt-n1))
+    sigp   = np.pad(sig,paddims,mode='constant')
+    # Compute the FFT
+    sigfft = np.fft.fft(sigp)[...,begw:endw]
+
+    return nw,minf,dw,sigfft
+
   def source_t2f(self,wav,dt,minf,maxf):
     """
     Creates a frequency domain source from a minimum
@@ -253,12 +297,12 @@ class defaultgeom:
     dw = 1/(nt*dt)
     # Min and max frequencies
     begw = int(minf/dw); endw = int(maxf/dw)
-    wavp = np.pad(wav,(0,nt),mode='constant')
+    wavp = np.pad(wav,(0,nt-n1),mode='constant')
     wfft = np.fft.fft(wavp)[begw:endw]
 
     return nw,minf,dw,wfft
 
-  def data_t2f(dat,dt,minf,maxf,transp=True):
+  def data_t2f(self,dat,dt,minf,maxf,transp=True):
     """
     Creates the frequency domain receiver wavefields
     within a frequency range
@@ -284,39 +328,43 @@ class defaultgeom:
     dw = 1/(nt*dt)
     # Min and max frequencies
     begw  = int(minf/dw); endw = int(maxf/dw)
-    datp  = np.pad(datt,(0,0),(0,0),(0,0),(0,0),(0,nt),mode='constant')
+    datp  = np.pad(datt,(0,0),(0,0),(0,0),(0,0),(0,nt-n1),mode='constant')
     dfft  = np.fft.fft(datp)[begw:endw]
     dfftt = np.ascontiguousarray(np.transpose(dfft,(4,0,1,2,3)))
 
     return nw,minf,dw,dfftt
 
-  def data_f2t(self,dat,nw,ow,dw,nt,it0=None):
+  def data_f2t(self,dat,nw,ow,dw,n1,it0=None):
     """
     Converts the data from frequency to time
 
     Parameters:
-      dat - input data [nw/t,ny,nx]
+      dat - input data [nw,ny,nx]
       nw  - original number of frequencies
       ow  - frequency origin (minf)
       dw  - frequency sampling interval
-      nt  - output number of time samples
+      n1  - output number of time samples
       it0 - sample index of t0 [0]
     """
     # Get number of computed frequencies
     nwc = dat.shape[2]
+    # Compute size for FFT
+    nt = 2*(nw-1)
     # Transpose the data so frequency is on fast axis
     datt = np.transpose(dat,(0,1,3,4,2)) # [nsy,nsx,nwc,ny,nx] -> [nsy,nsx,ny,nx,nwc]
     # Pad to the original frequency range
     padb = int(ow/dw); pade = nw - nwc - padb
-    dattpad = np.pad(datt,((0,0),(0,0),(0,0),(0,0),(padb,pade)),mode='constant') # [*,nwc] -> [*,nw]
+    dattpad  = np.pad(datt,((0,0),(0,0),(0,0),(0,0),(padb,pade)),mode='constant')  # [*,nwc] -> [*,nw]
+    # Pad for the inverse FFT
+    dattpadp = np.pad(dattpad,((0,0),(0,0),(0,0),(0,0),(0,nt-nw)),mode='constant') # [*,nw] -> [*,nt]
     # Inverse FFT and window to t0 (wavelet shift)
-    datf2t = np.real(np.fft.ifft(dattpad))
+    datf2t = np.real(np.fft.ifft(dattpadp))
     if(it0 is not None):
       datf2tw = datf2t[:,:,:,:,it0:]
     else:
       datf2tw = datf2t
     # Pad and transpose
-    datf2tp = np.pad(datf2tw,((0,0),(0,0),(0,0),(0,0),(0,nt-(nw-it0))),mode='constant')
+    datf2tp = np.pad(datf2tw,((0,0),(0,0),(0,0),(0,0),(0,n1-(nt-it0))),mode='constant')
 
     return datf2tp
 

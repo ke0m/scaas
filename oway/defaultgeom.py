@@ -129,7 +129,7 @@ class defaultgeom:
       sou[:] = 0.0; 
       sou[:,sy,sx]  = wfft[:]
       # Downward continuation
-      ssf.modallw(ref,sou,datw[k,:,:,:])
+      ssf.modallw(ref,sou,datw[k])
       k += 1
 
     # Reshape output data
@@ -142,7 +142,7 @@ class defaultgeom:
     else:
       return datwr
 
-  def image_data(self,dat,dt,minf,maxf,vel,nhx=1,nhy=1,nrmax=3,eps=0.01,dtmax=5e-05,wav=None,
+  def image_data(self,dat,dt,minf,maxf,vel,nhx=0,nhy=0,sym=True,nrmax=3,eps=0.01,dtmax=5e-05,wav=None,
                  ntx=0,nty=0,px=0,py=0,verb=True):
     """
     3D migration of shot profile data via the one-way wave equation (single-square
@@ -155,8 +155,9 @@ class defaultgeom:
       minf  - minimum frequency to image in the data [Hz]
       maxf  - maximum frequency to image in the data [Hz]
       vel   - input migration velocity model [nz,ny,nx]
-      nhx   - number of subsurface offsets in x to compute [1]
-      nhy   - number of subsurface offsets in y to compute [1]
+      nhx   - number of subsurface offsets in x to compute [0]
+      nhy   - number of subsurface offsets in y to compute [0]
+      sym   - symmetrize the subsurface offsets [True]
       nrmax - maximum number of reference velocities [3]
       eps   - stability parameter [0.01]
       dtmax - maximum time error [5e-05]
@@ -171,7 +172,7 @@ class defaultgeom:
       an image created from the data [nhy,nhx,nz,ny,nx]
     """
     # Get temporal axis
-    nt = dat.shape[0]
+    nt = dat.shape[-1]
 
     # Create frequency domain source
     if(wav is None):
@@ -182,8 +183,8 @@ class defaultgeom:
 
     # Create frequency domain data
     _,_,_,dfft = self.fft1(dat,dt,minf=minf,maxf=maxf)
-    datt = np.ascontiguousarray(np.transpose(dfft,(0,1,4,2,3)))
-
+    datt = np.transpose(dfft,(0,1,4,2,3)) # [nsy,nsx,ny,nx,nwc] -> [nsy,nsx,nwc,ny,nx] 
+    datw = np.ascontiguousarray(datt.reshape([self.__nexp,self.__nwc,self.__ny,self.__nx]))
 
     # Single square root object
     ssf = ssr3(self.__nx ,self.__ny,self.__nz,     # Spatial Sizes
@@ -197,10 +198,13 @@ class defaultgeom:
     ssf.set_slows(slo)
 
     # Allocate partial image array 
-    if(nhx == 1 and nhy == 1):
+    if(nhx == 0 and nhy == 0):
       imgar = np.zeros([self.__nexp,self.__nz,self.__ny,self.__nx],dtype='float32')
     else:
-      imgar = np.zeros([self.__nexp,nhy,nhx,self.__nz,self.__ny,self.__nx],dtype='float32')
+      if(sym):
+        imgar = np.zeros([self.__nexp,2*nhy+1,2*nhx+1,self.__nz,self.__ny,self.__nx],dtype='float32')
+      else:
+        imgar = np.zeros([self.__nexp,nhy+1,nhx+1,self.__nz,self.__ny,self.__nx],dtype='float32')
 
     # Allocate the source for one shot
     sou = np.zeros([self.__nwc,self.__ny,self.__nx],dtype='complex64')
@@ -213,36 +217,18 @@ class defaultgeom:
       # Create the source for this shot
       sou[:] = 0.0
       sou[:,sy,sx]  = wfft[:]
-      if(nhx == 1 and nhy == 1):
+      if(nhx == 0 and nhy == 0):
         # Conventional imaging
-        pass
+        ssf.migallw(datw[k],sou,imgar[k])
       else:
         # Extended imaging
-        pass
+        ssf.migoffallw(datw[k],sou,nhy,nhx,sym,imgar[k])
       k += 1
 
     # Sum over all partial images
     img = np.sum(imgar,axis=0)
 
     return img
-
-  def inject_source(self,ix,iy,wav):
-    """
-    Injects the frequency domain source at the ix
-    and iy sample position within the model
-
-    Parameters:
-      ix  - x sample position for source injection
-      iy  - y sample position for source injection
-      wav - frequency domain source to be injected
-
-    Returns the frequency domain source at the surface [nw,ny,nx]
-    """
-    nw = wav.shape[0]
-    sou = np.zeros([nw,self.__ny,self.__nx],dtype='complex64')
-    sou[:,iy,ix] = wav[:]
-
-    return sou
 
   def fft1(self,sig,dt,minf,maxf):
     """
@@ -273,66 +259,7 @@ class defaultgeom:
     # Compute the FFT
     sigfft = np.fft.fft(sigp)[...,begw:endw]
 
-    return nw,minf,dw,sigfft
-
-  def source_t2f(self,wav,dt,minf,maxf):
-    """
-    Creates a frequency domain source from a minimum
-    to a maximum specified frequency
-
-    Parameters:
-      wav  - the input source time function [nt]
-      dt   - temporal sampling of wavelet
-      minf - the lowest frequency to propagate  [Hz]
-      maxf - the highest frequency to propagate [Hz]
-
-    Returns:
-      a frequency domain source and the frequency axis [nw,ow,dw]
-    """
-    # Get sizes for time and frequency domain
-    n1 = wav.shape[0]
-    nt = 2*self.next_fast_size(int((n1+1)/2))
-    if(nt%2): nt += 1
-    nw = int(nt/2+1)
-    dw = 1/(nt*dt)
-    # Min and max frequencies
-    begw = int(minf/dw); endw = int(maxf/dw)
-    wavp = np.pad(wav,(0,nt-n1),mode='constant')
-    wfft = np.fft.fft(wavp)[begw:endw]
-
-    return nw,minf,dw,wfft
-
-  def data_t2f(self,dat,dt,minf,maxf,transp=True):
-    """
-    Creates the frequency domain receiver wavefields
-    within a frequency range
-
-    Parameters:
-      dat    - the input data [nt,nsy,nsx,nry,nrx]/[nsy,nsx,nry,nrx,nt]
-      dt     - temporal sampling of data
-      minf   - the lowest frequency to image in the data [Hz]
-      maxf   - the highest frequency to image in the data [Hz]
-      transp - transpose so that frequency is fast axis [True]
-
-    Returns:
-      the frequency axis (nw,ow,dw) and the frequency domain data 
-      filtered to the specified frequency range [nw,nsy,nsx,nry,nrx]
-    """
-    if(transp):
-      datt = np.transpose(dat,(1,2,3,4,0))
-    else:
-      datt = dat
-    n1 = datt.shape[0]
-    nt = 2*self.next_fast_size(int(n1+1)/2)
-    if(nt%2): nt += 1
-    dw = 1/(nt*dt)
-    # Min and max frequencies
-    begw  = int(minf/dw); endw = int(maxf/dw)
-    datp  = np.pad(datt,(0,0),(0,0),(0,0),(0,0),(0,nt-n1),mode='constant')
-    dfft  = np.fft.fft(datp)[begw:endw]
-    dfftt = np.ascontiguousarray(np.transpose(dfft,(4,0,1,2,3)))
-
-    return nw,minf,dw,dfftt
+    return nw,minf,dw,sigfft.astype('complex64')
 
   def data_f2t(self,dat,nw,ow,dw,n1,it0=None):
     """

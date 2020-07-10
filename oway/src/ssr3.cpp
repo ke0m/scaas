@@ -184,7 +184,7 @@ void ssr3::ssr3ssf_migallw(std::complex<float> *dat, std::complex<float> *wav, f
   /* Loop over frequency (will be parallelized with OpenMP/TBB) */
   for(int iw = 0; iw < _nw; ++iw) {
     /* Migrate data for current frequency */
-    ssr3ssf_migonew(iw, wav + iw*_nx*_ny, dat + iw*_nx*_ny, img);
+    ssr3ssf_migonew(iw, dat + iw*_nx*_ny, wav + iw*_nx*_ny, img);
     //XXX: probably need an omp critical here. Perhaps can store and accumulate images for each thread
     // to do that, will need to pass the thread number to migonew and allocate an array
     // to store each image for each thread
@@ -204,12 +204,12 @@ void ssr3::ssr3ssf_migonew(int iw, std::complex<float> *dat, std::complex<float>
   apply_taper(wav, sslc);
   apply_taper(dat, rslc);
 
-  /* Loop over all depths */
+  /* Loop over all depths (note goes up to nz-1) */
   for(int iz = 0; iz < _nz-1; ++iz) {
     /* Depth extrapolation of source and receiver wavefields */
     ssr3ssf(wr, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, rslc);
     ssr3ssf(ws, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, sslc);
-    /* Imaging condition (should do this on ISPC) */
+    /* Imaging condition */
     for(int iy = 0; iy < _ny; ++iy) {
       for(int ix = 0; ix < _nx; ++ix) {
         img[iz*_nx*_ny + iy*_nx + ix] += std::real(std::conj(sslc[iy*_nx + ix])*rslc[iy*_nx + ix]);
@@ -220,7 +220,7 @@ void ssr3::ssr3ssf_migonew(int iw, std::complex<float> *dat, std::complex<float>
   delete[] sslc; delete[] rslc;
 }
 
-void ssr3::ssr3ssf_migoffallw(std::complex<float> *dat, std::complex<float> *wav, int nhx, int nhy, bool sym, float *img) {
+void ssr3::ssr3ssf_migoffallw(std::complex<float> *dat, std::complex<float> *wav, int nhy, int nhx, bool sym, float *img) {
   /* Check if built reference velocities */
   if(_slo == NULL) {
     fprintf(stderr,"Must run set_slows before modeling or migration\n");
@@ -240,7 +240,7 @@ void ssr3::ssr3ssf_migoffallw(std::complex<float> *dat, std::complex<float> *wav
   /* Loop over frequency (will be parallelized with OpenMP/TBB) */
   for(int iw = 0; iw < _nw; ++iw) {
     /* Migrate data for current frequency */
-    ssr3ssf_migoffonew(iw, wav + iw*_nx*_ny, dat + iw*_nx*_ny, bly, ely, blx, elx, img);
+    ssr3ssf_migoffonew(iw, dat + iw*_nx*_ny, wav + iw*_nx*_ny, bly, ely, blx, elx, img);
     //XXX: probably need an omp critical here. Perhaps can store and accumulate images for each thread
     // to do that, will need to pass the thread number to migonew and allocate an array
     // to store each image for each thread
@@ -262,7 +262,6 @@ void ssr3::ssr3ssf_migoffonew(int iw, std::complex<float> *dat, std::complex<flo
   int begy = ely; int endy = _ny - begy;
   int nhx  = elx - blx;
   int shfx = abs(blx); int shfy = abs(bly);
-
 
   apply_taper(wav, sslc);
   apply_taper(dat, rslc);

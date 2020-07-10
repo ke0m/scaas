@@ -79,13 +79,13 @@ PYBIND11_MODULE(ssr3,m) {
       .def("migoffallw",[](ssr3 &sr3d,
              py::array_t<std::complex<float>, py::array::c_style> dat,
              py::array_t<std::complex<float>, py::array::c_style> wav,
-             int nhx,
              int nhy,
+             int nhx,
              bool sym,
              py::array_t<float, py::array::c_style> img
              )
              {
-               sr3d.ssr3ssf_migoffallw(dat.mutable_data(), wav.mutable_data(), nhx, nhy, sym, img.mutable_data());
+               sr3d.ssr3ssf_migoffallw(dat.mutable_data(), wav.mutable_data(), nhy, nhx, sym, img.mutable_data());
              },
              py::arg("dat"), py::arg("wav"), py::arg("nhx"), py::arg("nhy"), py::arg("sym"), py::arg("img")
           )

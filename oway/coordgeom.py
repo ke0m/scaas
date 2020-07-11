@@ -14,7 +14,7 @@ class coordgeom:
   Functions for modeling and imaging with a
   field data (coordinate) geometry
   """
-  def __init__(self,nx,dx,ny,dy,nz,dz,srcxs,srcys,recxs,recys,ox=0.0,oy=0.0,oz=0.0):
+  def __init__(self,nx,dx,ny,dy,nz,dz,srcxs=None,srcys=None,recxs=None,recys=None,ox=0.0,oy=0.0,oz=0.0):
     """
     Creates a coordinate geometry object for split-step fourier downward continuation.
     Expects that the coordinates are integer sample number coordinates (already divided by dx or dy)
@@ -38,18 +38,40 @@ class coordgeom:
     self.__nx = nx; self.__ox = ox; self.__dx = dx
     self.__ny = ny; self.__oy = oy; self.__dy = dy
     self.__nz = nz; self.__oz = oz; self.__dz = dz
-    # Source gometry
+    ## Source gometry
+    # Check if either is none
+    if(srcxs is None and srcys is None):
+      raise Exception("Must provide either srcx or srcy coordinates")
+    if(srcxs is None):
+      srcxs = np.zeros(len(srcys),dtype='int')
+    if(srcys is None):
+      srcys = np.zeros(len(srcxs),dtype='int')
+    # Make sure coordinates are within the model
     if(np.any(srcxs >= nx) or np.any(srcys >= ny)):
+      raise Exception("Source geometry must be within model size")
+    if(np.any(srcxs < 0) or np.any(srcys <  0)):
       raise Exception("Source geometry must be within model size")
     if(len(srcxs) != len(srcys)):
       raise Exception("Length of srcxs must equal srcys")
     self.__srcxs = srcxs; self.__srcys = srcys
     # Total number of sources
     self.__nexp = len(srcxs) 
-    # Receiver geometry
+    ## Receiver geometry
+    # Check if either is none
+    if(recxs is None and recys is None):
+      raise Exception("Must provide either recx or recy coordinates")
+    if(recxs is None):
+      recxs = np.zeros(len(recys),dtype='int')
+    if(recys is None):
+      recys = np.zeros(len(recxs),dtype='int')
+    # Make sure coordinates are within the model
     if(np.any(recxs >= nx) or np.any(recys >= ny)):
       raise Exception("Receiver geometry must be within model size")
+    if(np.any(recxs < 0) or np.any(recys <  0)):
+      raise Exception("Receiver geometry must be within model size")
     self.__recxs = recxs; self.__recys = recys
+    # Get maximum number of receivers
+    self.__nrecxmax = recxs.shape[1]; self.__nrecymax = recys.shape[1]
 
     # Frequency axis
     self.__nwo = None; self.__ow = None; self.__dw = None;
@@ -102,33 +124,31 @@ class coordgeom:
     slo = 1/vel
     ssf.set_slows(slo)
 
-    # Allocate output data (surface wavefield)
-    datw = np.zeros([self.__nexp,self.__nwc,self.__ny,self.__nx],dtype='complex64')
+    # Allocate output data (surface wavefield) and receiver data
+    datw  = np.zeros([self.__nexp,self.__nwc,self.__ny,self.__nx],dtype='complex64')
+    recw  = np.zeros([self.__nexp,self.__nwc,self.__nrecymax,self.__nrecxmax],dtype='complex64')
 
     # Allocate the source for one shot
     sou = np.zeros([self.__nwc,self.__ny,self.__nx],dtype='complex64')
 
     # Loop over sources
-    k = 0
-    for icrd in progressbar(self.__scoords,"nexp:"):
+    for iexp in progressbar(range(self.__nexp),"nexp:"):
       # Get the source coordinates
-      sy = icrd[0]; sx = icrd[1]
+      sy = self.__srcys[iexp]; sx = self.__srcxs[iexp]
       # Create the source for this shot
       sou[:] = 0.0; 
       sou[:,sy,sx]  = wfft[:]
       # Downward continuation
-      ssf.modallw(ref,sou,datw[k])
-      k += 1
-
-    # Reshape output data
-    datwr = datw.reshape([self.__nsy,self.__nsx,self.__nwc,self.__ny,self.__nx])
+      ssf.modallw(ref,sou,datw[iexp])
+      #TODO: will have a problem when number of receivers changes
+      recw[iexp] = datw[iexp,:,self.__recy[iexp],self.__recx[iexp])
 
     if(time):
       # Inverse fourier transform
-      datt = self.data_f2t(datwr,self.__nwo,self.__ow,self.__dw,nt,it0)
-      return datt
+      rect = self.data_f2t(recw,self.__nwo,self.__ow,self.__dw,nt,it0)
+      return rect
     else:
-      return datwr
+      return recw
 
   def image_data(self,dat,dt,minf,maxf,vel,nhx=0,nhy=0,sym=True,nrmax=3,eps=0.01,dtmax=5e-05,wav=None,
                  ntx=0,nty=0,px=0,py=0,verb=True):
@@ -159,6 +179,12 @@ class coordgeom:
     Returns:
       an image created from the data [nhy,nhx,nz,ny,nx]
     """
+    # Make sure data are same size as coordinates
+    if(dat.shape[0] != self.__nexp):
+      raise Exception("Data must have same number of source passed to constructor")
+    if(dat.shape[1] != self.__nrecymax or dat.shape[2] != self.__nrecxmax):
+      raise Exception("Shape of input data must match receiver coordinates")
+
     # Get temporal axis
     nt = dat.shape[-1]
 
@@ -171,8 +197,9 @@ class coordgeom:
 
     # Create frequency domain data
     _,_,_,dfft = self.fft1(dat,dt,minf=minf,maxf=maxf)
-    datt = np.transpose(dfft,(0,1,4,2,3)) # [nsy,nsx,ny,nx,nwc] -> [nsy,nsx,nwc,ny,nx] 
-    datw = np.ascontiguousarray(datt.reshape([self.__nexp,self.__nwc,self.__ny,self.__nx]))
+    rect = np.transpose(dfft,(0,3,1,2)) # [nexp,nry,nrx,nwc] -> [nexp,nwc,nry,nrx] 
+    recw = np.ascontiguousarray(datt.reshape([self.__nexp,self.__nwc,self.__nrecymax,self.__nrecxmax]))
+    datw = np.zeros([self._nexp,self.__nwc,self.__ny,self.__nx],dtype='complex64')
 
     # Single square root object
     ssf = ssr3(self.__nx ,self.__ny,self.__nz,     # Spatial Sizes
@@ -198,14 +225,14 @@ class coordgeom:
     sou = np.zeros([self.__nwc,self.__ny,self.__nx],dtype='complex64')
 
     # Loop over sources
-    k = 0
-    for icrd in progressbar(self.__scoords,"nexp:"):
+    for iexp in progressbar(range(self.__nexp),"nexp:"):
       # Get the source coordinates
-      sy = icrd[0]; sx = icrd[1]
+      sy = self.__srcys[iexp]; sx = self.__srcxs[iexp]
       # Create the source wavefield for this shot
       sou[:] = 0.0
       sou[:,sy,sx]  = wfft[:]
       # Create the receiver wavefield for this shot
+      datw[iexp] = 
       if(nhx == 0 and nhy == 0):
         # Conventional imaging
         ssf.migallw(datw[k],sou,imgar[k])
@@ -267,20 +294,20 @@ class coordgeom:
     # Compute size for FFT
     nt = 2*(nw-1)
     # Transpose the data so frequency is on fast axis
-    datt = np.transpose(dat,(0,1,3,4,2)) # [nsy,nsx,nwc,ny,nx] -> [nsy,nsx,ny,nx,nwc]
+    datt = np.transpose(dat,(0,2,3,1)) # [nexp,nwc,ny,nx] -> [nexp,ny,nx,nwc]
     # Pad to the original frequency range
     padb = int(ow/dw); pade = nw - nwc - padb
-    dattpad  = np.pad(datt,((0,0),(0,0),(0,0),(0,0),(padb,pade)),mode='constant')  # [*,nwc] -> [*,nw]
+    dattpad  = np.pad(datt,((0,0),(0,0),(0,0),(padb,pade)),mode='constant')  # [*,nwc] -> [*,nw]
     # Pad for the inverse FFT
-    dattpadp = np.pad(dattpad,((0,0),(0,0),(0,0),(0,0),(0,nt-nw)),mode='constant') # [*,nw] -> [*,nt]
+    dattpadp = np.pad(dattpad,((0,0),(0,0),(0,0),(0,nt-nw)),mode='constant') # [*,nw] -> [*,nt]
     # Inverse FFT and window to t0 (wavelet shift)
     datf2t = np.real(np.fft.ifft(dattpadp))
     if(it0 is not None):
-      datf2tw = datf2t[:,:,:,:,it0:]
+      datf2tw = datf2t[:,:,:,it0:]
     else:
       datf2tw = datf2t
     # Pad and transpose
-    datf2tp = np.pad(datf2tw,((0,0),(0,0),(0,0),(0,0),(0,n1-(nt-it0))),mode='constant')
+    datf2tp = np.pad(datf2tw,((0,0),(0,0),(0,0),(0,n1-(nt-it0))),mode='constant')
 
     return datf2tp
 

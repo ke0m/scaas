@@ -2,6 +2,7 @@ import numpy as np
 import segyio
 import inpout.seppy as seppy
 import re
+from oway.mute import mute
 import matplotlib.pyplot as plt
 
 def parse_text_header(segyfile):
@@ -106,9 +107,11 @@ for isx in range(nsx):
     plt.close()
     #plt.show()
 
+muted = mute(shots,dt=dt,dx=0.075,v0=6.0,t0=1.0,half=False)
+
 # Outputs
 sep = seppy.sep()
-sep.write_file("sigsbee_shots.H",shots.T,os=[0.0,0.0,0.0],ds=[dt,drx,dsx])
+sep.write_file("sigsbee_shots.H",muted.T,os=[0.0,0.0,0.0],ds=[dt,drx,dsx])
 sep.write_file("sigsbee_recx.H",recx.T)
 sep.write_file("sigsbee_srcx.H",srcx)
 

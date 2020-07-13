@@ -23,6 +23,10 @@ class ssr3{
     void set_slows(float *slo);
     void ssr3ssf_modonew(int iw, float *ref, std::complex<float> *wav, std::complex<float> *dat);
     void ssr3ssf_modallw(float *ref, std::complex<float> *wav, std::complex<float> *dat);
+    void restrict_data(int nrec, float *recy, float *recx, float oy, float ox,
+                       std::complex<float> *dat, std::complex<float> *rec);
+    void inject_data(int nrec, float *recy, float *recx, float oy, float ox,
+                     std::complex<float> *rec, std::complex<float> *dat);
     void ssr3ssf_migonew(int iw, std::complex<float> *dat, std::complex<float> *wav, float *img);
     void ssr3ssf_migallw(std::complex<float> *dat, std::complex<float> *wav, float *img);
     void ssr3ssf_migoffonew(int iw, std::complex<float> *dat, std::complex<float> *wav,

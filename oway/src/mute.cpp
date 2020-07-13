@@ -1,6 +1,5 @@
 #include <math.h>
 #include "mute.h"
-#include<stdio.h>
 
 void muteone(int nt, float ot, float dt, bool abs0, bool inner, bool hyper,
              float tp, float slope0, float slopep, float x,

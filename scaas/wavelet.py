@@ -27,7 +27,7 @@ def ricker(nt,dt,f,amp,dly):
 
 def bandpass(nt,dt,fs,amp,dly):
   """
-  Generates a bandpass ricker in the frequency domain
+  Generates a bandpass wavelet in the frequency domain
   Basically a copy of Ali Almomin's Wavelet.f90
 
   Parameters

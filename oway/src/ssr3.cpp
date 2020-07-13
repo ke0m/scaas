@@ -174,6 +174,27 @@ void ssr3::ssr3ssf_modonew(int iw, float *ref, std::complex<float> *wav, std::co
   delete[] sslc; delete[] rslc;
 }
 
+void ssr3::restrict_data(int nrec, float *recy, float *recx, float oy, float ox,
+                         std::complex<float> *dat, std::complex<float> *rec) {
+
+  for(int ir = 0; ir < nrec; ++ir) {
+    int iry = (recy[ir]-oy)/_dy + 0.5;
+    int irx = (recx[ir]-ox)/_dx + 0.5;
+    memcpy(&rec[ir*_nw],&dat[iry*_nw*_nx + irx*_nw],sizeof(std::complex<float>)*_nw);
+  }
+
+}
+
+void ssr3::inject_data(int nrec, float *recy, float *recx, float oy, float ox,
+                              std::complex<float> *rec, std::complex<float> *dat) {
+
+  for(int ir = 0; ir < nrec; ++ir) {
+    int iry = (recy[ir]-oy)/_dy + 0.5;
+    int irx = (recx[ir]-ox)/_dx + 0.5;
+    memcpy(&dat[iry*_nw*_nx + irx*_nw],&rec[ir*_nw],sizeof(std::complex<float>)*_nw);
+  }
+}
+
 void ssr3::ssr3ssf_migallw(std::complex<float> *dat, std::complex<float> *wav, float *img) {
   /* Check if built reference velocities */
   if(_slo == NULL) {
@@ -207,8 +228,8 @@ void ssr3::ssr3ssf_migonew(int iw, std::complex<float> *dat, std::complex<float>
   /* Loop over all depths (note goes up to nz-1) */
   for(int iz = 0; iz < _nz-1; ++iz) {
     /* Depth extrapolation of source and receiver wavefields */
-    ssr3ssf(wr, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, rslc);
     ssr3ssf(ws, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, sslc);
+    ssr3ssf(wr, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, rslc);
     /* Imaging condition */
     for(int iy = 0; iy < _ny; ++iy) {
       for(int ix = 0; ix < _nx; ++ix) {
@@ -269,8 +290,8 @@ void ssr3::ssr3ssf_migoffonew(int iw, std::complex<float> *dat, std::complex<flo
   /* Loop over all depths */
   for(int iz = 0; iz < _nz-1; ++iz) {
     /* Depth extrapolation of source and receiver wavefields */
-    ssr3ssf(wr, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, rslc);
     ssr3ssf(ws, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, sslc);
+    ssr3ssf(wr, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, rslc);
     /* Loops over lags */
     for(int ily = bly; ily <= ely; ++ily) {
       for(int ilx = blx; ilx <= elx; ++ilx) {
@@ -382,18 +403,18 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
   for(int iy = 0; iy < _ny; ++iy) {
     for(int ix = 0; ix < _nx; ++ix) {
       float s = 0.5 * scur[iy*_nx + ix];
-      //fprintf(stderr,"ix=%d s=%f wx=%f+%fi\n",ix,s,real(wx[iy*_nx+ix]),imag(wx[iy*_nx+ix]));
+      //fprintf(stderr,"ix=%d s=%f wx=%g+%gi\n",ix,s,real(wx[iy*_nx+ix]),imag(wx[iy*_nx+ix]));
       wx[iy*_nx + ix] *= exp(-w*s*_dz);
-      //fprintf(stderr,"ix=%d s=%f wx=%f+%fi\n",ix,s,real(wx[iy*_nx+ix]),imag(wx[iy*_nx+ix]));
+      //fprintf(stderr,"ix=%d s=%f wx=%g+%gi\n",ix,s,real(wx[iy*_nx+ix]),imag(wx[iy*_nx+ix]));
     }
   }
 
   /* FFT (w-x-y) -> (w-kx-ky) */
   memcpy(pk,wx,sizeof(std::complex<float>)*_nx*_ny);
   fft2(false,(kiss_fft_cpx*)pk);
-  //  for(int ix = 0; ix < _nx; ++ix) {
-  //    fprintf(stderr,"ix=%d pk=%f+%fi\n",ix,real(pk[ix]),imag(pk[ix]));
-  //  }
+//  for(int ix = 0; ix < _nx; ++ix) {
+//    fprintf(stderr,"ix=%d pk=%f+%fi\n",ix,real(pk[ix]),imag(pk[ix]));
+//  }
 
   memset(wx,0,sizeof(std::complex<float>)*(_nx*_ny));
 
@@ -459,7 +480,7 @@ int ssr3::nrefs(int nrmax, float ds, int ns, float *slo, float *sloref) {
 
   int jr = 0; float s2 = 0.0;
   for(int ir = 0; ir < nrmax; ++ir) {
-    float qr = (ir + 1.0) - 0.5 * 1/nrmax;
+    float qr = (ir + 1.0)/nrmax - 0.5 * 1/nrmax;
     float s = quantile(qr*ns,ns,slo2);
     if(ir == 0 || fabsf(s-s2) > ds) {
       sloref[jr] = s*s;

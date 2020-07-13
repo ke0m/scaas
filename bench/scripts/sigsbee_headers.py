@@ -114,6 +114,7 @@ sep = seppy.sep()
 sep.write_file("sigsbee_shots.H",muted.T,os=[0.0,0.0,0.0],ds=[dt,drx,dsx])
 sep.write_file("sigsbee_recx.H",recx.T)
 sep.write_file("sigsbee_srcx.H",srcx)
+sep.write_file("sigsbee_vel.H",vel.T,os=[oz,ox],ds=[dz,dx])
 
 fdat.close(); fvel.close()
 

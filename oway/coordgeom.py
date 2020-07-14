@@ -57,7 +57,7 @@ class coordgeom:
       raise Exception("Length of srcxs must equal srcys")
     self.__srcxs = srcxs.astype('float32'); self.__srcys = srcys.astype('float32')
     # Total number of sources
-    self.__nexp = len(srcxs) 
+    self.__nexp = len(srcxs)
     ## Receiver geometry
     # Check if either is none
     if(recxs is None and recys is None):
@@ -115,8 +115,8 @@ class coordgeom:
       nthrds - number of OpenMP threads to use for frequency parallelization [1]
       sverb  - verbosity flag for shot progress bar [True]
       wverb  - verbosity flag for frequency progress bar [False]
-    
-    Returns: 
+
+    Returns:
       the data at the surface (in time or frequency) [nw,nry,nrx]
     """
     # Save wavelet temporal parameters
@@ -155,7 +155,7 @@ class coordgeom:
       sy = self.__srcys[iexp]; sx = self.__srcxs[iexp]
       isy = int((sy-self.__oy)/self.__dy+0.5); isx = int((sx-self.__ox)/self.__dx+0.5)
       # Create the source for this shot
-      sou[:] = 0.0; 
+      sou[:] = 0.0
       sou[:,isy,isx]  = wfft[:]
       # Downward continuation
       datw[:] = 0.0
@@ -243,7 +243,7 @@ class coordgeom:
     slo = 1/vel
     ssf.set_slows(slo)
 
-    # Allocate partial image array 
+    # Allocate partial image array
     if(nhx == 0 and nhy == 0):
       imgar = np.zeros([self.__nexp,self.__nz,self.__ny,self.__nx],dtype='float32')
     else:
@@ -255,7 +255,6 @@ class coordgeom:
     # Loop over sources
     ntr = 0
     for iexp in progressbar(range(self.__nexp),"nexp:"):
-    #for iexp in progressbar(range(2),"nexp:"):
       # Get the source coordinates
       sy = self.__srcys[iexp]; sx = self.__srcxs[iexp]
       isy = int((sy-self.__oy)/self.__dy+0.5); isx = int((sx-self.__ox)/self.__dx+0.5)
@@ -291,7 +290,7 @@ class coordgeom:
       minf - the minimum frequency for windowing the spectrum [Hz]
       maxf - the maximum frequency for windowing the spectrum
 
-    Returns: 
+    Returns:
       the frequency domain data (frequency is fast axis) and the
       frequency axis [nw,ow,dw]
     """

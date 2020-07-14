@@ -254,8 +254,7 @@ class coordgeom:
 
     # Loop over sources
     ntr = 0
-    #for iexp in progressbar(range(self.__nexp),"nexp:"):
-    for iexp in progressbar(range(2),"nexp:"):
+    for iexp in progressbar(range(self.__nexp),"nexp:"):
       # Get the source coordinates
       sy = self.__srcys[iexp]; sx = self.__srcxs[iexp]
       isy = int((sy-self.__oy)/self.__dy+0.5); isx = int((sx-self.__ox)/self.__dx+0.5)

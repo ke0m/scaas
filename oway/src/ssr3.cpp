@@ -396,6 +396,7 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
   float *wt = new float[_nx*_ny]();
 
   //print_cmplx(_nx, wx);
+  //fprintf(stderr,"w=%g+%gi\n",std::real(w),std::imag(w));
 
   std::complex<float> w2 = w*w;
 
@@ -562,13 +563,15 @@ void ssr3::build_karray(float dx, float dy, int bx, int by, float *kk) {
   float dky = 2.0*M_PI/(by*dy); float oky = (by == 1) ? 0 : -M_PI/dy;
 
   /* Populate the array */
+  //fprintf(stderr,"by=%d bx=%d oky=%f okx=%f\n",by,bx,oky,okx);
   for(int iy = 0; iy < by; ++iy) {
-    int jy = (iy < by/2) ? (iy + by/2) : (iy-by/2);
+    int jy = (iy < by/2.) ? (iy + by/2.) : (iy-by/2.);
     float ky = oky + jy*dky;
     for(int ix = 0; ix < bx; ++ix) {
-      int jx = (ix < bx/2) ? (ix + bx/2) : (ix-bx/2);
+      int jx = (ix < bx/2.) ? (ix + bx/2.) : (ix-bx/2.);
       float kx = okx + jx*dkx;
       kk[iy*bx + ix] = kx*kx + ky*ky;
+      //fprintf(stderr,"iy=%d ix=%d jx=%d kk=%f\n",iy,ix,jx,kk[iy*bx + ix]);
     }
   }
 }

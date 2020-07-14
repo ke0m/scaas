@@ -70,29 +70,32 @@ class defaultgeom:
     """ Returns the frequency axis """
     return self.__nwc,self.__ow,self.__dw
 
-  def model_data(self,wav,dt,t0,minf,maxf,vel,ref,nrmax=3,eps=0.01,dtmax=5e-05,time=True,
-                 ntx=0,nty=0,px=0,py=0,verb=True):
+  def model_data(self,wav,dt,t0,minf,maxf,vel,ref,jf=1,nrmax=3,eps=0.01,dtmax=5e-05,time=True,
+                 ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=False):
     """
     3D modeling of single scattered (Born) data with the one-way
     wave equation (single square root (SSR), split-step Fourier method).
 
     Parameters:
-      wav   - the input wavelet (source time function) [nt]
-      dt    - sampling interval of wavelet
-      t0    - time-zero of wavelet (e.g., peak of ricker wavelet)
-      minf  - minimum frequency to propagate [Hz]
-      maxf  - maximum frequency to propagate [Hz]
-      vel   - input velocity model [nz,ny,nx]
-      ref   - input reflectivity model [nz,ny,nx]
-      nrmax - maximum number of reference velocities [3]
-      eps   - stability parameter [0.01]
-      dtmax - maximum time error [5e-05]
-      time  - return the data back in the time domain [True]
-      ntx   - size of taper in x direction (samples) [0]
-      nty   - size of taper in y direction (samples) [0]
-      px    - amount of padding in x direction (samples)
-      py    - amount of padding in y direction (samples)
-      verb  - verbosity flag
+      wav    - the input wavelet (source time function) [nt]
+      dt     - sampling interval of wavelet
+      t0     - time-zero of wavelet (e.g., peak of ricker wavelet)
+      minf   - minimum frequency to propagate [Hz]
+      maxf   - maximum frequency to propagate [Hz]
+      vel    - input velocity model [nz,ny,nx]
+      ref    - input reflectivity model [nz,ny,nx]
+      jf     - frequency decimation factor [1]
+      nrmax  - maximum number of reference velocities [3]
+      eps    - stability parameter [0.01]
+      dtmax  - maximum time error [5e-05]
+      time   - return the data back in the time domain [True]
+      ntx    - size of taper in x direction (samples) [0]
+      nty    - size of taper in y direction (samples) [0]
+      px     - amount of padding in x direction (samples)
+      py     - amount of padding in y direction (samples)
+      nthrds - number of OpenMP threads for parallelizing over frequency [1]
+      sverb  - verbosity flag for shot progress bar [True]
+      wverb  - verbosity flag for frequency progressbar [False]
     
     Returns the data at the surface (in time or frequency) [nw,nry,nrx]
     """
@@ -101,14 +104,18 @@ class defaultgeom:
 
     # Create the input frequency domain source and get original frequency axis
     self.__nwo,self.__ow,self.__dw,wfft = self.fft1(wav,dt,minf=minf,maxf=maxf)
-    self.__nwc = wfft.shape[0] # Get the number of frequencies to compute
+    wfftd = wfft[::jf]
+    self.__nwc = wfftd.shape[0] # Get the number of frequencies to compute
+    self.__dwc = jf*self.__dw
+
+    if(sverb or wverb): print("Frequency axis: nw=%d ow=%f dw=%f"%(self.__nwc,self.__ow,self.__dwc))
 
     # Single square root object
-    ssf = ssr3(self.__nx ,self.__ny,self.__nz,     # Spatial Sizes
-               self.__dx ,self.__dy,self.__dz,     # Spatial Samplings
-               self.__nwc,self.__ow,self.__dw,eps, # Frequency axis
-               ntx,nty,px,py,                      # Taper and padding
-               dtmax,nrmax)                        # Reference velocities
+    ssf = ssr3(self.__nx ,self.__ny,self.__nz ,     # Spatial Sizes
+               self.__dx ,self.__dy,self.__dz ,     # Spatial Samplings
+               self.__nwc,self.__ow,self.__dwc,eps, # Frequency axis
+               ntx,nty,px,py,                       # Taper and padding
+               dtmax,nrmax)                         # Reference velocities
 
     # Compute slowness and reference slownesses
     slo = 1/vel
@@ -127,9 +134,9 @@ class defaultgeom:
       sy = icrd[0]; sx = icrd[1]
       # Create the source for this shot
       sou[:] = 0.0; 
-      sou[:,sy,sx]  = wfft[:]
+      sou[:,sy,sx]  = wfftd[:]
       # Downward continuation
-      ssf.modallw(ref,sou,datw[k])
+      ssf.modallw(ref,sou,datw[k],nthrds,wverb)
       k += 1
 
     # Reshape output data
@@ -137,36 +144,39 @@ class defaultgeom:
 
     if(time):
       # Inverse fourier transform
-      datt = self.data_f2t(datwr,self.__nwo,self.__ow,self.__dw,nt,it0)
+      datt = self.data_f2t(datwr,self.__nwo,self.__ow,self.__dwc,nt,it0)
       return datt
     else:
       return datwr
 
-  def image_data(self,dat,dt,minf,maxf,vel,nhx=0,nhy=0,sym=True,nrmax=3,eps=0.01,dtmax=5e-05,wav=None,
-                 ntx=0,nty=0,px=0,py=0,verb=True):
+  def image_data(self,dat,dt,minf,maxf,vel,jf=1,nhx=0,nhy=0,sym=True,nrmax=3,eps=0.01,dtmax=5e-05,wav=None,
+                 ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=False):
     """
     3D migration of shot profile data via the one-way wave equation (single-square
     root split-step fourier method). Input data are assumed to follow
     the default geometry (sources and receivers on a regular grid)
 
     Parameters:
-      dat   - input shot profile data [nsy,nsx,nry,nrx,nt]
-      dt    - temporal sampling of input data
-      minf  - minimum frequency to image in the data [Hz]
-      maxf  - maximum frequency to image in the data [Hz]
-      vel   - input migration velocity model [nz,ny,nx]
-      nhx   - number of subsurface offsets in x to compute [0]
-      nhy   - number of subsurface offsets in y to compute [0]
-      sym   - symmetrize the subsurface offsets [True]
-      nrmax - maximum number of reference velocities [3]
-      eps   - stability parameter [0.01]
-      dtmax - maximum time error [5e-05]
-      wav   - input wavelet [None,assumes an impulse at zero lag]
-      ntx   - size of taper in x direction [0]
-      nty   - size of taper in y direction [0]
-      px    - amount of padding in x direction (samples) [0]
-      py    - amount of padding in y direction (samples) [0]
-      verb  - verbosity flag [True]
+      dat    - input shot profile data [nsy,nsx,nry,nrx,nt]
+      dt     - temporal sampling of input data
+      minf   - minimum frequency to image in the data [Hz]
+      maxf   - maximum frequency to image in the data [Hz]
+      vel    - input migration velocity model [nz,ny,nx]
+      jf     - frequency decimation factor
+      nhx    - number of subsurface offsets in x to compute [0]
+      nhy    - number of subsurface offsets in y to compute [0]
+      sym    - symmetrize the subsurface offsets [True]
+      nrmax  - maximum number of reference velocities [3]
+      eps    - stability parameter [0.01]
+      dtmax  - maximum time error [5e-05]
+      wav    - input wavelet [None,assumes an impulse at zero lag]
+      ntx    - size of taper in x direction [0]
+      nty    - size of taper in y direction [0]
+      px     - amount of padding in x direction (samples) [0]
+      py     - amount of padding in y direction (samples) [0]
+      nthrds - number of OpenMP threads for parallelizing over frequency [1]
+      sverb  - verbosity flag for shot progress bar [True]
+      wverb  - verbosity flag for frequency progress bar [False]
 
     Returns:
       an image created from the data [nhy,nhx,nz,ny,nx]
@@ -179,19 +189,24 @@ class defaultgeom:
       wav    = np.zeros(nt,dtype='float32')
       wav[0] = 1.0
     self.__nwo,self.__ow,self.__dw,wfft = self.fft1(wav,dt,minf=minf,maxf=maxf)
-    self.__nwc = wfft.shape[0] # Get the number of frequencies for imaging
+    wfftd = wfft[::jf]
+    self.__nwc = wfftd.shape[0] # Get the number of frequencies for imaging
+    self.__dwc = self.__dw*jf
+
+    if(sverb or wverb): print("Frequency axis: nw=%d ow=%f dw=%f"%(self.__nwc,self.__ow,self.__dwc))
 
     # Create frequency domain data
     _,_,_,dfft = self.fft1(dat,dt,minf=minf,maxf=maxf)
-    datt = np.transpose(dfft,(0,1,4,2,3)) # [nsy,nsx,ny,nx,nwc] -> [nsy,nsx,nwc,ny,nx] 
+    dfftd = dfft[:,::jf]
+    datt = np.transpose(dfftd,(0,1,4,2,3)) # [nsy,nsx,ny,nx,nwc] -> [nsy,nsx,nwc,ny,nx] 
     datw = np.ascontiguousarray(datt.reshape([self.__nexp,self.__nwc,self.__ny,self.__nx]))
 
     # Single square root object
-    ssf = ssr3(self.__nx ,self.__ny,self.__nz,     # Spatial Sizes
-               self.__dx ,self.__dy,self.__dz,     # Spatial Samplings
-               self.__nwc,self.__ow,self.__dw,eps, # Frequency axis
-               ntx,nty,px,py,                      # Taper and padding
-               dtmax,nrmax)                        # Reference velocities
+    ssf = ssr3(self.__nx ,self.__ny,self.__nz ,     # Spatial Sizes
+               self.__dx ,self.__dy,self.__dz ,     # Spatial Samplings
+               self.__nwc,self.__ow,self.__dwc,eps, # Frequency axis
+               ntx,nty,px,py,                       # Taper and padding
+               dtmax,nrmax)                         # Reference velocities
 
     # Compute slowness and reference slownesses
     slo = 1/vel
@@ -216,13 +231,13 @@ class defaultgeom:
       sy = icrd[0]; sx = icrd[1]
       # Create the source for this shot
       sou[:] = 0.0
-      sou[:,sy,sx]  = wfft[:]
+      sou[:,sy,sx]  = wfftd[:]
       if(nhx == 0 and nhy == 0):
         # Conventional imaging
-        ssf.migallw(datw[k],sou,imgar[k])
+        ssf.migallw(datw[k],sou,imgar[k],nthrds,wverb)
       else:
         # Extended imaging
-        ssf.migoffallw(datw[k],sou,nhy,nhx,sym,imgar[k])
+        ssf.migoffallw(datw[k],sou,nhy,nhx,sym,imgar[k],nthrds,wverb)
       k += 1
 
     # Sum over all partial images

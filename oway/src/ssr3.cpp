@@ -1,7 +1,9 @@
 #include <math.h>
 #include <cstring>
+#include <omp.h>
 #include "kiss_fft.h"
 #include "ssr3.h"
+#include "progressbar.h"
 #include <map>
 #include <string>
 #include "/opt/matplotlib-cpp/matplotlibcpp.h"
@@ -103,7 +105,7 @@ void ssr3::set_slows(float *slo) {
   }
 }
 
-void ssr3::ssr3ssf_modallw(float *ref, std::complex<float> *wav, std::complex<float> *dat) {
+void ssr3::ssr3ssf_modallw(float *ref, std::complex<float> *wav, std::complex<float> *dat, int nthrds, bool verb) {
 
   /* Check if built reference velocities */
   if(_slo == NULL) {
@@ -115,12 +117,25 @@ void ssr3::ssr3ssf_modallw(float *ref, std::complex<float> *wav, std::complex<fl
   //plt::imshow((const float *)_slo,_nz,_nx,1); plt::show();
   //plt::imshow((const float *)_sloref,_nz,_nrmax,1); plt::show();
 
+  /* Set up printing if verbosity is desired */
+   int *widx = new int[nthrds]();
+   int csize = (int)_nw/nthrds;
+   bool firstiter = true;
+
   // wav dimensions (w, y, x)
   /* Loop over frequency (will be parallelized with OpenMP/TBB) */
+  omp_set_num_threads(nthrds);
+#pragma omp parallel for default(shared)
   for(int iw = 0; iw < _nw; ++iw) {
+    if(firstiter && verb) widx[omp_get_thread_num()] = iw;
+    if(verb) printprogress_omp("nw:",iw-widx[omp_get_thread_num()],csize,omp_get_thread_num());
     /* Get wavelet and model data for current frequency */
     ssr3ssf_modonew(iw, ref, wav + iw*_nx*_ny, dat + iw*_nx*_ny);
+    firstiter = false;
   }
+  if(verb) printf("\n");
+
+  delete[] widx;
 }
 
 void ssr3::ssr3ssf_modonew(int iw, float *ref, std::complex<float> *wav, std::complex<float> *dat) {
@@ -195,21 +210,34 @@ void ssr3::inject_data(int nrec, float *recy, float *recx, float oy, float ox,
   }
 }
 
-void ssr3::ssr3ssf_migallw(std::complex<float> *dat, std::complex<float> *wav, float *img) {
+void ssr3::ssr3ssf_migallw(std::complex<float> *dat, std::complex<float> *wav, float *img, int nthrds, bool verb) {
   /* Check if built reference velocities */
   if(_slo == NULL) {
     fprintf(stderr,"Must run set_slows before modeling or migration\n");
   }
 
+  /* Set up printing if verbosity is desired */
+     int *widx = new int[nthrds]();
+     int csize = (int)_nw/nthrds;
+     bool firstiter = true;
+
   // wav dimensions (w, y, x)
   /* Loop over frequency (will be parallelized with OpenMP/TBB) */
+     omp_set_num_threads(nthrds);
+#pragma omp parallel for default(shared)
   for(int iw = 0; iw < _nw; ++iw) {
     /* Migrate data for current frequency */
+    if(firstiter && verb) widx[omp_get_thread_num()] = iw;
+    if(verb) printprogress_omp("nw:",iw-widx[omp_get_thread_num()],csize,omp_get_thread_num());
     ssr3ssf_migonew(iw, dat + iw*_nx*_ny, wav + iw*_nx*_ny, img);
     //XXX: probably need an omp critical here. Perhaps can store and accumulate images for each thread
     // to do that, will need to pass the thread number to migonew and allocate an array
     // to store each image for each thread
+    firstiter = false;
   }
+  if(verb) printf("\n");
+
+  delete[] widx;
 }
 
 void ssr3::ssr3ssf_migonew(int iw, std::complex<float> *dat, std::complex<float> *wav, float *img) {
@@ -241,7 +269,8 @@ void ssr3::ssr3ssf_migonew(int iw, std::complex<float> *dat, std::complex<float>
   delete[] sslc; delete[] rslc;
 }
 
-void ssr3::ssr3ssf_migoffallw(std::complex<float> *dat, std::complex<float> *wav, int nhy, int nhx, bool sym, float *img) {
+void ssr3::ssr3ssf_migoffallw(std::complex<float> *dat, std::complex<float> *wav, int nhy, int nhx, bool sym, float *img,
+                              int nthrds, bool verb) {
   /* Check if built reference velocities */
   if(_slo == NULL) {
     fprintf(stderr,"Must run set_slows before modeling or migration\n");
@@ -257,15 +286,28 @@ void ssr3::ssr3ssf_migoffallw(std::complex<float> *dat, std::complex<float> *wav
     bly = 0; ely = nhy;
   }
 
+  /* Set up printing if verbosity is desired */
+  int *widx = new int[nthrds]();
+  int csize = (int)_nw/nthrds;
+  bool firstiter = true;
+
   // wav dimensions (w, y, x)
   /* Loop over frequency (will be parallelized with OpenMP/TBB) */
+  omp_set_num_threads(nthrds);
+#pragma omp parallel for default(shared)
   for(int iw = 0; iw < _nw; ++iw) {
     /* Migrate data for current frequency */
+    if(firstiter && verb) widx[omp_get_thread_num()] = iw;
+    if(verb) printprogress_omp("nw:",iw-widx[omp_get_thread_num()],csize,omp_get_thread_num());
     ssr3ssf_migoffonew(iw, dat + iw*_nx*_ny, wav + iw*_nx*_ny, bly, ely, blx, elx, img);
     //XXX: probably need an omp critical here. Perhaps can store and accumulate images for each thread
     // to do that, will need to pass the thread number to migonew and allocate an array
     // to store each image for each thread
+    firstiter = false;
   }
+  if(verb) printf("\n");
+
+  delete[] widx;
 }
 
 void ssr3::ssr3ssf_migoffonew(int iw, std::complex<float> *dat, std::complex<float>*wav,

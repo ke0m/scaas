@@ -1,7 +1,7 @@
 /**
  * Python interface to ssr3.cpp
  * @author: Joseph Jennings
- * @version: 2020.06.23
+ * @version: 2020.07.14
  */
 
 #include <pybind11/pybind11.h>
@@ -37,12 +37,14 @@ PYBIND11_MODULE(ssr3,m) {
       .def("modallw",[](ssr3 &sr3d,
               py::array_t<float, py::array::c_style> ref,
               py::array_t<std::complex<float>, py::array::c_style> wav,
-              py::array_t<std::complex<float>, py::array::c_style> dat
+              py::array_t<std::complex<float>, py::array::c_style> dat,
+              int nthrds,
+              bool verb
               )
               {
-                sr3d.ssr3ssf_modallw(ref.mutable_data(), wav.mutable_data(), dat.mutable_data());
+                sr3d.ssr3ssf_modallw(ref.mutable_data(), wav.mutable_data(), dat.mutable_data(), nthrds, verb);
               },
-              py::arg("ref"), py::arg("wav"), py::arg("dat")
+              py::arg("ref"), py::arg("wav"), py::arg("dat"), py::arg("nthrds"), py::arg("verb")
           )
       .def("modonew",[](ssr3 &sr3d,
              int iw,
@@ -90,12 +92,14 @@ PYBIND11_MODULE(ssr3,m) {
       .def("migallw",[](ssr3 &sr3d,
              py::array_t<std::complex<float>, py::array::c_style> dat,
              py::array_t<std::complex<float>, py::array::c_style> wav,
-             py::array_t<float, py::array::c_style> img
+             py::array_t<float, py::array::c_style> img,
+             int nthrds,
+             bool verb
              )
              {
-               sr3d.ssr3ssf_migallw(dat.mutable_data(), wav.mutable_data(), img.mutable_data());
+               sr3d.ssr3ssf_migallw(dat.mutable_data(), wav.mutable_data(), img.mutable_data(), nthrds, verb);
              },
-             py::arg("dat"), py::arg("wav"), py::arg("img")
+             py::arg("dat"), py::arg("wav"), py::arg("img"), py::arg("nthrds"), py::arg("verb")
           )
       .def("migonew",[](ssr3 &sr3d,
              int iw,
@@ -114,12 +118,16 @@ PYBIND11_MODULE(ssr3,m) {
              int nhy,
              int nhx,
              bool sym,
-             py::array_t<float, py::array::c_style> img
+             py::array_t<float, py::array::c_style> img,
+             int nthrds,
+             bool verb
              )
              {
-               sr3d.ssr3ssf_migoffallw(dat.mutable_data(), wav.mutable_data(), nhy, nhx, sym, img.mutable_data());
+               sr3d.ssr3ssf_migoffallw(dat.mutable_data(), wav.mutable_data(), nhy, nhx, sym, img.mutable_data(),
+                                       nthrds, verb);
              },
-             py::arg("dat"), py::arg("wav"), py::arg("nhx"), py::arg("nhy"), py::arg("sym"), py::arg("img")
+             py::arg("dat"), py::arg("wav"), py::arg("nhx"), py::arg("nhy"), py::arg("sym"), py::arg("img"),
+             py::arg("nthrds"), py::arg("verb")
           )
       .def("migoffonew",[](ssr3 &sr3d,
              int iw,

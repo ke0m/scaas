@@ -34,7 +34,8 @@ osx = 300; dsx = 100
 wei = geom.defaultgeom(nx=nx,dx=dx,ny=ny,dy=dy,nz=nz,dz=dz,
                        nsx=3,dsx=dsx,osx=osx,nsy=1,dsy=1.0)
 
-dat = wei.model_data(wav,d1,t0,minf=1.0,maxf=31.0,vel=velin,ref=refsm,time=True,ntx=15,px=112)
+dat = wei.model_data(wav,d1,t0,minf=1.0,maxf=31.0,vel=velin,ref=refsm,time=True,ntx=15,px=112,
+                     nthrds=4,wverb=True)
 
 nw,ow,dw = wei.get_freq_axis()
 

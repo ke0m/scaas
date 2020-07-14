@@ -1,7 +1,6 @@
 """
-Default geometry for synthetics
-Sources and receivers on the surface
-and distributed evenly across the surface
+Imaging/modeling data based on source
+and receiver coordinates
 @author: Joseph Jennings
 @version: 2020.07.07
 """
@@ -10,16 +9,16 @@ from oway.ssr3 import ssr3
 from utils.ptyprint import progressbar
 import matplotlib.pyplot as plt
 
-class defaultgeom:
+class coordgeom:
   """
   Functions for modeling and imaging with a
-  standard synthetic source receiver geometry
+  field data (coordinate) geometry
   """
-  def __init__(self,nx,dx,ny,dy,nz,dz,                             # Model size
-               nsx,dsx,nsy,dsy,osx=0.0,osy=0.0,                    # Source geometry
-               nrx=None,drx=1.0,orx=0.0,nry=None,dry=1.0,ory=0.0): # Receiver geometry
+  def __init__(self,nx,dx,ny,dy,nz,dz,nrec,srcxs=None,srcys=None,recxs=None,recys=None,
+               ox=0.0,oy=0.0,oz=0.0):
     """
-    Creates a default geometry object for split-step fourier downward continuation
+    Creates a coordinate geometry object for split-step fourier downward continuation.
+    Expects that the coordinates are integer sample number coordinates (already divided by dx or dy)
 
     Parameters:
       nx    - Number of x samples of the velocity model
@@ -28,50 +27,70 @@ class defaultgeom:
       dy    - y sampling of the velocity model
       nz    - Number of z samples of the velocity model
       dz    - z sampling of the velocity model
-      nsx   - Total number of sources in x direction
-      dsx   - Spacing between sources along x direction (in samples)
-      osx   - x-sample coordinate of first source [0.0]
-      nsy   - Total number of sources in y direction
-      dsy   - Spacing between sources along y diection (in samples)
-      osy   - y-sample coordinate of first source [0.0]
-      nrx   - Total number of receivers in x direction [One for every surface location]
-      drx   - Spacing between receivers along x direction (in samples) [1.0]
-      orx   - x-sample coordinate of first receiver [0.0]
-      nry   - Total number of receivers in y direction [One for every surface location]
-      dry   - Spacing between receivers along y direction (in samples) [1.0]
-      ory   - y-sample coordinate of first receiver [0.0]
+      nrec  - number of receivers per shot (int) [number of shots]
+      srcxs - x coordinates of source locations [number of shots]
+      srcys - y coordinates of source locations [number of shots]
+      recxs - x coordinates of receiver locations [number of traces]
+      recys - y coordinates of receiver locations [number of traces]
 
     Returns:
-      a default geom object
+      a coordinate geom object
     """
     # Spatial axes
-    self.__nx = nx; self.__dx = dx
-    self.__ny = ny; self.__dy = dy
-    self.__nz = nz; self.__dz = dz
-    # Source gometry
-    self.__nsx = nsx; self.__osx = osx; self.__dsx = dsx
-    self.__nsy = nsy; self.__osy = osy; self.__dsy = dsy
-    # Build source coordinates
-    self.__scoords = []
-    for isy in range(nsy):
-      sy = int(osy + isy*dsy)
-      for isx in range(nsx):
-        sx = int(osx + isx*dsx)
-        self.__scoords.append([sy,sx])
-    self.__nexp = len(self.__scoords)
-    #TODO: 
-    # might also consider the offset sorting like Paul does
-    # basically, will want to replicate sfsrsyn here
+    self.__nx = nx; self.__ox = ox; self.__dx = dx
+    self.__ny = ny; self.__oy = oy; self.__dy = dy
+    self.__nz = nz; self.__oz = oz; self.__dz = dz
+    ## Source gometry
+    # Check if either is none
+    if(srcxs is None and srcys is None):
+      raise Exception("Must provide either srcx or srcy coordinates")
+    if(srcxs is None):
+      srcxs = np.zeros(len(srcys),dtype='int')
+    if(srcys is None):
+      srcys = np.zeros(len(srcxs),dtype='int')
+    # Make sure coordinates are within the model
+    if(np.any(srcxs >= ox+(nx)*dx) or np.any(srcys >= oy+(ny)*dy)):
+      raise Exception("Source geometry must be within model size")
+    if(np.any(srcxs < ox) or np.any(srcys <  oy)):
+      raise Exception("Source geometry must be within model size")
+    if(len(srcxs) != len(srcys)):
+      raise Exception("Length of srcxs must equal srcys")
+    self.__srcxs = srcxs.astype('float32'); self.__srcys = srcys.astype('float32')
+    # Total number of sources
+    self.__nexp = len(srcxs) 
+    ## Receiver geometry
+    # Check if either is none
+    if(recxs is None and recys is None):
+      raise Exception("Must provide either recx or recy coordinates")
+    if(recxs is None):
+      recxs = np.zeros(len(recys),dtype='int')
+    if(recys is None):
+      recys = np.zeros(len(recxs),dtype='int')
+    # Make sure coordinates are within the model
+    if(np.any(recxs >= ox + nx*dx) or np.any(recys >= oy + ny*dy)):
+      raise Exception("Receiver geometry must be within model size")
+    if(np.any(recxs < ox) or np.any(recys <  oy)):
+      raise Exception("Receiver geometry must be within model size")
+    if(len(recxs) != len(recys)):
+      raise Exception("Each trace must have same number of x and y coordinates")
+    self.__recxs = recxs.astype('float32'); self.__recys = recys.astype('float32')
+    # Number of receivers per shot
+    if(nrec.dtype != 'int'):
+      raise Exception("nrec (number of receivers) must be integer type array")
+    self.__nrec = nrec
+    # Number of traces
+    self.__ntr = len(recxs)
 
     # Frequency axis
-    self.__nwo = None; self.__ow = None; self.__dw = None;
+    self.__nwo = None; self.__ow  = None; self.__dw = None;
+    self.__nwc = None; self.__dwc = None
 
   def get_freq_axis(self):
     """ Returns the frequency axis """
     return self.__nwc,self.__ow,self.__dw
 
   def model_data(self,wav,dt,t0,minf,maxf,vel,ref,jf=1,nrmax=3,eps=0.01,dtmax=5e-05,time=True,
-                 ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=False):
+                 ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=True):
     """
     3D modeling of single scattered (Born) data with the one-way
     wave equation (single square root (SSR), split-step Fourier method).
@@ -84,7 +103,7 @@ class defaultgeom:
       maxf   - maximum frequency to propagate [Hz]
       vel    - input velocity model [nz,ny,nx]
       ref    - input reflectivity model [nz,ny,nx]
-      jf     - frequency decimation factor [1]
+      jf     - frequency decimation factor
       nrmax  - maximum number of reference velocities [3]
       eps    - stability parameter [0.01]
       dtmax  - maximum time error [5e-05]
@@ -93,11 +112,12 @@ class defaultgeom:
       nty    - size of taper in y direction (samples) [0]
       px     - amount of padding in x direction (samples)
       py     - amount of padding in y direction (samples)
-      nthrds - number of OpenMP threads for parallelizing over frequency [1]
+      nthrds - number of OpenMP threads to use for frequency parallelization [1]
       sverb  - verbosity flag for shot progress bar [True]
-      wverb  - verbosity flag for frequency progressbar [False]
+      wverb  - verbosity flag for frequency progress bar [False]
     
-    Returns the data at the surface (in time or frequency) [nw,nry,nrx]
+    Returns: 
+      the data at the surface (in time or frequency) [nw,nry,nrx]
     """
     # Save wavelet temporal parameters
     nt = wav.shape[0]; it0 = int(t0/dt)
@@ -121,48 +141,53 @@ class defaultgeom:
     slo = 1/vel
     ssf.set_slows(slo)
 
-    # Allocate output data (surface wavefield)
-    datw = np.zeros([self.__nexp,self.__nwc,self.__ny,self.__nx],dtype='complex64')
+    # Allocate output data (surface wavefield) and receiver data
+    datw  = np.zeros([self.__nwc,self.__ny,self.__nx],dtype='complex64')
+    recw  = np.zeros([self.__ntr,self.__nwc],dtype='complex64')
 
     # Allocate the source for one shot
     sou = np.zeros([self.__nwc,self.__ny,self.__nx],dtype='complex64')
 
     # Loop over sources
-    k = 0
-    for icrd in progressbar(self.__scoords,"nexp:"):
+    ntr = 0
+    for iexp in progressbar(range(self.__nexp),"nexp:"):
       # Get the source coordinates
-      sy = icrd[0]; sx = icrd[1]
+      sy = self.__srcys[iexp]; sx = self.__srcxs[iexp]
+      isy = int((sy-self.__oy)/self.__dy+0.5); isx = int((sx-self.__ox)/self.__dx+0.5)
       # Create the source for this shot
       sou[:] = 0.0; 
-      sou[:,sy,sx]  = wfftd[:]
+      sou[:,isy,isx]  = wfft[:]
       # Downward continuation
-      ssf.modallw(ref,sou,datw[k],nthrds,wverb)
-      k += 1
-
-    # Reshape output data
-    datwr = datw.reshape([self.__nsy,self.__nsx,self.__nwc,self.__ny,self.__nx])
+      datw[:] = 0.0
+      ssf.modallw(ref,sou,datw,nthrds,wverb)
+      # Restrict to receiver locations
+      datwt = np.ascontiguousarray(np.transpose(datw,(1,2,0)))  # [nwc,ny,nx] -> [ny,nx,nwc]
+      ssf.restrict_data(self.__nrec[iexp],self.__recys[ntr:],self.__recxs[ntr:],self.__oy,self.__ox,datwt,recw[ntr:,:])
+      # Increase number of traces
+      ntr += self.__nrec[iexp]
 
     if(time):
       # Inverse fourier transform
-      datt = self.data_f2t(datwr,self.__nwo,self.__ow,self.__dwc,nt,it0)
-      return datt
+      #TODO: need to modify this program (how to handle frequency decimation?)
+      rect = self.data_f2t(recw,self.__nwo,self.__ow,self.__dw,nt,it0)
+      return rect
     else:
-      return datwr
+      return recw
 
   def image_data(self,dat,dt,minf,maxf,vel,jf=1,nhx=0,nhy=0,sym=True,nrmax=3,eps=0.01,dtmax=5e-05,wav=None,
-                 ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=False):
+                 ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=True):
     """
     3D migration of shot profile data via the one-way wave equation (single-square
     root split-step fourier method). Input data are assumed to follow
     the default geometry (sources and receivers on a regular grid)
 
     Parameters:
-      dat    - input shot profile data [nsy,nsx,nry,nrx,nt]
+      dat    - input shot profile data [ntr,nt]
       dt     - temporal sampling of input data
       minf   - minimum frequency to image in the data [Hz]
       maxf   - maximum frequency to image in the data [Hz]
       vel    - input migration velocity model [nz,ny,nx]
-      jf     - frequency decimation factor
+      jf     - frequency decimation factor [1]
       nhx    - number of subsurface offsets in x to compute [0]
       nhy    - number of subsurface offsets in y to compute [0]
       sym    - symmetrize the subsurface offsets [True]
@@ -174,13 +199,17 @@ class defaultgeom:
       nty    - size of taper in y direction [0]
       px     - amount of padding in x direction (samples) [0]
       py     - amount of padding in y direction (samples) [0]
-      nthrds - number of OpenMP threads for parallelizing over frequency [1]
+      nthrds - number of OpenMP threads for frequency parallelization [1]
       sverb  - verbosity flag for shot progress bar [True]
       wverb  - verbosity flag for frequency progress bar [False]
 
     Returns:
       an image created from the data [nhy,nhx,nz,ny,nx]
     """
+    # Make sure data are same size as coordinates
+    if(dat.shape[0] != self.__ntr):
+      raise Exception("Data must have same number of traces passed to constructor")
+
     # Get temporal axis
     nt = dat.shape[-1]
 
@@ -198,8 +227,10 @@ class defaultgeom:
     # Create frequency domain data
     _,_,_,dfft = self.fft1(dat,dt,minf=minf,maxf=maxf)
     dfftd = dfft[:,::jf]
-    datt = np.transpose(dfftd,(0,1,4,2,3)) # [nsy,nsx,ny,nx,nwc] -> [nsy,nsx,nwc,ny,nx] 
-    datw = np.ascontiguousarray(datt.reshape([self.__nexp,self.__nwc,self.__ny,self.__nx]))
+    # Allocate the data for one shot
+    datw = np.zeros([self.__ny,self.__nx,self.__nwc],dtype='complex64')
+    # Allocate the source for one shot
+    sou = np.zeros([self.__nwc,self.__ny,self.__nx],dtype='complex64')
 
     # Single square root object
     ssf = ssr3(self.__nx ,self.__ny,self.__nz ,     # Spatial Sizes
@@ -221,24 +252,28 @@ class defaultgeom:
       else:
         imgar = np.zeros([self.__nexp,nhy+1,nhx+1,self.__nz,self.__ny,self.__nx],dtype='float32')
 
-    # Allocate the source for one shot
-    sou = np.zeros([self.__nwc,self.__ny,self.__nx],dtype='complex64')
-
     # Loop over sources
-    k = 0
-    for icrd in progressbar(self.__scoords,"nexp:"):
+    ntr = 0
+    for iexp in progressbar(range(self.__nexp),"nexp:"):
+    #for iexp in progressbar(range(2),"nexp:"):
       # Get the source coordinates
-      sy = icrd[0]; sx = icrd[1]
-      # Create the source for this shot
+      sy = self.__srcys[iexp]; sx = self.__srcxs[iexp]
+      isy = int((sy-self.__oy)/self.__dy+0.5); isx = int((sx-self.__ox)/self.__dx+0.5)
+      # Create the source wavefield for this shot
       sou[:] = 0.0
-      sou[:,sy,sx]  = wfftd[:]
+      sou[:,isy,isx]  = wfftd[:]
+      # Inject the data for this shot
+      datw[:] = 0.0
+      ssf.inject_data(self.__nrec[iexp],self.__recys[ntr:],self.__recxs[ntr:],self.__oy,self.__ox,dfftd[ntr:,:],datw)
+      datwt = np.ascontiguousarray(np.transpose(datw,(2,0,1))) # [ny,nx,nwc] -> [nwc,ny,nx]
       if(nhx == 0 and nhy == 0):
         # Conventional imaging
-        ssf.migallw(datw[k],sou,imgar[k],nthrds,wverb)
+        ssf.migallw(datwt,sou,imgar[iexp],nthrds,wverb)
       else:
         # Extended imaging
-        ssf.migoffallw(datw[k],sou,nhy,nhx,sym,imgar[k],nthrds,wverb)
-      k += 1
+        ssf.migoffallw(datwt,sou,nhy,nhx,sym,imgar[iexp],nthrds,wverb)
+      # Increase number of traces
+      ntr += self.__nrec[iexp]
 
     # Sum over all partial images
     img = np.sum(imgar,axis=0)
@@ -293,20 +328,20 @@ class defaultgeom:
     # Compute size for FFT
     nt = 2*(nw-1)
     # Transpose the data so frequency is on fast axis
-    datt = np.transpose(dat,(0,1,3,4,2)) # [nsy,nsx,nwc,ny,nx] -> [nsy,nsx,ny,nx,nwc]
+    datt = np.transpose(dat,(0,2,3,1)) # [nexp,nwc,ny,nx] -> [nexp,ny,nx,nwc]
     # Pad to the original frequency range
     padb = int(ow/dw); pade = nw - nwc - padb
-    dattpad  = np.pad(datt,((0,0),(0,0),(0,0),(0,0),(padb,pade)),mode='constant')  # [*,nwc] -> [*,nw]
+    dattpad  = np.pad(datt,((0,0),(0,0),(0,0),(padb,pade)),mode='constant')  # [*,nwc] -> [*,nw]
     # Pad for the inverse FFT
-    dattpadp = np.pad(dattpad,((0,0),(0,0),(0,0),(0,0),(0,nt-nw)),mode='constant') # [*,nw] -> [*,nt]
+    dattpadp = np.pad(dattpad,((0,0),(0,0),(0,0),(0,nt-nw)),mode='constant') # [*,nw] -> [*,nt]
     # Inverse FFT and window to t0 (wavelet shift)
     datf2t = np.real(np.fft.ifft(dattpadp))
     if(it0 is not None):
-      datf2tw = datf2t[:,:,:,:,it0:]
+      datf2tw = datf2t[:,:,:,it0:]
     else:
       datf2tw = datf2t
     # Pad and transpose
-    datf2tp = np.pad(datf2tw,((0,0),(0,0),(0,0),(0,0),(0,n1-(nt-it0))),mode='constant')
+    datf2tp = np.pad(datf2tw,((0,0),(0,0),(0,0),(0,n1-(nt-it0))),mode='constant')
 
     return datf2tp
 

@@ -112,18 +112,12 @@ void ssr3::ssr3ssf_modallw(float *ref, std::complex<float> *wav, std::complex<fl
     fprintf(stderr,"Must run set_slows before modeling or migration\n");
   }
 
-  //plt::imshow((const float *)ref,_nz,_nx,1); plt::show();
-  //plotimg_cmplx(_nz,_nx,wav,0);
-  //plt::imshow((const float *)_slo,_nz,_nx,1); plt::show();
-  //plt::imshow((const float *)_sloref,_nz,_nrmax,1); plt::show();
-
   /* Set up printing if verbosity is desired */
    int *widx = new int[nthrds]();
    int csize = (int)_nw/nthrds;
    bool firstiter = true;
 
-  // wav dimensions (w, y, x)
-  /* Loop over frequency (will be parallelized with OpenMP/TBB) */
+  /* Loop over frequency */
   omp_set_num_threads(nthrds);
 #pragma omp parallel for default(shared)
   for(int iw = 0; iw < _nw; ++iw) {
@@ -192,6 +186,7 @@ void ssr3::ssr3ssf_modonew(int iw, float *ref, std::complex<float> *wav, std::co
 void ssr3::restrict_data(int nrec, float *recy, float *recx, float oy, float ox,
                          std::complex<float> *dat, std::complex<float> *rec) {
 
+  /* Loop over receivers */
   for(int ir = 0; ir < nrec; ++ir) {
     int iry = (recy[ir]-oy)/_dy + 0.5;
     int irx = (recx[ir]-ox)/_dx + 0.5;
@@ -203,6 +198,7 @@ void ssr3::restrict_data(int nrec, float *recy, float *recx, float oy, float ox,
 void ssr3::inject_data(int nrec, float *recy, float *recx, float oy, float ox,
                               std::complex<float> *rec, std::complex<float> *dat) {
 
+  /* Loop over receivers */
   for(int ir = 0; ir < nrec; ++ir) {
     int iry = (recy[ir]-oy)/_dy + 0.5;
     int irx = (recx[ir]-ox)/_dx + 0.5;
@@ -217,22 +213,19 @@ void ssr3::ssr3ssf_migallw(std::complex<float> *dat, std::complex<float> *wav, f
   }
 
   /* Set up printing if verbosity is desired */
-     int *widx = new int[nthrds]();
-     int csize = (int)_nw/nthrds;
-     bool firstiter = true;
+  int *widx = new int[nthrds]();
+  int csize = (int)_nw/nthrds;
+  bool firstiter = true;
 
-  // wav dimensions (w, y, x)
-  /* Loop over frequency (will be parallelized with OpenMP/TBB) */
+  /* Loop over frequency */
      omp_set_num_threads(nthrds);
 #pragma omp parallel for default(shared)
   for(int iw = 0; iw < _nw; ++iw) {
-    /* Migrate data for current frequency */
+    /* Verbosity */
     if(firstiter && verb) widx[omp_get_thread_num()] = iw;
     if(verb) printprogress_omp("nw:",iw-widx[omp_get_thread_num()],csize,omp_get_thread_num());
+    /* Migrate data for current frequency */
     ssr3ssf_migonew(iw, dat + iw*_nx*_ny, wav + iw*_nx*_ny, img);
-    //XXX: probably need an omp critical here. Perhaps can store and accumulate images for each thread
-    // to do that, will need to pass the thread number to migonew and allocate an array
-    // to store each image for each thread
     firstiter = false;
   }
   if(verb) printf("\n");
@@ -291,18 +284,15 @@ void ssr3::ssr3ssf_migoffallw(std::complex<float> *dat, std::complex<float> *wav
   int csize = (int)_nw/nthrds;
   bool firstiter = true;
 
-  // wav dimensions (w, y, x)
-  /* Loop over frequency (will be parallelized with OpenMP/TBB) */
+  /* Loop over frequency */
   omp_set_num_threads(nthrds);
 #pragma omp parallel for default(shared)
   for(int iw = 0; iw < _nw; ++iw) {
-    /* Migrate data for current frequency */
+    /* Verbosity */
     if(firstiter && verb) widx[omp_get_thread_num()] = iw;
     if(verb) printprogress_omp("nw:",iw-widx[omp_get_thread_num()],csize,omp_get_thread_num());
+    /* Migrate data for current frequency */
     ssr3ssf_migoffonew(iw, dat + iw*_nx*_ny, wav + iw*_nx*_ny, bly, ely, blx, elx, img);
-    //XXX: probably need an omp critical here. Perhaps can store and accumulate images for each thread
-    // to do that, will need to pass the thread number to migonew and allocate an array
-    // to store each image for each thread
     firstiter = false;
   }
   if(verb) printf("\n");
@@ -335,6 +325,7 @@ void ssr3::ssr3ssf_migoffonew(int iw, std::complex<float> *dat, std::complex<flo
     ssr3ssf(ws, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, sslc);
     ssr3ssf(wr, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, rslc);
     /* Loops over lags */
+#pragma omp critical
     for(int ily = bly; ily <= ely; ++ily) {
       for(int ilx = blx; ilx <= elx; ++ilx) {
         /* Imaging condition (should do this on ISPC) */
@@ -509,7 +500,6 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
 
 }
 
-
 int ssr3::nrefs(int nrmax, float ds, int ns, float *slo, float *sloref) {
 
   /* Temporary slowness array */
@@ -648,9 +638,7 @@ void ssr3::fft2(bool inv, kiss_fft_cpx *pp) {
     /* Scaling */
     for(int iy = 0; iy < _by; ++iy) {
       for(int ix = 0; ix < _bx; ++ix) {
-        //fprintf(stderr,"ix=%d pp=%f+%fi\n",ix,pp[iy*_bx+ix].r,pp[iy*_bx+ix].i);
         pp[iy*_bx + ix] = cmul(pp[iy*_bx + ix],1/sqrtf(_bx*_by));
-        //fprintf(stderr,"ix=%d pp=%f+%fi\n",ix,pp[iy*_bx+ix].r,pp[iy*_bx+ix].i);
       }
     }
 

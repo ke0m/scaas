@@ -5,6 +5,7 @@ import oway.defaultgeom as geom
 from  scaas.trismooth import smooth
 import matplotlib.pyplot as plt
 from utils.movie import viewimgframeskey
+import time
 
 sep = seppy.sep()
 
@@ -34,8 +35,10 @@ velin[:,0,:] = vel[:]
 wei = geom.defaultgeom(nx=nx,dx=dx,ny=ny,dy=dy,nz=nz,dz=dz,
                        nsx=nsx,dsx=dsx,osx=osx,nsy=1,dsy=1.0)
 
+beg = time.time()
 img = wei.image_data(datin,dt,minf=1.0,maxf=31.0,vel=velin,nhx=16,sym=True,ntx=15,
-                     nthrds=1,wverb=True)
+                     nthrds=4,wverb=False)
+print("Elapsed=%f s"%(time.time() - beg))
 
 print(img.shape)
 

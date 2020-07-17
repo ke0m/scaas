@@ -119,7 +119,7 @@ class defaultgeom:
 
     # Compute slowness and reference slownesses
     slo = 1/vel
-    ssf.set_slows(slo,False)
+    ssf.set_slows(slo)
 
     # Allocate output data (surface wavefield)
     datw = np.zeros([self.__nexp,self.__nwc,self.__ny,self.__nx],dtype='complex64')
@@ -210,7 +210,7 @@ class defaultgeom:
 
     # Compute slowness and reference slownesses
     slo = 1/vel
-    ssf.set_slows(slo,False)
+    ssf.set_slows(slo)
 
     # Allocate partial image array 
     if(nhx == 0 and nhy == 0):

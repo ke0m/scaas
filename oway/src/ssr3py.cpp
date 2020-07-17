@@ -27,13 +27,12 @@ PYBIND11_MODULE(ssr3,m) {
           py::arg("ntx"),py::arg("nty"),py::arg("px"),py::arg("py"),
           py::arg("dtmax"),py::arg("nrmax"))
       .def("set_slows", [] (ssr3 &sr3d,
-              py::array_t<float, py::array::c_style> slo,
-              bool zoff
+              py::array_t<float, py::array::c_style> slo
               )
               {
-                sr3d.set_slows(slo.mutable_data(), zoff);
+                sr3d.set_slows(slo.mutable_data());
               },
-              py::arg("slo"), py::arg("zoff")
+              py::arg("slo")
           )
       .def("modallw",[](ssr3 &sr3d,
               py::array_t<float, py::array::c_style> ref,

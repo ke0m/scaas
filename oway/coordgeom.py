@@ -139,7 +139,7 @@ class coordgeom:
 
     # Compute slowness and reference slownesses
     slo = 1/vel
-    ssf.set_slows(slo)
+    ssf.set_slows(slo,False)
 
     # Allocate output data (surface wavefield) and receiver data
     datw  = np.zeros([self.__nwc,self.__ny,self.__nx],dtype='complex64')
@@ -241,7 +241,7 @@ class coordgeom:
 
     # Compute slowness and reference slownesses
     slo = 1/vel
-    ssf.set_slows(slo)
+    ssf.set_slows(slo,False)
 
     # Allocate partial image array
     if(nhx == 0 and nhy == 0):

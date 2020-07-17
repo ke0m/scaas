@@ -2,6 +2,7 @@ import numpy as np
 import segyio
 import inpout.seppy as seppy
 import re
+from oway.costaper import costaper
 import matplotlib.pyplot as plt
 
 def parse_text_header(segyfile):
@@ -73,8 +74,12 @@ for isx in range(nsx):
   isht  = data[sidxs,:]
   zodata[isx,:] = isht[zoidx,:]
 
-ns = int(1/dt)
+# Zero direct arrival
+ns = int(1/dt+1)
 zodata[:,:ns] = 0.0
+
+# Apply taper
+zotap = costaper(zodata,nw2=10)
 
 #plt.figure()
 #plt.imshow(zodata.T,cmap='gray',interpolation='sinc',vmin=-0.01,vmax=0.01,aspect='auto')
@@ -83,7 +88,7 @@ zodata[:,:ns] = 0.0
 dzo = srcx[1] - srcx[0]; ozo = srcx[0]
 
 sep = seppy.sep()
-sep.write_file("sigsbee_zodata.H",zodata.T,os=[0.0,ozo],ds=[dt,dzo])
+sep.write_file("sigsbee_zodata.H",zotap.T,os=[0.0,ozo],ds=[dt,dzo])
 
 fdat.close(); fvel.close()
 

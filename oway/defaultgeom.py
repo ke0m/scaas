@@ -59,6 +59,9 @@ class defaultgeom:
         sx = int(osx + isx*dsx)
         self.__scoords.append([sy,sx])
     self.__nexp = len(self.__scoords)
+    #TODO: 
+    # might also consider the offset sorting like Paul does
+    # basically, will want to replicate sfsrsyn here
 
     # Frequency axis
     self.__nwo = None; self.__ow = None; self.__dw = None;
@@ -93,7 +96,7 @@ class defaultgeom:
       nthrds - number of OpenMP threads for parallelizing over frequency [1]
       sverb  - verbosity flag for shot progress bar [True]
       wverb  - verbosity flag for frequency progressbar [False]
-
+    
     Returns the data at the surface (in time or frequency) [nw,nry,nrx]
     """
     # Save wavelet temporal parameters
@@ -116,7 +119,7 @@ class defaultgeom:
 
     # Compute slowness and reference slownesses
     slo = 1/vel
-    ssf.set_slows(slo,False)
+    ssf.set_slows(slo)
 
     # Allocate output data (surface wavefield)
     datw = np.zeros([self.__nexp,self.__nwc,self.__ny,self.__nx],dtype='complex64')
@@ -130,7 +133,7 @@ class defaultgeom:
       # Get the source coordinates
       sy = icrd[0]; sx = icrd[1]
       # Create the source for this shot
-      sou[:] = 0.0
+      sou[:] = 0.0; 
       sou[:,sy,sx]  = wfftd[:]
       # Downward continuation
       ssf.modallw(ref,sou,datw[k],nthrds,wverb)
@@ -195,7 +198,7 @@ class defaultgeom:
     # Create frequency domain data
     _,_,_,dfft = self.fft1(dat,dt,minf=minf,maxf=maxf)
     dfftd = dfft[:,::jf]
-    datt = np.transpose(dfftd,(0,1,4,2,3)) # [nsy,nsx,ny,nx,nwc] -> [nsy,nsx,nwc,ny,nx]
+    datt = np.transpose(dfftd,(0,1,4,2,3)) # [nsy,nsx,ny,nx,nwc] -> [nsy,nsx,nwc,ny,nx] 
     datw = np.ascontiguousarray(datt.reshape([self.__nexp,self.__nwc,self.__ny,self.__nx]))
 
     # Single square root object
@@ -207,9 +210,9 @@ class defaultgeom:
 
     # Compute slowness and reference slownesses
     slo = 1/vel
-    ssf.set_slows(slo,False)
+    ssf.set_slows(slo)
 
-    # Allocate partial image array
+    # Allocate partial image array 
     if(nhx == 0 and nhy == 0):
       imgar = np.zeros([self.__nexp,self.__nz,self.__ny,self.__nx],dtype='float32')
     else:
@@ -253,7 +256,7 @@ class defaultgeom:
       minf - the minimum frequency for windowing the spectrum [Hz]
       maxf - the maximum frequency for windowing the spectrum
 
-    Returns:
+    Returns: 
       the frequency domain data (frequency is fast axis) and the
       frequency axis [nw,ow,dw]
     """

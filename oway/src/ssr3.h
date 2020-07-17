@@ -4,7 +4,7 @@
  * Based on the ssr3.c functions from Paul Sava in Madagascar
  *
  * @author: Joseph Jennings
- * @version: 2020.07.16
+ * @version: 2020.07.17
  */
 
 #ifndef SSR3_H_
@@ -20,7 +20,7 @@ class ssr3{
          int nw, float ow, float dw, float eps,
          int ntx, int nty, int px, int py,
          float dtmax, int nrmax);
-    void set_slows(float *slo, bool zoff);
+    void set_slows(float *slo);
     void ssr3ssf_modonew(int iw, float *ref, std::complex<float> *wav, std::complex<float> *dat);
     void ssr3ssf_modallw(float *ref, std::complex<float> *wav, std::complex<float> *dat, int nthrds, bool verb);
     void restrict_data(int nrec, float *recy, float *recx, float oy, float ox,

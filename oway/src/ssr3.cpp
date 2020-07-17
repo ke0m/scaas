@@ -36,31 +36,20 @@ ssr3::ssr3(int nx,   int ny,   int nz,
   _slo = NULL;
 }
 
-void ssr3::set_slows(float *slo, bool zoff) {
+void ssr3::set_slows(float *slo) {
 
   /* First set the migration slowness */
   _slo = slo;
 
   /* Compute number of reference slownesses with depth */
   for(int iz = 0; iz < _nz; ++iz) {
-    _nr[iz] = nrefs(_nrmax, _dsmax, _nx*_ny, slo + iz*_nx*_ny, _sloref + _nrmax*iz);
+    _nr[iz] = nrefs(_nrmax, _dsmax, _nx*_ny, _slo + iz*_nx*_ny, _sloref + _nrmax*iz);
   }
 
   /* Build reference slownesses */
   for(int iz = 0; iz < _nz-1; ++iz) {
     for(int ir = 0; ir < _nr[iz]; ++ir) {
       _sloref[iz*_nrmax + ir] = 0.5*(_sloref[iz*_nrmax + ir] + _sloref[(iz+1)*_nrmax + ir]);
-    }
-  }
-
-  if(zoff) {
-    /* For computing two-way travel-times for zero-offset imaging */
-    for(int iz = 0; iz < _nz; ++iz) {
-      for(int iy = 0; iy < _ny; ++iy) {
-        for(int ix = 0; ix < _ny; ++ix) {
-          _slo[iz*_nx*_ny + iy*_nx + ix] *= 2;
-        }
-      }
     }
   }
 
@@ -74,9 +63,9 @@ void ssr3::ssr3ssf_modallw(float *ref, std::complex<float> *wav, std::complex<fl
   }
 
   /* Set up printing if verbosity is desired */
-   int *widx = new int[nthrds]();
-   int csize = (int)_nw/nthrds;
-   bool firstiter = true;
+  int *widx = new int[nthrds]();
+  int csize = (int)_nw/nthrds;
+  bool firstiter = true;
 
   /* Loop over frequency */
   omp_set_num_threads(nthrds);
@@ -135,6 +124,7 @@ void ssr3::ssr3ssf_modonew(int iw, float *ref, std::complex<float> *wav, std::co
 
 void ssr3::restrict_data(int nrec, float *recy, float *recx, float oy, float ox,
                          std::complex<float> *dat, std::complex<float> *rec) {
+
   /* Loop over receivers */
   for(int ir = 0; ir < nrec; ++ir) {
     int iry = (recy[ir]-oy)/_dy + 0.5;
@@ -145,7 +135,8 @@ void ssr3::restrict_data(int nrec, float *recy, float *recx, float oy, float ox,
 }
 
 void ssr3::inject_data(int nrec, float *recy, float *recx, float oy, float ox,
-                              std::complex<float> *rec, std::complex<float> *dat) {
+                       std::complex<float> *rec, std::complex<float> *dat) {
+
   /* Loop over receivers */
   for(int ir = 0; ir < nrec; ++ir) {
     int iry = (recy[ir]-oy)/_dy + 0.5;
@@ -166,12 +157,13 @@ void ssr3::ssr3ssf_migallw(std::complex<float> *dat, std::complex<float> *wav, f
   bool firstiter = true;
 
   /* Loop over frequency */
-     omp_set_num_threads(nthrds);
+  omp_set_num_threads(nthrds);
 #pragma omp parallel for default(shared)
   for(int iw = 0; iw < _nw; ++iw) {
     /* Verbosity */
-    if(firstiter && verb) widx[omp_get_thread_num()] = iw;
-    if(verb) printprogress_omp("nw:",iw-widx[omp_get_thread_num()],csize,omp_get_thread_num());
+    int wthd = omp_get_thread_num();
+    if(firstiter && verb) widx[wthd] = iw;
+    if(verb) printprogress_omp("nw:",iw-widx[wthd],csize,wthd);
     /* Migrate data for current frequency */
     ssr3ssf_migonew(iw, dat + iw*_nx*_ny, wav + iw*_nx*_ny, img);
     firstiter = false;
@@ -237,8 +229,9 @@ void ssr3::ssr3ssf_migoffallw(std::complex<float> *dat, std::complex<float> *wav
 #pragma omp parallel for default(shared)
   for(int iw = 0; iw < _nw; ++iw) {
     /* Verbosity */
-    if(firstiter && verb) widx[omp_get_thread_num()] = iw;
-    if(verb) printprogress_omp("nw:",iw-widx[omp_get_thread_num()],csize,omp_get_thread_num());
+    int wthd = omp_get_thread_num();
+    if(firstiter && verb) widx[wthd] = iw;
+    if(verb) printprogress_omp("nw:",iw-widx[wthd],csize,wthd);
     /* Migrate data for current frequency */
     ssr3ssf_migoffonew(iw, dat + iw*_nx*_ny, wav + iw*_nx*_ny, bly, ely, blx, elx, img);
     firstiter = false;
@@ -306,8 +299,10 @@ void ssr3::ssr3ssf_modallwzo(float *img, std::complex<float> *dat, int nthrds, b
   omp_set_num_threads(nthrds);
 #pragma omp parallel for default(shared)
   for(int iw = 0; iw < _nw; ++iw) {
-    if(firstiter && verb) widx[omp_get_thread_num()] = iw;
-    if(verb) printprogress_omp("nw:",iw-widx[omp_get_thread_num()],csize,omp_get_thread_num());
+    /* Verbosity*/
+    int wthd = omp_get_thread_num();
+    if(firstiter && verb) widx[wthd] = iw;
+    if(verb) printprogress_omp("nw:",iw-widx[wthd],csize,wthd);
     /* Get wavelet and model data for current frequency */
     ssr3ssf_modonewzo(iw, img, dat + iw*_nx*_ny);
     firstiter = false;
@@ -361,8 +356,9 @@ void ssr3::ssr3ssf_migallwzo(std::complex<float> *dat, float *img, int nthrds, b
 #pragma omp parallel for default(shared)
   for(int iw = 0; iw < _nw; ++iw) {
     /* Verbosity */
-    if(firstiter && verb) widx[omp_get_thread_num()] = iw;
-    if(verb) printprogress_omp("nw:",iw-widx[omp_get_thread_num()],csize,omp_get_thread_num());
+    int wthd = omp_get_thread_num();
+    if(firstiter && verb) widx[wthd] = iw;
+    if(verb) printprogress_omp("nw:",iw-widx[wthd],csize,wthd);
     /* Migrate data for current frequency */
     ssr3ssf_migonewzo(iw, dat + iw*_nx*_ny, img);
     firstiter = false;
@@ -467,8 +463,8 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
 
   /* Free memory */
   delete[] pk; delete[] wk; delete[] wt;
-
 }
+
 void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std::complex<float> *wx) {
 
   /* Temporary arrays */
@@ -685,6 +681,7 @@ void ssr3::fft2(bool inv, kiss_fft_cpx *pp) {
     for(int iy = 0; iy < _ny; ++iy) {
       kiss_fft(_fwd1, pp + iy*_bx, pp + iy*_bx);
     }
+
   }
 
   delete[] ctrace;
@@ -715,4 +712,23 @@ float ssr3::quantile(int q, int n, float *a) {
     if (k<i) hi = j;
   }
   return (*k);
+}
+
+void interp_slow(int nz, int nvy, float ovy, float dvy, int nvx, float ovx, float dvx,
+                 int ny, float oy, float dy, int nx, float ox, float dx,
+                 float *sloin, float *sloot) {
+
+  for(int iz = 0; iz < nz; ++iz) {
+    for(int iy = 0; iy < ny; ++iy) {
+      float y = oy + iy*dy;
+      int icy = (y - ovy)/dvy + 0.5;
+      icy = (icy < 0 ) ? 0 : ( ( icy > nvy-1) ? nvy-1 : icy );
+      for(int ix = 0; ix < nx; ++ix) {
+        float x = ox + ix*dx;
+        int icx = (x - ovx)/dvx + 0.5;
+        icx = (icx < 0 ) ? 0 : ( ( icx > nvx-1) ? nvx-1 : icx );
+        sloot[iz*ny*nx + iy*nx + ix] = sloin[iz*nvy*nvx + icy*nvx + icx];
+      }
+    }
+  }
 }

@@ -71,8 +71,10 @@ void ssr3::ssr3ssf_modallw(float *ref, std::complex<float> *wav, std::complex<fl
   omp_set_num_threads(nthrds);
 #pragma omp parallel for default(shared)
   for(int iw = 0; iw < _nw; ++iw) {
-    if(firstiter && verb) widx[omp_get_thread_num()] = iw;
-    if(verb) printprogress_omp("nw:",iw-widx[omp_get_thread_num()],csize,omp_get_thread_num());
+    /* Verbosity */
+    int wthd = omp_get_thread_num();
+    if(firstiter && verb) widx[wthd] = iw;
+    if(verb) printprogress_omp("nw:",iw-widx[wthd],csize,wthd);
     /* Get wavelet and model data for current frequency */
     ssr3ssf_modonew(iw, ref, wav + iw*_nx*_ny, dat + iw*_nx*_ny);
     firstiter = false;
@@ -129,7 +131,9 @@ void ssr3::restrict_data(int nrec, float *recy, float *recx, float oy, float ox,
   for(int ir = 0; ir < nrec; ++ir) {
     int iry = (recy[ir]-oy)/_dy + 0.5;
     int irx = (recx[ir]-ox)/_dx + 0.5;
-    memcpy(&rec[ir*_nw],&dat[iry*_nw*_nx + irx*_nw],sizeof(std::complex<float>)*_nw);
+    if(iry >= 0 && iry < _ny && irx >=0 && irx < _nx) {
+      memcpy(&rec[ir*_nw],&dat[iry*_nw*_nx + irx*_nw],sizeof(std::complex<float>)*_nw);
+    }
   }
 
 }
@@ -141,7 +145,9 @@ void ssr3::inject_data(int nrec, float *recy, float *recx, float oy, float ox,
   for(int ir = 0; ir < nrec; ++ir) {
     int iry = (recy[ir]-oy)/_dy + 0.5;
     int irx = (recx[ir]-ox)/_dx + 0.5;
-    memcpy(&dat[iry*_nw*_nx + irx*_nw],&rec[ir*_nw],sizeof(std::complex<float>)*_nw);
+    if(iry >= 0 && iry < _ny && irx >= 0 && irx < _nx) {
+      memcpy(&dat[iry*_nw*_nx + irx*_nw],&rec[ir*_nw],sizeof(std::complex<float>)*_nw);
+    }
   }
 }
 
@@ -299,7 +305,7 @@ void ssr3::ssr3ssf_modallwzo(float *img, std::complex<float> *dat, int nthrds, b
   omp_set_num_threads(nthrds);
 #pragma omp parallel for default(shared)
   for(int iw = 0; iw < _nw; ++iw) {
-    /* Verbosity*/
+    /* Verbosity */
     int wthd = omp_get_thread_num();
     if(firstiter && verb) widx[wthd] = iw;
     if(verb) printprogress_omp("nw:",iw-widx[wthd],csize,wthd);
@@ -732,3 +738,4 @@ void interp_slow(int nz, int nvy, float ovy, float dvy, int nvx, float ovx, floa
     }
   }
 }
+

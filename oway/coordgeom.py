@@ -50,9 +50,9 @@ class coordgeom:
       srcys = np.zeros(len(srcxs),dtype='int')
     # Make sure coordinates are within the model
     if(np.any(srcxs >= ox+(nx)*dx) or np.any(srcys >= oy+(ny)*dy)):
-      raise Exception("Source geometry must be within model size")
+      print("Warning: Some source coordinates are greater than model size")
     if(np.any(srcxs < ox) or np.any(srcys <  oy)):
-      raise Exception("Source geometry must be within model size")
+      print("Warning: Some source coordinates are less than model size")
     if(len(srcxs) != len(srcys)):
       raise Exception("Length of srcxs must equal srcys")
     self.__srcxs = srcxs.astype('float32'); self.__srcys = srcys.astype('float32')
@@ -68,9 +68,9 @@ class coordgeom:
       recys = np.zeros(len(recxs),dtype='int')
     # Make sure coordinates are within the model
     if(np.any(recxs >= ox + nx*dx) or np.any(recys >= oy + ny*dy)):
-      raise Exception("Receiver geometry must be within model size")
+      print("Warning: Some receiver coordinates are greater than model size")
     if(np.any(recxs < ox) or np.any(recys <  oy)):
-      raise Exception("Receiver geometry must be within model size")
+      print("Warning: Some receiver coordinates are less than model size")
     if(len(recxs) != len(recys)):
       raise Exception("Each trace must have same number of x and y coordinates")
     self.__recxs = recxs.astype('float32'); self.__recys = recys.astype('float32')
@@ -289,8 +289,7 @@ class coordgeom:
 
     # Loop over sources
     ntr = 0
-    #for iexp in progressbar(range(self.__nexp),"nexp:"):
-    for iexp in progressbar(range(2),"nexp:"):
+    for iexp in progressbar(range(self.__nexp),"nexp:"):
       # Get the source coordinates
       sy = self.__srcys[iexp]; sx = self.__srcxs[iexp]
       isy = int((sy-self.__oy)/self.__dy+0.5); isx = int((sx-self.__ox)/self.__dx+0.5)

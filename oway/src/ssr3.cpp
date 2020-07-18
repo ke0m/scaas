@@ -129,7 +129,9 @@ void ssr3::restrict_data(int nrec, float *recy, float *recx, float oy, float ox,
   for(int ir = 0; ir < nrec; ++ir) {
     int iry = (recy[ir]-oy)/_dy + 0.5;
     int irx = (recx[ir]-ox)/_dx + 0.5;
-    memcpy(&rec[ir*_nw],&dat[iry*_nw*_nx + irx*_nw],sizeof(std::complex<float>)*_nw);
+    if(iry >= 0 && iry < _ny && irx >=0 && irx < _nx) {
+      memcpy(&rec[ir*_nw],&dat[iry*_nw*_nx + irx*_nw],sizeof(std::complex<float>)*_nw);
+    }
   }
 
 }
@@ -141,7 +143,9 @@ void ssr3::inject_data(int nrec, float *recy, float *recx, float oy, float ox,
   for(int ir = 0; ir < nrec; ++ir) {
     int iry = (recy[ir]-oy)/_dy + 0.5;
     int irx = (recx[ir]-ox)/_dx + 0.5;
-    memcpy(&dat[iry*_nw*_nx + irx*_nw],&rec[ir*_nw],sizeof(std::complex<float>)*_nw);
+    if(iry >= 0 && iry < _ny && irx >= 0 && irx < _nx) {
+      memcpy(&dat[iry*_nw*_nx + irx*_nw],&rec[ir*_nw],sizeof(std::complex<float>)*_nw);
+    }
   }
 }
 

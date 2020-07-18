@@ -71,8 +71,10 @@ void ssr3::ssr3ssf_modallw(float *ref, std::complex<float> *wav, std::complex<fl
   omp_set_num_threads(nthrds);
 #pragma omp parallel for default(shared)
   for(int iw = 0; iw < _nw; ++iw) {
-    if(firstiter && verb) widx[omp_get_thread_num()] = iw;
-    if(verb) printprogress_omp("nw:",iw-widx[omp_get_thread_num()],csize,omp_get_thread_num());
+    /* Verbosity */
+    int wthd = omp_get_thread_num();
+    if(firstiter && verb) widx[wthd] = iw;
+    if(verb) printprogress_omp("nw:",iw-widx[wthd],csize,wthd);
     /* Get wavelet and model data for current frequency */
     ssr3ssf_modonew(iw, ref, wav + iw*_nx*_ny, dat + iw*_nx*_ny);
     firstiter = false;
@@ -123,7 +125,7 @@ void ssr3::ssr3ssf_modonew(int iw, float *ref, std::complex<float> *wav, std::co
 }
 
 void ssr3::restrict_data(int nrec, float *recy, float *recx, float oy, float ox,
-    std::complex<float> *dat, std::complex<float> *rec) {
+                         std::complex<float> *dat, std::complex<float> *rec) {
 
   /* Loop over receivers */
   for(int ir = 0; ir < nrec; ++ir) {
@@ -137,7 +139,7 @@ void ssr3::restrict_data(int nrec, float *recy, float *recx, float oy, float ox,
 }
 
 void ssr3::inject_data(int nrec, float *recy, float *recx, float oy, float ox,
-    std::complex<float> *rec, std::complex<float> *dat) {
+                       std::complex<float> *rec, std::complex<float> *dat) {
 
   /* Loop over receivers */
   for(int ir = 0; ir < nrec; ++ir) {
@@ -165,8 +167,9 @@ void ssr3::ssr3ssf_migallw(std::complex<float> *dat, std::complex<float> *wav, f
 #pragma omp parallel for default(shared)
   for(int iw = 0; iw < _nw; ++iw) {
     /* Verbosity */
-    if(firstiter && verb) widx[omp_get_thread_num()] = iw;
-    if(verb) printprogress_omp("nw:",iw-widx[omp_get_thread_num()],csize,omp_get_thread_num());
+    int wthd = omp_get_thread_num();
+    if(firstiter && verb) widx[wthd] = iw;
+    if(verb) printprogress_omp("nw:",iw-widx[wthd],csize,wthd);
     /* Migrate data for current frequency */
     ssr3ssf_migonew(iw, dat + iw*_nx*_ny, wav + iw*_nx*_ny, img);
     firstiter = false;
@@ -206,7 +209,7 @@ void ssr3::ssr3ssf_migonew(int iw, std::complex<float> *dat, std::complex<float>
 }
 
 void ssr3::ssr3ssf_migoffallw(std::complex<float> *dat, std::complex<float> *wav, int nhy, int nhx, bool sym, float *img,
-    int nthrds, bool verb) {
+                              int nthrds, bool verb) {
   /* Check if built reference velocities */
   if(_slo == NULL) {
     fprintf(stderr,"Must run set_slows before modeling or migration\n");
@@ -232,8 +235,9 @@ void ssr3::ssr3ssf_migoffallw(std::complex<float> *dat, std::complex<float> *wav
 #pragma omp parallel for default(shared)
   for(int iw = 0; iw < _nw; ++iw) {
     /* Verbosity */
-    if(firstiter && verb) widx[omp_get_thread_num()] = iw;
-    if(verb) printprogress_omp("nw:",iw-widx[omp_get_thread_num()],csize,omp_get_thread_num());
+    int wthd = omp_get_thread_num();
+    if(firstiter && verb) widx[wthd] = iw;
+    if(verb) printprogress_omp("nw:",iw-widx[wthd],csize,wthd);
     /* Migrate data for current frequency */
     ssr3ssf_migoffonew(iw, dat + iw*_nx*_ny, wav + iw*_nx*_ny, bly, ely, blx, elx, img);
     firstiter = false;
@@ -244,7 +248,7 @@ void ssr3::ssr3ssf_migoffallw(std::complex<float> *dat, std::complex<float> *wav
 }
 
 void ssr3::ssr3ssf_migoffonew(int iw, std::complex<float> *dat, std::complex<float>*wav,
-    int bly, int ely, int blx, int elx, float *img) {
+                              int bly, int ely, int blx, int elx, float *img) {
   /* Temporary arrays (depth slices) */
   std::complex<float> *sslc = new std::complex<float>[_ny*_nx]();
   std::complex<float> *rslc = new std::complex<float>[_ny*_nx]();
@@ -276,7 +280,7 @@ void ssr3::ssr3ssf_migoffonew(int iw, std::complex<float> *dat, std::complex<flo
           for(int ix = begx; ix < endx; ++ix) {
             int imgidx = iz*_nx*_ny + iy*_nx + ix;
             img[(ily+shfy)*_nx*_ny*_nz*nhx + (ilx+shfx)*_nx*_ny*_nz + imgidx]  +=
-                std::real(std::conj(sslc[(iy-ily)*_nx + (ix-ilx)])*rslc[(iy+ily)*_nx + (ix+ilx)]);
+                                 std::real(std::conj(sslc[(iy-ily)*_nx + (ix-ilx)])*rslc[(iy+ily)*_nx + (ix+ilx)]);
           } // x
         } // y
       } // lx
@@ -301,8 +305,10 @@ void ssr3::ssr3ssf_modallwzo(float *img, std::complex<float> *dat, int nthrds, b
   omp_set_num_threads(nthrds);
 #pragma omp parallel for default(shared)
   for(int iw = 0; iw < _nw; ++iw) {
-    if(firstiter && verb) widx[omp_get_thread_num()] = iw;
-    if(verb) printprogress_omp("nw:",iw-widx[omp_get_thread_num()],csize,omp_get_thread_num());
+    /* Verbosity */
+    int wthd = omp_get_thread_num();
+    if(firstiter && verb) widx[wthd] = iw;
+    if(verb) printprogress_omp("nw:",iw-widx[wthd],csize,wthd);
     /* Get wavelet and model data for current frequency */
     ssr3ssf_modonewzo(iw, img, dat + iw*_nx*_ny);
     firstiter = false;
@@ -509,7 +515,7 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
         float d = fabsf(scur[iy*_nx + ix]*scur[iy*_nx + ix] - _sloref[iz*_nrmax + ir]);
         d = _dsmax2/(d*d + _dsmax2);
         wx[iy*_nx + ix] += wk[iy*_bx + ix]*d;
-        wt  [iy*_nx + ix] += d;
+        wt[iy*_nx + ix] += d;
       }
     }
   }

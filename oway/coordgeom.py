@@ -5,7 +5,7 @@ and receiver coordinates
 @version: 2020.07.07
 """
 import numpy as np
-from oway.ssr3 import ssr3
+from oway.ssr3 import ssr3, interp_slow
 from utils.ptyprint import progressbar
 import matplotlib.pyplot as plt
 
@@ -57,7 +57,7 @@ class coordgeom:
       raise Exception("Length of srcxs must equal srcys")
     self.__srcxs = srcxs.astype('float32'); self.__srcys = srcys.astype('float32')
     # Total number of sources
-    self.__nexp = len(srcxs)
+    self.__nexp = len(srcxs) 
     ## Receiver geometry
     # Check if either is none
     if(recxs is None and recys is None):
@@ -89,6 +89,41 @@ class coordgeom:
     """ Returns the frequency axis """
     return self.__nwc,self.__ow,self.__dw
 
+  def interp_vel(self,velin,dvx,dvy,ovx=0.0,ovy=0.0):
+    """ 
+    Lateral nearest-neighbor interpolation of velocity. Use
+    this when imaging grid is different than velocity
+    grid. Assumes the same depth axis for imaging
+    and slowness grid
+
+    Parameters:
+      velin - the input velocity field [nz,nvy,nvx]
+      dvy   - the y sampling of the slowness field
+      dvx   - the x sampling of the slowness field
+      ovy   - the y origin of the slowness field [0.0]
+      ovx   - the x origin of the slowness field [0.0]
+
+    Returns:
+      the interpolated velocity field now same size
+      as output imaging grid [nz,ny,nx]
+    """
+    # Get dimensions
+    [nz,nvy,nvx] = velin.shape
+    if(nz != self.__nz):
+      raise Exception("Slowness depth axis must be same as output image")
+
+    # Output slowness
+    velot = np.zeros([nz,self.__ny,self.__nx],dtype='float32')
+
+    interp_slow(self.__nz,                     # Depth saples
+                nvy,ovy,dvy,                   # Slowness y axis
+                nvx,ovx,dvx,                   # Slowness x axis
+                self.__ny,self.__oy,self.__dy, # Image y axis
+                self.__nx,self.__ox,self.__dx, # Image x axis
+                velin,velot)                   # Inputs and outputs
+
+    return velot
+
   def model_data(self,wav,dt,t0,minf,maxf,vel,ref,jf=1,nrmax=3,eps=0.01,dtmax=5e-05,time=True,
                  ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=True):
     """
@@ -115,8 +150,8 @@ class coordgeom:
       nthrds - number of OpenMP threads to use for frequency parallelization [1]
       sverb  - verbosity flag for shot progress bar [True]
       wverb  - verbosity flag for frequency progress bar [False]
-
-    Returns:
+    
+    Returns: 
       the data at the surface (in time or frequency) [nw,nry,nrx]
     """
     # Save wavelet temporal parameters
@@ -155,7 +190,7 @@ class coordgeom:
       sy = self.__srcys[iexp]; sx = self.__srcxs[iexp]
       isy = int((sy-self.__oy)/self.__dy+0.5); isx = int((sx-self.__ox)/self.__dx+0.5)
       # Create the source for this shot
-      sou[:] = 0.0
+      sou[:] = 0.0; 
       sou[:,isy,isx]  = wfft[:]
       # Downward continuation
       datw[:] = 0.0
@@ -243,7 +278,7 @@ class coordgeom:
     slo = 1/vel
     ssf.set_slows(slo)
 
-    # Allocate partial image array
+    # Allocate partial image array 
     if(nhx == 0 and nhy == 0):
       imgar = np.zeros([self.__nexp,self.__nz,self.__ny,self.__nx],dtype='float32')
     else:
@@ -254,7 +289,8 @@ class coordgeom:
 
     # Loop over sources
     ntr = 0
-    for iexp in progressbar(range(self.__nexp),"nexp:"):
+    #for iexp in progressbar(range(self.__nexp),"nexp:"):
+    for iexp in progressbar(range(2),"nexp:"):
       # Get the source coordinates
       sy = self.__srcys[iexp]; sx = self.__srcxs[iexp]
       isy = int((sy-self.__oy)/self.__dy+0.5); isx = int((sx-self.__ox)/self.__dx+0.5)
@@ -290,7 +326,7 @@ class coordgeom:
       minf - the minimum frequency for windowing the spectrum [Hz]
       maxf - the maximum frequency for windowing the spectrum
 
-    Returns:
+    Returns: 
       the frequency domain data (frequency is fast axis) and the
       frequency axis [nw,ow,dw]
     """
@@ -343,6 +379,39 @@ class coordgeom:
     datf2tp = np.pad(datf2tw,((0,0),(0,0),(0,0),(0,n1-(nt-it0))),mode='constant')
 
     return datf2tp
+
+  def make_sht_cube(self,dat):
+    """
+    Makes a regular cube of shots from the input traces.
+    Assumes that the data are already sorted by common 
+    shot
+
+    Note only works for 2D data at the moment
+
+    Parameters:
+      dat - input shot data [ntr,nt]
+
+    Returns:
+      regular shot cube [nsht,nrx,nt]
+    """
+    # Get data dimensions
+    if(dat.shape != 2):
+      raise Exception("Data must be of dimension [ntr,nt]")
+    nt = dat.shape[1]
+
+    # Get maximum number of receivers
+    nrecxmax = np.max(self.__recxs)
+
+    # Output shot array
+    shots = np.zeros([self.__nexp,nrecxmax,nt],dtype='float32')
+
+    # Loop over all sources
+    ntr = 0
+    for isx in range(self.__nexp):
+      shots[iexp,:self.__nrec[isx],:] = dat[ntr:ntr+self.__nrec[isx],:]
+      ntr += self.__nrec[isx]
+
+    return shots
 
   def next_fast_size(self,n):
     """ Gets the optimal size for computing the FFT """

@@ -1,7 +1,7 @@
 /**
  * Python interface to ssr3.cpp
  * @author: Joseph Jennings
- * @version: 2020.07.14
+ * @version: 2020.07.17
  */
 
 #include <pybind11/pybind11.h>
@@ -145,5 +145,68 @@ PYBIND11_MODULE(ssr3,m) {
              },
              py::arg("iw"), py::arg("dat"), py::arg("wav"), py::arg("bly"), py::arg("ely"),
              py::arg("blx"), py::arg("elx"), py::arg("img")
+          )
+      .def("modallwzo",[](ssr3 &sr3d,
+             py::array_t<float, py::array::c_style> img,
+             py::array_t<std::complex<float>, py::array::c_style> dat,
+             int nthrds,
+             bool verb
+             )
+             {
+               sr3d.ssr3ssf_modallwzo(img.mutable_data(), dat.mutable_data(), nthrds, verb);
+             },
+             py::arg("img"), py::arg("dat"), py::arg("nthrds"), py::arg("verb")
+         )
+     .def("modonewzo",[](ssr3 &sr3d,
+             int iw,
+             py::array_t<float, py::array::c_style> img,
+             py::array_t<std::complex<float>, py::array::c_style> dat
+             )
+             {
+               sr3d.ssr3ssf_modonewzo(iw, img.mutable_data(), dat.mutable_data());
+             },
+             py::arg("iw"), py::arg("img"), py::arg("dat")
+         )
+     .def("migallwzo",[](ssr3 &sr3d,
+             py::array_t<std::complex<float>, py::array::c_style> dat,
+             py::array_t<float, py::array::c_style> img,
+             int nthrds,
+             bool verb
+             )
+             {
+               sr3d.ssr3ssf_migallwzo(dat.mutable_data(), img.mutable_data(), nthrds, verb);
+             },
+             py::arg("dat"), py::arg("img"), py::arg("nthrds"), py::arg("verb")
+         )
+     .def("migonewzo",[](ssr3 &sr3d,
+             int iw,
+             py::array_t<std::complex<float>, py::array::c_style> dat,
+             py::array_t<float, py::array::c_style> img
+             )
+             {
+                sr3d.ssr3ssf_migonewzo(iw, dat.mutable_data(), img.mutable_data());
+             },
+             py::arg("iw"), py::arg("dat"), py::arg("img")
+         );
+      m.def("interp_slow",[] (int nz,
+              int nvy, float ovy, float dvy,
+              int nvx, float ovx, float dvx,
+              int ny , float oy , float dy ,
+              int nx , float ox , float dx ,
+              py::array_t<float, py::array::c_style> sloin,
+              py::array_t<float, py::array::c_style> sloot
+              )
+              {
+                interp_slow(nz,
+                            nvy, ovy, dvy, nvx, ovx, dvx,
+                            ny,  oy,  dy,  nx,  ox,  dx,
+                            sloin.mutable_data(), sloot.mutable_data());
+              },
+              py::arg("nz"),
+              py::arg("nvy"), py::arg("ovy"), py::arg("dvy"),
+              py::arg("nvx"), py::arg("ovx"), py::arg("dvx"),
+              py::arg("ny") , py::arg("oy") , py::arg("dy") ,
+              py::arg("nx") , py::arg("ox") , py::arg("dx") ,
+              py::arg("sloin"), py::arg("sloot")
           );
 }

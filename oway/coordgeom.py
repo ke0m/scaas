@@ -5,7 +5,7 @@ and receiver coordinates
 @version: 2020.07.07
 """
 import numpy as np
-from oway.ssr3 import ssr3
+from oway.ssr3 import ssr3, interp_slow
 from utils.ptyprint import progressbar
 import matplotlib.pyplot as plt
 
@@ -88,6 +88,41 @@ class coordgeom:
   def get_freq_axis(self):
     """ Returns the frequency axis """
     return self.__nwc,self.__ow,self.__dw
+
+  def interp_vel(self,velin,dvx,dvy,ovx=0.0,ovy=0.0):
+    """ 
+    Lateral nearest-neighbor interpolation of velocity. Use
+    this when imaging grid is different than velocity
+    grid. Assumes the same depth axis for imaging
+    and slowness grid
+
+    Parameters:
+      velin - the input velocity field [nz,nvy,nvx]
+      dvy   - the y sampling of the slowness field
+      dvx   - the x sampling of the slowness field
+      ovy   - the y origin of the slowness field [0.0]
+      ovx   - the x origin of the slowness field [0.0]
+
+    Returns:
+      the interpolated velocity field now same size
+      as output imaging grid [nz,ny,nx]
+    """
+    # Get dimensions
+    [nz,nvy,nvx] = velin.shape
+    if(nz != self.__nz):
+      raise Exception("Slowness depth axis must be same as output image")
+
+    # Output slowness
+    velot = np.zeros([nz,self.__ny,self.__nx],dtype='float32')
+
+    interp_slow(self.__nz,                     # Depth saples
+                nvy,ovy,dvy,                   # Slowness y axis
+                nvx,ovx,dvx,                   # Slowness x axis
+                self.__ny,self.__oy,self.__dy, # Image y axis
+                self.__nx,self.__ox,self.__dx, # Image x axis
+                velin,velot)                   # Inputs and outputs
+
+    return velot
 
   def model_data(self,wav,dt,t0,minf,maxf,vel,ref,jf=1,nrmax=3,eps=0.01,dtmax=5e-05,time=True,
                  ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=True):
@@ -344,6 +379,39 @@ class coordgeom:
     datf2tp = np.pad(datf2tw,((0,0),(0,0),(0,0),(0,n1-(nt-it0))),mode='constant')
 
     return datf2tp
+
+  def make_sht_cube(self,dat):
+    """
+    Makes a regular cube of shots from the input traces.
+    Assumes that the data are already sorted by common 
+    shot
+
+    Note only works for 2D data at the moment
+
+    Parameters:
+      dat - input shot data [ntr,nt]
+
+    Returns:
+      regular shot cube [nsht,nrx,nt]
+    """
+    # Get data dimensions
+    if(dat.shape != 2):
+      raise Exception("Data must be of dimension [ntr,nt]")
+    nt = dat.shape[1]
+
+    # Get maximum number of receivers
+    nrecxmax = np.max(self.__recxs)
+
+    # Output shot array
+    shots = np.zeros([self.__nexp,nrecxmax,nt],dtype='float32')
+
+    # Loop over all sources
+    ntr = 0
+    for isx in range(self.__nexp):
+      shots[iexp,:self.__nrec[isx],:] = dat[ntr:ntr+self.__nrec[isx],:]
+      ntr += self.__nrec[isx]
+
+    return shots
 
   def next_fast_size(self,n):
     """ Gets the optimal size for computing the FFT """

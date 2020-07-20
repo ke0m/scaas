@@ -3,10 +3,11 @@ Default geometry for synthetics
 Sources and receivers on the surface
 and distributed evenly across the surface
 @author: Joseph Jennings
-@version: 2020.07.07
+@version: 2020.07.20
 """
 import numpy as np
 from oway.ssr3 import ssr3, interp_slow
+from scaas.off2ang import off2ang
 from utils.ptyprint import progressbar
 import matplotlib.pyplot as plt
 
@@ -62,6 +63,13 @@ class defaultgeom:
 
     # Frequency axis
     self.__nwo = None; self.__ow = None; self.__dw = None;
+
+    # Subsurface offsets
+    self.__rnhx = None; self.__ohx = None; self.__dhx = None
+    self.__rnhy = None; self.__ohy = None; self.__dhy = None
+
+    # Angle
+    self.__na = None; self.__oa = None; self.__da = None
 
   def get_freq_axis(self):
     """ Returns the frequency axis """
@@ -249,9 +257,17 @@ class defaultgeom:
       imgar = np.zeros([self.__nexp,self.__nz,self.__ny,self.__nx],dtype='float32')
     else:
       if(sym):
-        imgar = np.zeros([self.__nexp,2*nhy+1,2*nhx+1,self.__nz,self.__ny,self.__nx],dtype='float32')
+        # Create axes
+        self.__rnhx = 2*nhx+1; self.__ohx = -nhx*self.__dx; self.__dhx = self.__dx
+        self.__rnhy = 2*nhy+1; self.__ohy = -nhy*self.__dy; self.__dhy = self.__dy
+        # Allocate image array
+        imgar = np.zeros([self.__nexp,self.__rnhy,self.__rnhx,self.__nz,self.__ny,self.__nx],dtype='float32')
       else:
-        imgar = np.zeros([self.__nexp,nhy+1,nhx+1,self.__nz,self.__ny,self.__nx],dtype='float32')
+        # Create axes
+        self.__rnhx = nhx+1; self.__ohx = 0; self.__dhx = self.__dx
+        self.__rnhy = nhy+1; self.__ohy = 0; self.__dhy = self.__dy
+        # Allocate image array
+        imgar = np.zeros([self.__nexp,self.__rnhy,self.__rnhx,self.__nz,self.__ny,self.__nx],dtype='float32')
 
     # Allocate the source for one shot
     sou = np.zeros([self.__nwc,self.__ny,self.__nx],dtype='complex64')
@@ -276,6 +292,12 @@ class defaultgeom:
     img = np.sum(imgar,axis=0)
 
     return img
+
+  def get_off_axis(self):
+    """ Returns the x subsurface offset extension axis """
+    if(self.__rnhx is None):
+      raise Exception("Cannot return x subsurface offset axis without running extended imaging")
+    return self.__rnhx, self.__ohx, self.__dhx
 
   def fft1(self,sig,dt,minf,maxf):
     """
@@ -354,6 +376,32 @@ class defaultgeom:
       n += 1
 
     return n
+
+  def to_angle(self,img,amax=70,na=281,nthrds=4,transp=False,oro=None,dro=None,verb=False):
+    """
+    Converts the subsurface offset gathers to opening angle gathers
+
+    Parameters
+      img    - Image extended over subsurface offsets [nhy,nhx,nz,ny,nx]
+      amax   - Maximum angle over which to compute angle gathers [70]
+      na     - Number of angles on the angle axis [281]
+      nthrds - Number of OpenMP threads to use (parallelize over image point axis) [4]
+      transp - Transpose the output to have shape [na,nx,nz]
+      verb   - Verbosity flag [False]
+
+    Returns the angle gathers [nro,nx,na,nz]
+    """
+    # Assume ny = 1
+    imgin = img[0,:,:,0,:]
+    amin = -amax; avals = np.linspace(amin,amax,na)
+    # Compute angle axis
+    self.__na = na; self.__da = avals[1] - avals[0]; self.__oa = avals[0]
+    return off2ang(imgin,self.__ohx,self.__dhx,self.__dz,na=na,amax=amax,nta=601,ota=-3,dta=0.01,
+                   nthrds=nthrds,transp=transp,oro=oro,dro=dro,verb=verb)
+
+  def get_ang_axis(self):
+    """ Returns the opening angle extension axis """
+    return self.__na, self.__oa, self.__da
 
   def test_freq_axis(self,n1,dt,minf,maxf,jf=1):
     """

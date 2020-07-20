@@ -59,9 +59,6 @@ class defaultgeom:
         sx = int(osx + isx*dsx)
         self.__scoords.append([sy,sx])
     self.__nexp = len(self.__scoords)
-    #TODO: 
-    # might also consider the offset sorting like Paul does
-    # basically, will want to replicate sfsrsyn here
 
     # Frequency axis
     self.__nwo = None; self.__ow = None; self.__dw = None;
@@ -71,7 +68,7 @@ class defaultgeom:
     return self.__nwc,self.__ow,self.__dw
 
   def interp_vel(self,velin,dvx,dvy,ovx=0.0,ovy=0.0):
-    """ 
+    """
     Lateral nearest-neighbor interpolation of velocity. Use
     this when imaging grid is different than velocity
     grid. Assumes the same depth axis for imaging
@@ -131,7 +128,7 @@ class defaultgeom:
       nthrds - number of OpenMP threads for parallelizing over frequency [1]
       sverb  - verbosity flag for shot progress bar [True]
       wverb  - verbosity flag for frequency progressbar [False]
-    
+
     Returns the data at the surface (in time or frequency) [nw,nry,nrx]
     """
     # Save wavelet temporal parameters
@@ -168,7 +165,7 @@ class defaultgeom:
       # Get the source coordinates
       sy = icrd[0]; sx = icrd[1]
       # Create the source for this shot
-      sou[:] = 0.0; 
+      sou[:] = 0.0
       sou[:,sy,sx]  = wfftd[:]
       # Downward continuation
       ssf.modallw(ref,sou,datw[k],nthrds,wverb)
@@ -233,7 +230,7 @@ class defaultgeom:
     # Create frequency domain data
     _,_,_,dfft = self.fft1(dat,dt,minf=minf,maxf=maxf)
     dfftd = dfft[:,::jf]
-    datt = np.transpose(dfftd,(0,1,4,2,3)) # [nsy,nsx,ny,nx,nwc] -> [nsy,nsx,nwc,ny,nx] 
+    datt = np.transpose(dfftd,(0,1,4,2,3)) # [nsy,nsx,ny,nx,nwc] -> [nsy,nsx,nwc,ny,nx]
     datw = np.ascontiguousarray(datt.reshape([self.__nexp,self.__nwc,self.__ny,self.__nx]))
 
     # Single square root object
@@ -247,7 +244,7 @@ class defaultgeom:
     slo = 1/vel
     ssf.set_slows(slo)
 
-    # Allocate partial image array 
+    # Allocate partial image array
     if(nhx == 0 and nhy == 0):
       imgar = np.zeros([self.__nexp,self.__nz,self.__ny,self.__nx],dtype='float32')
     else:
@@ -291,7 +288,7 @@ class defaultgeom:
       minf - the minimum frequency for windowing the spectrum [Hz]
       maxf - the maximum frequency for windowing the spectrum
 
-    Returns: 
+    Returns:
       the frequency domain data (frequency is fast axis) and the
       frequency axis [nw,ow,dw]
     """
@@ -357,4 +354,58 @@ class defaultgeom:
       n += 1
 
     return n
+
+  def test_freq_axis(self,n1,dt,minf,maxf,jf=1):
+    """
+    For testing different frequency axes based on
+    the input wavelet time axis
+
+    Parameters:
+      n1   - length of wavelet
+      dt   - temporal sampling of wavelet
+      minf - minimum frequency to propagate
+      maxf - maximum frequency to propagate
+      jf   - frequency decimation factor [1]
+
+    Returns:
+      Nothing. Just a verbose output of the frequency axis
+    """
+    nt = 2*self.next_fast_size(int((n1+1)/2))
+    if(nt%2): nt += 1
+    nw = int(nt/2+1)
+    dw = 1/(nt*dt)
+    # Min and max frequencies
+    begw = int(minf/dw); endw = int(maxf/dw)
+    nwc = (endw-begw)/jf
+    print("Test frequency axis: nw=%d ow=%d dw=%f"%(nwc,minf,dw*jf))
+
+  def plot_acq(self,mod=None,show=True,**kwargs):
+    """ Plots the acquisition on the slowness model """
+    # Plot the slowness model
+    if(mod is None):
+      mod = np.zeros([self.__nz,self.__ny,self.__nx],dtype='float32') + 2.5
+    vmin = np.min(mod); vmax = np.max(mod)
+    if(self.__ny == 1):
+      # 2D acquisition
+      fig = plt.figure(figsize=(kwargs.get('wbox',14),kwargs.get('hbox',7)))
+      ax = fig.gca()
+      # Plot model
+      im = ax.imshow(mod[:,0,:],extent=[0,self.__nx,self.__nz,0],vmin=kwargs.get('vmin',vmin),vmax=kwargs.get('vmax',vmax),
+                     cmap=kwargs.get('cmap','jet'))
+      ax.set_xlabel(kwargs.get('xlabel','X (gridpoints)'),fontsize=kwargs.get('labelsize',14))
+      ax.set_ylabel(kwargs.get('ylabel','Z (gridpoints)'),fontsize=kwargs.get('labelsize',14))
+      ax.set_title(kwargs.get('title',''),fontsize=kwargs.get('labelsize',14))
+      ax.tick_params(labelsize=kwargs.get('labelsize',14))
+      # Make receiver coords
+      zplt = 5
+      recx = np.linspace(0,self.__nx-1,self.__nx)
+      rzros = np.zeros(self.__nx) + zplt
+      # Make source coords
+      scoordsn = np.asarray(self.__scoords)[:,1]
+      szros    = np.zeros(len(scoordsn)) + zplt
+      # Plot geometry
+      #plt.scatter(recx,rzros,c='tab:green',marker='v')
+      plt.scatter(scoordsn,szros,c='yellow',marker='*')
+      if(show):
+        plt.show()
 

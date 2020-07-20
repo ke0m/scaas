@@ -35,16 +35,11 @@ velin[:,0,:] = vel[:]
 wei = geom.defaultgeom(nx=nx,dx=dx,ny=ny,dy=dy,nz=nz,dz=dz,
                        nsx=nsx,dsx=dsx,osx=osx,nsy=1,dsy=1.0)
 
-beg = time.time()
 img = wei.image_data(datin,dt,minf=1.0,maxf=31.0,vel=velin,nhx=16,sym=True,ntx=15,
                      nthrds=4,wverb=False)
-print("Elapsed=%f s"%(time.time() - beg))
 
-print(img.shape)
+#imgt = np.transpose(img,(2,4,3,1,0)) # [nhy,nhx,nz,ny,nx] -> [nz,nx,ny,nhx,nhy]
 
-viewimgframeskey(img[0,:,:,0,:],transp=False)
 
-#plt.figure(); plt.imshow(img[:,0,:],cmap='gray',interpolation='sinc'); plt.show()
-
-#sep.write_file("myimg.H",img,[
+#sep.write_file("myimgext.H",imgrt,os=[0,0,0,ohx,0],ds=[dz,dy,dxr,dhx,1.0])
 

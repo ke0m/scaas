@@ -1,7 +1,6 @@
 #include <math.h>
 #include <cstring>
 #include <omp.h>
-#include "kiss_fft.h"
 #include "ssr3.h"
 #include "progressbar.h"
 

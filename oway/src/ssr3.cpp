@@ -4,6 +4,51 @@
 #include "kiss_fft.h"
 #include "ssr3.h"
 #include "progressbar.h"
+#include <map>
+#include <string>
+#include "/opt/matplotlib-cpp/matplotlibcpp.h"
+
+namespace plt = matplotlibcpp;
+
+void plotimg_cmplx(int n1,int n2,std::complex<float> *arr,int option) {
+  float * tmp = new float[n1*n2];
+
+  for(int i1 = 0; i1 < n1; ++i1) {
+    for(int i2 = 0; i2 < n2; ++i2) {
+      if(option == 0) {
+        tmp[i1*n2 + i2] = std::real(arr[i1*n2 + i2]);
+      } else if(option == 1) {
+        tmp[i1*n2 + i2] = std::imag(arr[i1*n2 + i2]);
+      } else {
+        tmp[i1*n2 + i2] = std::abs(arr[i1*n2 + i2]);
+      }
+    }
+  }
+  std::map<std::string,std::string> vals;
+  //vals["vmax"] = "0.01"; //vals["vmin"] = "0.0";
+  plt::imshow((const float *)tmp,n1,n2,1,vals); plt::show();
+
+  delete [] tmp;
+}
+
+void plotplt_cmplx(int n1, std::complex<float> *arr, int option) {
+  float * tmp = new float[n1];
+
+  for(int i1 = 0; i1 < n1; ++i1) {
+    if(option == 0) {
+      tmp[i1] = std::real(arr[i1]);
+    } else if(option == 1) {
+      tmp[i1] = std::imag(arr[i1]);
+    } else {
+      tmp[i1] = std::abs(arr[i1]);
+    }
+  }
+  std::vector<float> v {tmp,tmp+n1};
+  plt::plot(v); plt::show();
+
+  delete [] tmp;
+
+}
 
 ssr3::ssr3(int nx,   int ny,   int nz,
     float dx, float dy, float dz,
@@ -425,8 +470,12 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
   }
 
   /* FFT (w-x-y) -> (w-kx-ky) */
-  memcpy(pk,wxot,sizeof(std::complex<float>)*_nx*_ny);
+  for(int iy = 0; iy < _ny; ++iy) {
+    memcpy(&pk[iy*_bx],&wxot[iy*_nx],sizeof(std::complex<float>)*_nx*_ny);
+  }
+  //plotplt_cmplx(_bx, pk, 0);
   fft2(false,(kiss_fft_cpx*)pk);
+  //plotplt_cmplx(_bx, pk, 0);
 
   memset(wxot,0,sizeof(std::complex<float>)*(_nx*_ny));
 
@@ -443,7 +492,9 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
     }
 
     /* Inverse FFT (w-kx-ky) -> (w-x-y) */
+    //plotplt_cmplx(_bx, wk, 0);
     fft2(true,(kiss_fft_cpx*)wk);
+    //plotplt_cmplx(_bx, wk, 0);
 
     /* Interpolate (accumulate) */
     for(int iy = 0; iy < _ny; ++iy) {
@@ -489,7 +540,9 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
   }
 
   /* FFT (w-x-y) -> (w-kx-ky) */
-  memcpy(pk,wx,sizeof(std::complex<float>)*_nx*_ny);
+  for(int iy = 0; iy < _ny; ++iy) {
+    memcpy(&pk[iy*_bx],&wx[iy*_nx],sizeof(std::complex<float>)*_nx*_ny);
+  }
   fft2(false,(kiss_fft_cpx*)pk);
 
   memset(wx,0,sizeof(std::complex<float>)*(_nx*_ny));

@@ -438,7 +438,10 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
   }
 
   /* FFT (w-x-y) -> (w-kx-ky) */
-  memcpy(_fwds[ithrd],wxot,sizeof(std::complex<float>)*_nx*_ny);
+  memset(_fwds[ithrd],0,sizeof(std::complex<float>)*(_bx*_by));
+  for(int iy = 0; iy < _ny; ++iy) {
+    memcpy(&_fwds[ithrd][iy*_bx],&wxot[iy*_nx],sizeof(std::complex<float>)*_nx*_ny);
+  }
   fftwf_execute(_fplans[ithrd]);
 
   memset(wxot,0,sizeof(std::complex<float>)*(_nx*_ny));
@@ -502,8 +505,11 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
     }
   }
 
-  /* FFT (w-x-y) -> (w-kx-ky) */
-  memcpy(_fwds[ithrd],wx,sizeof(std::complex<float>)*_nx*_ny);
+ /* FFT (w-x-y) -> (w-kx-ky) */
+  memset(_fwds[ithrd],0,sizeof(std::complex<float>)*(_bx*_by));
+  for(int iy = 0; iy < _ny; ++iy) {
+    memcpy(&_fwds[ithrd][iy*_bx],&wx[iy*_nx],sizeof(std::complex<float>)*_nx*_ny);
+  }
   fftwf_execute(_fplans[ithrd]);
 
   memset(wx,0,sizeof(std::complex<float>)*(_nx*_ny));

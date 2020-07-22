@@ -61,7 +61,7 @@ class ssr3{
         delete[] _fwds[ithrd]; delete[] _invs[ithrd];
       }
       delete[] _fplans; delete[] _iplans;
-      delete[] _fwds; delete[] _invs;
+      delete[] _fwds;   delete[] _invs;
     }
 
   private:

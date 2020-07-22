@@ -242,11 +242,11 @@ class defaultgeom:
     datw = np.ascontiguousarray(datt.reshape([self.__nexp,self.__nwc,self.__ny,self.__nx]))
 
     # Single square root object
-    ssf = ssr3(self.__nx ,self.__ny,self.__nz ,     # Spatial Sizes
-               self.__dx ,self.__dy,self.__dz ,     # Spatial Samplings
-               self.__nwc,self.__ow,self.__dwc,eps, # Frequency axis
-               ntx,nty,px,py,                       # Taper and padding
-               dtmax,nrmax)                         # Reference velocities
+    ssf = ssr3_fftw(self.__nx ,self.__ny,self.__nz ,     # Spatial Sizes
+                    self.__dx ,self.__dy,self.__dz ,     # Spatial Samplings
+                    self.__nwc,self.__ow,self.__dwc,eps, # Frequency axis
+                    ntx,nty,px,py,                       # Taper and padding
+                    dtmax,nrmax,nthrds)                  # Reference velocities
 
     # Compute slowness and reference slownesses
     slo = 1/vel
@@ -282,10 +282,10 @@ class defaultgeom:
       sou[:,sy,sx]  = wfftd[:]
       if(nhx == 0 and nhy == 0):
         # Conventional imaging
-        ssf.migallw(datw[k],sou,imgar[k],nthrds,wverb)
+        ssf.migallw(datw[k],sou,imgar[k],wverb)
       else:
         # Extended imaging
-        ssf.migoffallw(datw[k],sou,nhy,nhx,sym,imgar[k],nthrds,wverb)
+        ssf.migoffallw(datw[k],sou,nhy,nhx,sym,imgar[k],wverb)
       k += 1
 
     # Sum over all partial images

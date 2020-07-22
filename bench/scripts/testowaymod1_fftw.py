@@ -1,8 +1,7 @@
 import inpout.seppy as seppy
 import numpy as np
-from oway.ssr3 import ssr3
 from scaas.wavelet import ricker
-import oway.defaultgeom as geom
+import oway.defaultgeom_fftw as geom
 from  scaas.trismooth import smooth
 import matplotlib.pyplot as plt
 from utils.plot import plot_wavelet
@@ -32,14 +31,11 @@ n1 = 2000; d1 = 0.004;
 freq = 8; amp = 0.5; dly = 0.2;
 wav = ricker(n1,d1,freq,amp,dly)
 
-# Read in time domain wavelet
-#waxes,wav = sep.read_file("../oway/src/srmodmig/wav.rsf",form='native')
-#[n1] = waxes.n; [d1] = waxes.d
 t0 = 50*d1
 
 osx = 150; dsx = 50
 wei = geom.defaultgeom(nx=nx,dx=dx,ny=ny,dy=dy,nz=nz,dz=dz,
-                       nsx=12,dsx=dsx,osx=osx,nsy=1,dsy=1.0)
+                       nsx=2,dsx=dsx,osx=osx,nsy=1,dsy=1.0)
 
 wei.plot_acq(velin)
 

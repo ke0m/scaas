@@ -684,7 +684,7 @@ void ssr3::fft2(bool inv, kiss_fft_cpx *pp) {
     }
 
     /* FFT 1 */
-    for(int iy = 0; iy < _ny; ++iy) {
+    for(int iy = 0; iy < _by; ++iy) {
       kiss_fft(_fwd1, pp + iy*_bx, pp + iy*_bx);
     }
 

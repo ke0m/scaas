@@ -1,6 +1,5 @@
 import inpout.seppy as seppy
 import numpy as np
-from oway.ssr3 import ssr3
 from scaas.wavelet import ricker
 import oway.defaultgeom as geom
 from  scaas.trismooth import smooth

@@ -155,7 +155,7 @@ class defaultgeom:
                self.__dx ,self.__dy,self.__dz ,     # Spatial Samplings
                self.__nwc,self.__ow,self.__dwc,eps, # Frequency axis
                ntx,nty,px,py,                       # Taper and padding
-               dtmax,nrmax)                         # Reference velocities
+               dtmax,nrmax,nthrds)                  # Reference velocities
 
     # Compute slowness and reference slownesses
     slo = 1/vel
@@ -176,7 +176,7 @@ class defaultgeom:
       sou[:] = 0.0
       sou[:,sy,sx]  = wfftd[:]
       # Downward continuation
-      ssf.modallw(ref,sou,datw[k],nthrds,wverb)
+      ssf.modallw(ref,sou,datw[k],wverb)
       k += 1
 
     # Reshape output data
@@ -246,7 +246,7 @@ class defaultgeom:
                self.__dx ,self.__dy,self.__dz ,     # Spatial Samplings
                self.__nwc,self.__ow,self.__dwc,eps, # Frequency axis
                ntx,nty,px,py,                       # Taper and padding
-               dtmax,nrmax)                         # Reference velocities
+               dtmax,nrmax,nthrds)                  # Reference velocities
 
     # Compute slowness and reference slownesses
     slo = 1/vel
@@ -282,10 +282,10 @@ class defaultgeom:
       sou[:,sy,sx]  = wfftd[:]
       if(nhx == 0 and nhy == 0):
         # Conventional imaging
-        ssf.migallw(datw[k],sou,imgar[k],nthrds,wverb)
+        ssf.migallw(datw[k],sou,imgar[k],wverb)
       else:
         # Extended imaging
-        ssf.migoffallw(datw[k],sou,nhy,nhx,sym,imgar[k],nthrds,wverb)
+        ssf.migoffallw(datw[k],sou,nhy,nhx,sym,imgar[k],wverb)
       k += 1
 
     # Sum over all partial images

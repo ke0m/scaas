@@ -110,7 +110,7 @@ class defaultgeom:
 
     return velot
 
-  def model_data(self,wav,dt,t0,minf,maxf,vel,ref,jf=1,nrmax=3,eps=0.01,dtmax=5e-05,time=True,
+  def model_data(self,wav,dt,t0,minf,maxf,vel,ref,jf=1,nrmax=3,eps=0.,dtmax=5e-05,time=True,
                  ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=False):
     """
     3D modeling of single scattered (Born) data with the one-way
@@ -126,7 +126,7 @@ class defaultgeom:
       ref    - input reflectivity model [nz,ny,nx]
       jf     - frequency decimation factor [1]
       nrmax  - maximum number of reference velocities [3]
-      eps    - stability parameter [0.01]
+      eps    - stability parameter [0.]
       dtmax  - maximum time error [5e-05]
       time   - return the data back in the time domain [True]
       ntx    - size of taper in x direction (samples) [0]
@@ -189,7 +189,7 @@ class defaultgeom:
     else:
       return datwr
 
-  def image_data(self,dat,dt,minf,maxf,vel,jf=1,nhx=0,nhy=0,sym=True,nrmax=3,eps=0.01,dtmax=5e-05,wav=None,
+  def image_data(self,dat,dt,minf,maxf,vel,jf=1,nhx=0,nhy=0,sym=True,nrmax=3,eps=0.0,dtmax=5e-05,wav=None,
                  ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=False):
     """
     3D migration of shot profile data via the one-way wave equation (single-square
@@ -207,7 +207,7 @@ class defaultgeom:
       nhy    - number of subsurface offsets in y to compute [0]
       sym    - symmetrize the subsurface offsets [True]
       nrmax  - maximum number of reference velocities [3]
-      eps    - stability parameter [0.01]
+      eps    - stability parameter [0.]
       dtmax  - maximum time error [5e-05]
       wav    - input wavelet [None,assumes an impulse at zero lag]
       ntx    - size of taper in x direction [0]
@@ -268,6 +268,8 @@ class defaultgeom:
         self.__rnhy = nhy+1; self.__ohy = 0; self.__dhy = self.__dy
         # Allocate image array
         imgar = np.zeros([self.__nexp,self.__rnhy,self.__rnhx,self.__nz,self.__ny,self.__nx],dtype='float32')
+      # Allocate memory necessary for extension
+      ssf.set_ext(nhy,nhx,sym)
 
     # Allocate the source for one shot
     sou = np.zeros([self.__nwc,self.__ny,self.__nx],dtype='complex64')
@@ -285,11 +287,15 @@ class defaultgeom:
         ssf.migallw(datw[k],sou,imgar[k],wverb)
       else:
         # Extended imaging
-        ssf.migoffallw(datw[k],sou,nhy,nhx,sym,imgar[k],wverb)
+        ssf.migoffallw(datw[k],sou,imgar[k],wverb)
       k += 1
 
     # Sum over all partial images
     img = np.sum(imgar,axis=0)
+
+    # Free memory for extension
+    if(nhx != 0 or nhy != 0):
+      ssf.del_ext()
 
     return img
 

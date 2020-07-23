@@ -78,7 +78,7 @@ class zerooffset:
 
     return velot
 
-  def model_data(self,img,dt,minf,maxf,vel,ref,jf=1,nrmax=3,eps=0.01,dtmax=5e-05,time=True,
+  def model_data(self,img,dt,minf,maxf,vel,ref,jf=1,nrmax=3,eps=0.,dtmax=5e-05,time=True,
                  ntx=0,nty=0,px=0,py=0,nthrds=1,wverb=True):
     """
     3D modeling of zero-offset data with the one-way
@@ -93,7 +93,7 @@ class zerooffset:
       ref    - input reflectivity model [nz,ny,nx]
       jf     - frequency decimation factor [1]
       nrmax  - maximum number of reference velocities [3]
-      eps    - stability parameter [0.01]
+      eps    - stability parameter [0.]
       dtmax  - maximum time error [5e-05]
       time   - return the data back in the time domain [True]
       ntx    - size of taper in x direction (samples) [0]
@@ -107,7 +107,7 @@ class zerooffset:
     """
     pass
 
-  def image_data(self,dat,dt,minf,maxf,vel,jf=1,nrmax=3,eps=0.01,dtmax=5e-05,
+  def image_data(self,dat,dt,minf,maxf,vel,jf=1,nrmax=3,eps=0.,dtmax=5e-05,
                  ntx=0,nty=0,px=0,py=0,nthrds=1,wverb=True):
     """
     3D migration of zero-offset data via the one-way wave equation (single-square
@@ -121,7 +121,7 @@ class zerooffset:
       vel    - input migration velocity model [nz,ny,nx]
       jf     - frequency decimation factor
       nrmax  - maximum number of reference velocities [3]
-      eps    - stability parameter [0.01]
+      eps    - stability parameter [0.]
       dtmax  - maximum time error [5e-05]
       ntx    - size of taper in x direction [0]
       nty    - size of taper in y direction [0]

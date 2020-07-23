@@ -229,15 +229,26 @@ void ssr3::ssr3ssf_migoffallw(std::complex<float> *dat, std::complex<float> *wav
     fprintf(stderr,"Must run set_slows before modeling or migration\n");
   }
 
-  /* Compute the bounds for the lags in the imaging condition */
+  /* Compute the sizes and bounds for the lags in the imaging condition */
+  int rnhy, rnhx;
   int blx, elx, bly, ely;
   if(sym) {
+    // Total size
+    rnhy = 2*nhy + 1; rnhx = 2*nhx + 1;
+    // Bounds
     blx = -nhx; elx = nhx;
     bly = -nhy; ely = nhy;
   } else {
+    // Total size
+    rnhy = nhy + 1; rnhx = nhx + 1;
+    // Bounds
     blx = 0; elx = nhx;
     bly = 0; ely = nhy;
   }
+
+  /* Allocate image array */
+  float **imgar = new float*[_nthrds]();
+  for(int ithrd  = 0; ithrd < _nthrds; ++ithrd) imgar[ithrd] = new float[rnhy*rnhx*_nz*_ny*_nx]();
 
   /* Set up printing if verbosity is desired */
   int *widx = new int[_nthrds]();
@@ -253,12 +264,21 @@ void ssr3::ssr3ssf_migoffallw(std::complex<float> *dat, std::complex<float> *wav
     if(firstiter && verb) widx[wthd] = iw;
     if(verb) printprogress_omp("nw:",iw-widx[wthd],csize,wthd);
     /* Migrate data for current frequency */
-    ssr3ssf_migoffonew(iw, dat + iw*_nx*_ny, wav + iw*_nx*_ny, bly, ely, blx, elx, img, wthd);
+    ssr3ssf_migoffonew(iw, dat + iw*_nx*_ny, wav + iw*_nx*_ny, bly, ely, blx, elx, imgar[wthd], wthd);
     firstiter = false;
+  }
+  /* Sum all images */
+  for(int ithrd = 0; ithrd < _nthrds; ++ithrd) {
+    for(int k = 0; k < rnhy*rnhx*_nz*_ny*_nx; ++k){
+      img[k] += imgar[ithrd][k];
+    }
   }
   if(verb) printf("\n");
 
+  /* Free memory */
   delete[] widx;
+  for(int ithrd = 0; ithrd < _nthrds; ++ithrd) delete[] imgar[ithrd];
+  delete[] imgar;
 }
 
 void ssr3::ssr3ssf_migoffonew(int iw, std::complex<float> *dat, std::complex<float>*wav,
@@ -286,7 +306,6 @@ void ssr3::ssr3ssf_migoffonew(int iw, std::complex<float> *dat, std::complex<flo
     ssr3ssf(ws, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, sslc, ithrd);
     ssr3ssf(wr, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, rslc, ithrd);
     /* Loops over lags */
-#pragma omp critical
     for(int ily = bly; ily <= ely; ++ily) {
       for(int ilx = blx; ilx <= elx; ++ilx) {
         /* Imaging condition (should do this on ISPC) */

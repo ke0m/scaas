@@ -1,9 +1,9 @@
 import inpout.seppy as seppy
 import numpy as np
-from oway.ssr3 import ssr3
 import oway.defaultgeom as geom
 from  scaas.trismooth import smooth
 import matplotlib.pyplot as plt
+import time
 
 sep = seppy.sep()
 
@@ -32,10 +32,12 @@ t0 = 50*d1
 
 osx = 300; dsx = 100
 wei = geom.defaultgeom(nx=nx,dx=dx,ny=ny,dy=dy,nz=nz,dz=dz,
-                       nsx=3,dsx=dsx,osx=osx,nsy=1,dsy=1.0)
+                       nsx=2,dsx=dsx,osx=osx,nsy=1,dsy=1.0)
 
+beg = time.time()
 dat = wei.model_data(wav,d1,t0,minf=1.0,maxf=31.0,vel=velin,ref=refsm,time=True,ntx=15,px=112,
-                     nthrds=24,wverb=True)
+                     nthrds=4,wverb=True,eps=0.0)
+print("Elapsed=%f"%(time.time()-beg))
 
 nw,ow,dw = wei.get_freq_axis()
 

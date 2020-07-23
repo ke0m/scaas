@@ -268,8 +268,6 @@ class defaultgeom:
         self.__rnhy = nhy+1; self.__ohy = 0; self.__dhy = self.__dy
         # Allocate image array
         imgar = np.zeros([self.__nexp,self.__rnhy,self.__rnhx,self.__nz,self.__ny,self.__nx],dtype='float32')
-      # Allocate internal array
-      ssf.set_ext(nhy,nhx,sym)
 
     # Allocate the source for one shot
     sou = np.zeros([self.__nwc,self.__ny,self.__nx],dtype='complex64')
@@ -287,15 +285,11 @@ class defaultgeom:
         ssf.migallw(datw[k],sou,imgar[k],wverb)
       else:
         # Extended imaging
-        ssf.migoffallw(datw[k],sou,imgar[k],wverb)
+        ssf.migoffallw(datw[k],sou,nhy,nhx,sym,imgar[k],wverb)
       k += 1
 
     # Sum over all partial images
     img = np.sum(imgar,axis=0)
-
-    # Free memory for extension
-    if(nhx != 0 or nhy != 0):
-      ssf.del_ext()
 
     return img
 

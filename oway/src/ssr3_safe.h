@@ -33,11 +33,10 @@ class ssr3{
     void ssr3ssf_migonew(int iw, std::complex<float> *dat, std::complex<float> *wav, float *img, int ithrd);
     void ssr3ssf_migallw(std::complex<float> *dat, std::complex<float> *wav, float *img, bool verb);
     /* Extended imaging */
-    void set_ext(int nhy, int nhx, bool sym);
-    void del_ext();
     void ssr3ssf_migoffonew(int iw, std::complex<float> *dat, std::complex<float> *wav,
                             int bly, int ely, int blx, int elx, float *img, int ithrd);
-    void ssr3ssf_migoffallw(std::complex<float> *dat, std::complex<float> *wav, float *img, bool verb);
+    void ssr3ssf_migoffallw(std::complex<float> *dat, std::complex<float> *wav, int nhy, int nhx, bool sym, float *img,
+                            bool verb);
     /* Model zero offset */
     void ssr3ssf_modallwzo(float *img, std::complex<float> *dat, bool verb);
     void ssr3ssf_modonewzo(int iw, float *img, std::complex<float> *dat, int ithrd);
@@ -70,7 +69,6 @@ class ssr3{
     int _ntx, _nty, _px, _py, _bx, _by;
     int _nthrds;
     int _nrmax, *_nr;
-    int _rnhy, _rnhx, _blx, _elx, _bly, _ely;
     float _dx, _dy, _dz, _dw, _dsmax, _dsmax2;
     float _ow;
     float _eps;
@@ -79,7 +77,6 @@ class ssr3{
     float *_kk;
     std::complex<float> **_wxks, **_wkks, **_wxxs;
     fftwf_plan *_fplans, *_iplans;
-    float **_imgar;
 };
 
 /* Helper functions */

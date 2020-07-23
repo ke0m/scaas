@@ -36,15 +36,16 @@ wei = geom.defaultgeom(nx=nx,dx=dx,ny=ny,dy=dy,nz=nz,dz=dz,
                        nsx=nsx,dsx=dsx,osx=osx,nsy=1,dsy=1.0)
 
 beg = time.time()
+#for itry in range(100):
 img = wei.image_data(datin,dt,minf=1.0,maxf=31.0,vel=velin,nhx=20,ntx=15,
                      nthrds=4,wverb=True,eps=0.0)
 print("Elapsed=%f"%(time.time()-beg))
 
-#nhx,ohx,dhx = wei.get_off_axis()
-#
-#imgt = np.transpose(img,(2,4,3,1,0)) # [nhy,nhx,nz,ny,nx] -> [nz,nx,ny,nhx,nhy]
-#
-#sep.write_file("myimgext.H",imgt,os=[0,0,0,ohx,0],ds=[dz,dy,dx,dhx,1.0])
+nhx,ohx,dhx = wei.get_off_axis()
+
+imgt = np.transpose(img,(2,4,3,1,0)) # [nhy,nhx,nz,ny,nx] -> [nz,nx,ny,nhx,nhy]
+
+sep.write_file("myimgext.H",imgt,os=[0,0,0,ohx,0],ds=[dz,dy,dx,dhx,1.0])
 
 #sep.write_file("myimg.H",img,ds=[dz,dy,dx])
 

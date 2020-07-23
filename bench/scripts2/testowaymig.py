@@ -36,7 +36,7 @@ wei = geom.defaultgeom(nx=nx,dx=dx,ny=ny,dy=dy,nz=nz,dz=dz,
 
 beg = time.time()
 img = wei.image_data(datin,dt,minf=1.0,maxf=31.0,vel=velin,nhx=0,ntx=15,
-                     nthrds=4,wverb=True,eps=0.0)
+                     nthrds=24,wverb=True,eps=0.0)
 print("Elapsed=%f"%(time.time()-beg))
 
 #viewimgframeskey(img[0,:,:,0,:],transp=False)

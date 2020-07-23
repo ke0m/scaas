@@ -32,7 +32,7 @@ wei = geom.coordgeom(nxi,dxi,ny,dy,nz,dz,ox=oxi,nrec=nrec,srcxs=srcx,recxs=recx)
 
 velint = wei.interp_vel(velin,dvx,dy,ovx=ovx)
 
-img = wei.image_data(dat,dt,ntx=16,minf=1,maxf=51,vel=velint,nrmax=20,nthrds=24,wverb=False)
+img = wei.image_data(dat,dt,ntx=16,minf=1,maxf=51,vel=velint,nrmax=20,nthrds=40,wverb=False,eps=0.0)
 
-sep.write_file("mysigimg2.H",img,ds=[dz,dy,dxi],os=[oz,0.0,oxi])
+sep.write_file("mysigimg3.H",img,ds=[dz,dy,dxi],os=[oz,0.0,oxi])
 

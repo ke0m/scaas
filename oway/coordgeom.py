@@ -2,7 +2,7 @@
 Imaging/modeling data based on source
 and receiver coordinates
 @author: Joseph Jennings
-@version: 2020.07.07
+@version: 2020.07.22
 """
 import numpy as np
 from oway.ssr3 import ssr3, interp_slow
@@ -170,7 +170,7 @@ class coordgeom:
                self.__dx ,self.__dy,self.__dz ,     # Spatial Samplings
                self.__nwc,self.__ow,self.__dwc,eps, # Frequency axis
                ntx,nty,px,py,                       # Taper and padding
-               dtmax,nrmax)                         # Reference velocities
+               dtmax,nrmax,nthrds)                  # Reference velocities and threads
 
     # Compute slowness and reference slownesses
     slo = 1/vel
@@ -194,7 +194,7 @@ class coordgeom:
       sou[:,isy,isx]  = wfft[:]
       # Downward continuation
       datw[:] = 0.0
-      ssf.modallw(ref,sou,datw,nthrds,wverb)
+      ssf.modallw(ref,sou,datw,wverb)
       # Restrict to receiver locations
       datwt = np.ascontiguousarray(np.transpose(datw,(1,2,0)))  # [nwc,ny,nx] -> [ny,nx,nwc]
       ssf.restrict_data(self.__nrec[iexp],self.__recys[ntr:],self.__recxs[ntr:],self.__oy,self.__ox,datwt,recw[ntr:,:])
@@ -272,7 +272,7 @@ class coordgeom:
                self.__dx ,self.__dy,self.__dz ,     # Spatial Samplings
                self.__nwc,self.__ow,self.__dwc,eps, # Frequency axis
                ntx,nty,px,py,                       # Taper and padding
-               dtmax,nrmax)                         # Reference velocities
+               dtmax,nrmax,nthrds)                  # Reference velocities and threads
 
     # Compute slowness and reference slownesses
     slo = 1/vel
@@ -302,10 +302,10 @@ class coordgeom:
       datwt = np.ascontiguousarray(np.transpose(datw,(2,0,1))) # [ny,nx,nwc] -> [nwc,ny,nx]
       if(nhx == 0 and nhy == 0):
         # Conventional imaging
-        ssf.migallw(datwt,sou,imgar[iexp],nthrds,wverb)
+        ssf.migallw(datwt,sou,imgar[iexp],wverb)
       else:
         # Extended imaging
-        ssf.migoffallw(datwt,sou,nhy,nhx,sym,imgar[iexp],nthrds,wverb)
+        ssf.migoffallw(datwt,sou,nhy,nhx,sym,imgar[iexp],wverb)
       # Increase number of traces
       ntr += self.__nrec[iexp]
 

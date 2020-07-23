@@ -157,7 +157,7 @@ class zerooffset:
                self.__dx ,self.__dy,self.__dz ,     # Spatial Samplings
                self.__nwc,self.__ow,self.__dwc,eps, # Frequency axis
                ntx,nty,px,py,                       # Taper and padding
-               dtmax,nrmax)                         # Reference velocities
+               dtmax,nrmax,nthrds)                  # Reference velocities
 
     # Output image
     img = np.zeros([self.__nz,self.__ny,self.__nx],dtype='float32')
@@ -167,7 +167,7 @@ class zerooffset:
     ssf.set_slows(slo)
 
     # Image for all frequencies
-    ssf.migallwzo(datw,img,nthrds,wverb)
+    ssf.migallwzo(datw,img,wverb)
 
     return img
 

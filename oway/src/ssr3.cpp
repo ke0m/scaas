@@ -46,8 +46,12 @@ ssr3::ssr3(int nx,   int ny,   int nz,
                      reinterpret_cast<fftwf_complex*>(_wxxs[ithrd]),
                      FFTW_BACKWARD,FFTW_MEASURE);
   }
-  /* Save a pointer to slowness */
-  _slo = NULL;
+  /* Extended imaging parameters (default is zero lag) */
+  _rnhy = 1; _rnhx = 1;
+  _bly  = 0; _ely  = 0;
+  _blx  = 0; _elx  = 0;
+  /* Initialize pointers */
+  _slo = NULL; _imgar = NULL;
 }
 
 void ssr3::set_slows(float *slo) {
@@ -222,33 +226,57 @@ void ssr3::ssr3ssf_migonew(int iw, std::complex<float> *dat, std::complex<float>
   delete[] sslc; delete[] rslc;
 }
 
-void ssr3::ssr3ssf_migoffallw(std::complex<float> *dat, std::complex<float> *wav, int nhy, int nhx, bool sym, float *img,
-                              bool verb) {
+void ssr3::set_ext(int nhy, int nhx, bool sym) {
+  /* Only call if imgar is NULL */
+  if(_imgar == NULL) {
+    /* Compute the sizes and bounds for the lags in the imaging condition */
+    if(sym) {
+      // Total size
+      _rnhy = 2*nhy + 1; _rnhx = 2*nhx + 1;
+      // Bounds
+      _blx = -nhx; _elx = nhx;
+      _bly = -nhy; _ely = nhy;
+    } else {
+      // Total size
+      _rnhy = nhy + 1; _rnhx = nhx + 1;
+      // Bounds
+      _blx = 0; _elx = nhx;
+      _bly = 0; _ely = nhy;
+    }
+
+    /* Allocate image array */
+    _imgar = new float*[_nthrds]();
+    for(int ithrd  = 0; ithrd < _nthrds; ++ithrd) {
+      _imgar[ithrd] = new float[_rnhy*_rnhx*_nz*_ny*_nx]();
+    }
+  } else {
+    fprintf(stderr,"Not setting extension. imgar has been allocated.\n");
+  }
+}
+
+void ssr3::del_ext() {
+  if(_imgar != NULL) {
+    for(int ithrd = 0; ithrd < _nthrds; ++ithrd) delete[] _imgar[ithrd];
+    delete[] _imgar;
+  } else {
+    fprintf(stderr,"Not deleting extension. imgar has not been allocated.\n");
+  }
+}
+
+void ssr3::ssr3ssf_migoffallw(std::complex<float> *dat, std::complex<float> *wav, float *img, bool verb) {
   /* Check if built reference velocities */
   if(_slo == NULL) {
     fprintf(stderr,"Must run set_slows before modeling or migration\n");
   }
 
-  /* Compute the sizes and bounds for the lags in the imaging condition */
-  int rnhy, rnhx;
-  int blx, elx, bly, ely;
-  if(sym) {
-    // Total size
-    rnhy = 2*nhy + 1; rnhx = 2*nhx + 1;
-    // Bounds
-    blx = -nhx; elx = nhx;
-    bly = -nhy; ely = nhy;
-  } else {
-    // Total size
-    rnhy = nhy + 1; rnhx = nhx + 1;
-    // Bounds
-    blx = 0; elx = nhx;
-    bly = 0; ely = nhy;
+  /* Check if array has been allocated */
+  if(_imgar == NULL) {
+    fprintf(stderr,"Must run set_ext before extended imaging\n");
   }
 
-  /* Allocate image array */
-  float **imgar = new float*[_nthrds]();
-  for(int ithrd  = 0; ithrd < _nthrds; ++ithrd) imgar[ithrd] = new float[rnhy*rnhx*_nz*_ny*_nx]();
+  /* Initialize image array */
+  for(int ithrd = 0; ithrd < _nthrds; ++ithrd)
+    memset(_imgar[ithrd],0,sizeof(float)*_rnhy*_rnhx*_nz*_ny*_nx);
 
   /* Set up printing if verbosity is desired */
   int *widx = new int[_nthrds]();
@@ -264,21 +292,19 @@ void ssr3::ssr3ssf_migoffallw(std::complex<float> *dat, std::complex<float> *wav
     if(firstiter && verb) widx[wthd] = iw;
     if(verb) printprogress_omp("nw:",iw-widx[wthd],csize,wthd);
     /* Migrate data for current frequency */
-    ssr3ssf_migoffonew(iw, dat + iw*_nx*_ny, wav + iw*_nx*_ny, bly, ely, blx, elx, imgar[wthd], wthd);
+    ssr3ssf_migoffonew(iw, dat + iw*_nx*_ny, wav + iw*_nx*_ny, _bly, _ely, _blx, _elx, _imgar[wthd], wthd);
     firstiter = false;
   }
   /* Sum all images */
   for(int ithrd = 0; ithrd < _nthrds; ++ithrd) {
-    for(int k = 0; k < rnhy*rnhx*_nz*_ny*_nx; ++k){
-      img[k] += imgar[ithrd][k];
+    for(int k = 0; k < _rnhy*_rnhx*_nz*_ny*_nx; ++k){
+      img[k] += _imgar[ithrd][k];
     }
   }
   if(verb) printf("\n");
 
   /* Free memory */
   delete[] widx;
-  for(int ithrd = 0; ithrd < _nthrds; ++ithrd) delete[] imgar[ithrd];
-  delete[] imgar;
 }
 
 void ssr3::ssr3ssf_migoffonew(int iw, std::complex<float> *dat, std::complex<float>*wav,

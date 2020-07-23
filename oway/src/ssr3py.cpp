@@ -115,18 +115,13 @@ PYBIND11_MODULE(ssr3,m) {
       .def("migoffallw",[](ssr3 &sr3d,
              py::array_t<std::complex<float>, py::array::c_style> dat,
              py::array_t<std::complex<float>, py::array::c_style> wav,
-             int nhy,
-             int nhx,
-             bool sym,
              py::array_t<float, py::array::c_style> img,
              bool verb
              )
              {
-               sr3d.ssr3ssf_migoffallw(dat.mutable_data(), wav.mutable_data(), nhy, nhx, sym, img.mutable_data(),
-                                       verb);
+               sr3d.ssr3ssf_migoffallw(dat.mutable_data(), wav.mutable_data(), img.mutable_data(),verb);
              },
-             py::arg("dat"), py::arg("wav"), py::arg("nhx"), py::arg("nhy"), py::arg("sym"), py::arg("img"),
-             py::arg("verb")
+             py::arg("dat"), py::arg("wav"), py::arg("img"),py::arg("verb")
           )
       .def("migoffonew",[](ssr3 &sr3d,
              int iw,
@@ -145,6 +140,21 @@ PYBIND11_MODULE(ssr3,m) {
              },
              py::arg("iw"), py::arg("dat"), py::arg("wav"), py::arg("bly"), py::arg("ely"),
              py::arg("blx"), py::arg("elx"), py::arg("img"), py::arg("ithrd")
+          )
+       .def("set_ext",[](ssr3 &sr3d,
+             int nhy,
+             int nhx,
+             bool sym
+             )
+             {
+               sr3d.set_ext(nhy, nhx, sym);
+             },
+             py::arg("nhy"), py::arg("nhx"), py::arg("sym")
+          )
+      .def("del_ext",[](ssr3 &sr3d)
+          {
+             sr3d.del_ext();
+          }
           )
       .def("modallwzo",[](ssr3 &sr3d,
              py::array_t<float, py::array::c_style> img,

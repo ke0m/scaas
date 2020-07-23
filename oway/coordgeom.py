@@ -124,7 +124,7 @@ class coordgeom:
 
     return velot
 
-  def model_data(self,wav,dt,t0,minf,maxf,vel,ref,jf=1,nrmax=3,eps=0.01,dtmax=5e-05,time=True,
+  def model_data(self,wav,dt,t0,minf,maxf,vel,ref,jf=1,nrmax=3,eps=0.,dtmax=5e-05,time=True,
                  ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=True):
     """
     3D modeling of single scattered (Born) data with the one-way
@@ -209,7 +209,7 @@ class coordgeom:
     else:
       return recw
 
-  def image_data(self,dat,dt,minf,maxf,vel,jf=1,nhx=0,nhy=0,sym=True,nrmax=3,eps=0.01,dtmax=5e-05,wav=None,
+  def image_data(self,dat,dt,minf,maxf,vel,jf=1,nhx=0,nhy=0,sym=True,nrmax=3,eps=0.,dtmax=5e-05,wav=None,
                  ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=True):
     """
     3D migration of shot profile data via the one-way wave equation (single-square
@@ -286,6 +286,8 @@ class coordgeom:
         imgar = np.zeros([self.__nexp,2*nhy+1,2*nhx+1,self.__nz,self.__ny,self.__nx],dtype='float32')
       else:
         imgar = np.zeros([self.__nexp,nhy+1,nhx+1,self.__nz,self.__ny,self.__nx],dtype='float32')
+      # Allocate memory necessary for extension
+      ssf.set_ext(nhy,nhx,sym)
 
     # Loop over sources
     ntr = 0
@@ -305,12 +307,16 @@ class coordgeom:
         ssf.migallw(datwt,sou,imgar[iexp],wverb)
       else:
         # Extended imaging
-        ssf.migoffallw(datwt,sou,nhy,nhx,sym,imgar[iexp],wverb)
+        ssf.migoffallw(datwt,sou,imgar[iexp],wverb)
       # Increase number of traces
       ntr += self.__nrec[iexp]
 
     # Sum over all partial images
     img = np.sum(imgar,axis=0)
+
+    # Free memory for extension
+    if(nhx != 0 or nhy != 0):
+      ssf.del_ext()
 
     return img
 

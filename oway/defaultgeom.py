@@ -207,7 +207,7 @@ class defaultgeom:
       nhy    - number of subsurface offsets in y to compute [0]
       sym    - symmetrize the subsurface offsets [True]
       nrmax  - maximum number of reference velocities [3]
-      eps    - stability parameter [0.01]
+      eps    - stability parameter [0.]
       dtmax  - maximum time error [5e-05]
       wav    - input wavelet [None,assumes an impulse at zero lag]
       ntx    - size of taper in x direction [0]

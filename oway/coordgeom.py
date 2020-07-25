@@ -6,6 +6,7 @@ and receiver coordinates
 """
 import numpy as np
 from oway.ssr3 import ssr3, interp_slow
+from scaas.off2ang import off2ang
 from utils.ptyprint import progressbar
 import matplotlib.pyplot as plt
 
@@ -57,7 +58,7 @@ class coordgeom:
       raise Exception("Length of srcxs must equal srcys")
     self.__srcxs = srcxs.astype('float32'); self.__srcys = srcys.astype('float32')
     # Total number of sources
-    self.__nexp = len(srcxs) 
+    self.__nexp = len(srcxs)
     ## Receiver geometry
     # Check if either is none
     if(recxs is None and recys is None):
@@ -85,12 +86,20 @@ class coordgeom:
     self.__nwo = None; self.__ow  = None; self.__dw = None;
     self.__nwc = None; self.__dwc = None
 
+    # Subsurface offsets
+    self.__rnhx = None; self.__ohx = None; self.__dhx = None
+    self.__rnhy = None; self.__ohy = None; self.__dhy = None
+
+    # Angle
+    self.__na = None; self.__oa = None; self.__da = None
+
+
   def get_freq_axis(self):
     """ Returns the frequency axis """
     return self.__nwc,self.__ow,self.__dw
 
   def interp_vel(self,velin,dvx,dvy,ovx=0.0,ovy=0.0):
-    """ 
+    """
     Lateral nearest-neighbor interpolation of velocity. Use
     this when imaging grid is different than velocity
     grid. Assumes the same depth axis for imaging
@@ -150,8 +159,8 @@ class coordgeom:
       nthrds - number of OpenMP threads to use for frequency parallelization [1]
       sverb  - verbosity flag for shot progress bar [True]
       wverb  - verbosity flag for frequency progress bar [False]
-    
-    Returns: 
+
+    Returns:
       the data at the surface (in time or frequency) [nw,nry,nrx]
     """
     # Save wavelet temporal parameters
@@ -190,7 +199,7 @@ class coordgeom:
       sy = self.__srcys[iexp]; sx = self.__srcxs[iexp]
       isy = int((sy-self.__oy)/self.__dy+0.5); isx = int((sx-self.__ox)/self.__dx+0.5)
       # Create the source for this shot
-      sou[:] = 0.0; 
+      sou[:] = 0.0
       sou[:,isy,isx]  = wfft[:]
       # Downward continuation
       datw[:] = 0.0
@@ -210,7 +219,7 @@ class coordgeom:
       return recw
 
   def image_data(self,dat,dt,minf,maxf,vel,jf=1,nhx=0,nhy=0,sym=True,nrmax=3,eps=0.,dtmax=5e-05,wav=None,
-                 ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=True):
+                 ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=False):
     """
     3D migration of shot profile data via the one-way wave equation (single-square
     root split-step fourier method). Input data are assumed to follow
@@ -278,14 +287,20 @@ class coordgeom:
     slo = 1/vel
     ssf.set_slows(slo)
 
-    # Allocate partial image array 
+    # Allocate partial image array
     if(nhx == 0 and nhy == 0):
       imgar = np.zeros([self.__nexp,self.__nz,self.__ny,self.__nx],dtype='float32')
     else:
       if(sym):
-        imgar = np.zeros([self.__nexp,2*nhy+1,2*nhx+1,self.__nz,self.__ny,self.__nx],dtype='float32')
+        # Create axes
+        self.__rnhx = 2*nhx+1; self.__ohx = -nhx*self.__dx; self.__dhx = self.__dx
+        self.__rnhy = 2*nhy+1; self.__ohy = -nhy*self.__dy; self.__dhy = self.__dy
+        imgar = np.zeros([self.__nexp,self.__rnhy,self.__rnhx,self.__nz,self.__ny,self.__nx],dtype='float32')
       else:
-        imgar = np.zeros([self.__nexp,nhy+1,nhx+1,self.__nz,self.__ny,self.__nx],dtype='float32')
+        # Create axes
+        self.__rnhx = nhx+1; self.__ohx = 0; self.__dhx = self.__dx
+        self.__rnhy = nhy+1; self.__ohy = 0; self.__dhy = self.__dy
+        imgar = np.zeros([self.__nexp,self.__rnhy,self.__rnhx,self.__nz,self.__ny,self.__nx],dtype='float32')
       # Allocate memory necessary for extension
       ssf.set_ext(nhy,nhx,sym)
 
@@ -320,6 +335,12 @@ class coordgeom:
 
     return img
 
+  def get_off_axis(self):
+    """ Returns the x subsurface offset extension axis """
+    if(self.__rnhx is None):
+      raise Exception("Cannot return x subsurface offset axis without running extended imaging")
+    return self.__rnhx, self.__ohx, self.__dhx
+
   def fft1(self,sig,dt,minf,maxf):
     """
     Computes the FFT along the fast axis. Input
@@ -331,7 +352,7 @@ class coordgeom:
       minf - the minimum frequency for windowing the spectrum [Hz]
       maxf - the maximum frequency for windowing the spectrum
 
-    Returns: 
+    Returns:
       the frequency domain data (frequency is fast axis) and the
       frequency axis [nw,ow,dw]
     """
@@ -388,7 +409,7 @@ class coordgeom:
   def make_sht_cube(self,dat):
     """
     Makes a regular cube of shots from the input traces.
-    Assumes that the data are already sorted by common 
+    Assumes that the data are already sorted by common
     shot
 
     Note only works for 2D data at the moment
@@ -430,4 +451,54 @@ class coordgeom:
       n += 1
 
     return n
+
+  def to_angle(self,img,amax=70,na=281,nthrds=4,transp=False,oro=None,dro=None,verb=False):
+    """
+    Converts the subsurface offset gathers to opening angle gathers
+
+    Parameters
+      img    - Image extended over subsurface offsets [nhy,nhx,nz,ny,nx]
+      amax   - Maximum angle over which to compute angle gathers [70]
+      na     - Number of angles on the angle axis [281]
+      nthrds - Number of OpenMP threads to use (parallelize over image point axis) [4]
+      transp - Transpose the output to have shape [na,nx,nz]
+      verb   - Verbosity flag [False]
+
+    Returns the angle gathers [nro,nx,na,nz]
+    """
+    # Assume ny = 1
+    imgin = img[0,:,:,0,:]
+    amin = -amax; avals = np.linspace(amin,amax,na)
+    # Compute angle axis
+    self.__na = na; self.__da = avals[1] - avals[0]; self.__oa = avals[0]
+    return off2ang(imgin,self.__ohx,self.__dhx,self.__dz,na=na,amax=amax,nta=601,ota=-3,dta=0.01,
+                   nthrds=nthrds,transp=transp,oro=oro,dro=dro,verb=verb)
+
+  def get_ang_axis(self):
+    """ Returns the opening angle extension axis """
+    return self.__na, self.__oa, self.__da
+
+  def test_freq_axis(self,n1,dt,minf,maxf,jf=1):
+    """
+    For testing different frequency axes based on
+    the input wavelet time axis
+
+    Parameters:
+      n1   - length of wavelet
+      dt   - temporal sampling of wavelet
+      minf - minimum frequency to propagate
+      maxf - maximum frequency to propagate
+      jf   - frequency decimation factor [1]
+
+    Returns:
+      Nothing. Just a verbose output of the frequency axis
+    """
+    nt = 2*self.next_fast_size(int((n1+1)/2))
+    if(nt%2): nt += 1
+    nw = int(nt/2+1)
+    dw = 1/(nt*dt)
+    # Min and max frequencies
+    begw = int(minf/dw); endw = int(maxf/dw)
+    nwc = (endw-begw)/jf
+    print("Test frequency axis: nw=%d ow=%d dw=%f"%(nwc,minf,dw*jf))
 

@@ -1,9 +1,7 @@
 import inpout.seppy as seppy
 import numpy as np
-#import oway.zerooffset_kiss as zo
 import oway.zerooffset as zo
 import matplotlib.pyplot as plt
-import time
 
 sep = seppy.sep()
 
@@ -25,10 +23,8 @@ zoimg = zo.zerooffset(nxi,dxi,ny,dy,nz,dz,ox=oxi)
 
 velint = zoimg.interp_vel(velin,dvx,dy,ovx=ovx)
 
-beg = time.time()
 img = zoimg.image_data(dat,dt,ntx=4,minf=0,maxf=60.1,jf=1,vel=velint,nrmax=3,
                      nthrds=4,wverb=True)
-print("Elapsed=%f"%(time.time()-beg))
 
 sep.write_file("myzosigimg.H",img.T,ds=[dxi,dy,dz],os=[oxi,0.0,oz])
 

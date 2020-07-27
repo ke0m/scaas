@@ -22,12 +22,20 @@ class ssr3{
          float dtmax, int nrmax, int nthrds);
     void set_slows(float *slo);
     /* Modeling */
+    void inject_src (int nsrc, float *srcy, float *srcx, float oy, float ox,
+                       std::complex<float> *wav, std::complex<float> *sou);
+    void inject_srct(int nsrc, float *srcy, float *srcx, float oy, float ox,
+                       std::complex<float> *wav, std::complex<float> *sou);
     void ssr3ssf_modonew(int iw, float *ref, std::complex<float> *wav, std::complex<float> *dat, int ithrd);
     void ssr3ssf_modallw(float *ref, std::complex<float> *wav, std::complex<float> *dat, bool verb);
     /* Modeling and imaging helper functions */
-    void restrict_data(int nrec, float *recy, float *recx, float oy, float ox,
-                       std::complex<float> *dat, std::complex<float> *rec);
-    void inject_data(int nrec, float *recy, float *recx, float oy, float ox,
+    void restrict_data (int nrec, float *recy, float *recx, float oy, float ox,
+                        std::complex<float> *dat, std::complex<float> *rec);
+    void restrict_datat(int nrec, float *recy, float *recx, float oy, float ox,
+                        std::complex<float> *dat, std::complex<float> *rec);
+    void inject_data (int nrec, float *recy, float *recx, float oy, float ox,
+                     std::complex<float> *rec, std::complex<float> *dat);
+    void inject_datat(int nrec, float *recy, float *recx, float oy, float ox,
                      std::complex<float> *rec, std::complex<float> *dat);
     /* Conventional imaging */
     void ssr3ssf_migonew(int iw, std::complex<float> *dat, std::complex<float> *wav, float *img, int ithrd);

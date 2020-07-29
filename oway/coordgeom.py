@@ -421,21 +421,21 @@ class coordgeom:
       regular shot cube [nsht,nrx,nt]
     """
     # Get data dimensions
-    if(dat.shape != 2):
+    if(dat.ndim != 2):
       raise Exception("Data must be of dimension [ntr,nt]")
     nt = dat.shape[1]
 
     # Get maximum number of receivers
-    nrecxmax = np.max(self.__recxs)
+    nrecxmax = np.max(self.__nrec)
 
     # Output shot array
     shots = np.zeros([self.__nexp,nrecxmax,nt],dtype='float32')
 
     # Loop over all sources
     ntr = 0
-    for isx in range(self.__nexp):
-      shots[iexp,:self.__nrec[isx],:] = dat[ntr:ntr+self.__nrec[isx],:]
-      ntr += self.__nrec[isx]
+    for iexp in range(self.__nexp):
+      shots[iexp,:self.__nrec[iexp],:] = dat[ntr:ntr+self.__nrec[iexp],:]
+      ntr += self.__nrec[iexp]
 
     return shots
 

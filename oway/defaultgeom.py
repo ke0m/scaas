@@ -433,6 +433,10 @@ class defaultgeom:
     nwc = (endw-begw)/jf
     print("Test frequency axis: nw=%d ow=%d dw=%f"%(nwc,minf,dw*jf))
 
+  def get_scoords(self):
+    """ Returns the source injection coordinates """
+    return self.__scoords
+
   def plot_acq(self,mod=None,show=True,**kwargs):
     """ Plots the acquisition on the slowness model """
     # Plot the slowness model

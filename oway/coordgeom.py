@@ -219,33 +219,34 @@ class coordgeom:
       return recw
 
   def image_data(self,dat,dt,minf,maxf,vel,jf=1,nhx=0,nhy=0,sym=True,nrmax=3,eps=0.,dtmax=5e-05,wav=None,
-                 ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=False):
+                 ntx=0,nty=0,px=0,py=0,nthrds=1,partial=False,sverb=True,wverb=False):
     """
     3D migration of shot profile data via the one-way wave equation (single-square
     root split-step fourier method). Input data are assumed to follow
     the default geometry (sources and receivers on a regular grid)
 
     Parameters:
-      dat    - input shot profile data [ntr,nt]
-      dt     - temporal sampling of input data
-      minf   - minimum frequency to image in the data [Hz]
-      maxf   - maximum frequency to image in the data [Hz]
-      vel    - input migration velocity model [nz,ny,nx]
-      jf     - frequency decimation factor [1]
-      nhx    - number of subsurface offsets in x to compute [0]
-      nhy    - number of subsurface offsets in y to compute [0]
-      sym    - symmetrize the subsurface offsets [True]
-      nrmax  - maximum number of reference velocities [3]
-      eps    - stability parameter [0.]
-      dtmax  - maximum time error [5e-05]
-      wav    - input wavelet [None,assumes an impulse at zero lag]
-      ntx    - size of taper in x direction [0]
-      nty    - size of taper in y direction [0]
-      px     - amount of padding in x direction (samples) [0]
-      py     - amount of padding in y direction (samples) [0]
-      nthrds - number of OpenMP threads for frequency parallelization [1]
-      sverb  - verbosity flag for shot progress bar [True]
-      wverb  - verbosity flag for frequency progress bar [False]
+      dat     - input shot profile data [ntr,nt]
+      dt      - temporal sampling of input data
+      minf    - minimum frequency to image in the data [Hz]
+      maxf    - maximum frequency to image in the data [Hz]
+      vel     - input migration velocity model [nz,ny,nx]
+      jf      - frequency decimation factor [1]
+      nhx     - number of subsurface offsets in x to compute [0]
+      nhy     - number of subsurface offsets in y to compute [0]
+      sym     - symmetrize the subsurface offsets [True]
+      nrmax   - maximum number of reference velocities [3]
+      eps     - stability parameter [0.]
+      dtmax   - maximum time error [5e-05]
+      wav     - input wavelet [None,assumes an impulse at zero lag]
+      ntx     - size of taper in x direction [0]
+      nty     - size of taper in y direction [0]
+      px      - amount of padding in x direction (samples) [0]
+      py      - amount of padding in y direction (samples) [0]
+      nthrds  - number of OpenMP threads for frequency parallelization [1]
+      partial - flag for also returning partial images (for each shot)
+      sverb   - verbosity flag for shot progress bar [True]
+      wverb   - verbosity flag for frequency progress bar [False]
 
     Returns:
       an image created from the data [nhy,nhx,nz,ny,nx]
@@ -333,7 +334,10 @@ class coordgeom:
     if(nhx != 0 or nhy != 0):
       ssf.del_ext()
 
-    return img
+    if(partial):
+      return imgar,img
+    else:
+      return img
 
   def get_off_axis(self):
     """ Returns the x subsurface offset extension axis """

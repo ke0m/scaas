@@ -1,7 +1,7 @@
 """
 Default geometry for synthetics
 Sources and receivers on the surface
-and distributed evenly across the surface. 
+and distributed evenly across the surface.
 This code is designed to be distributed across nodes in a cluster
 
 @author: Joseph Jennings
@@ -59,7 +59,7 @@ class defaultgeomnode:
 
     # Source gometry
     osx *= dx; dsx *= dx
-    osy *= dy; dsy *= dy 
+    osy *= dy; dsy *= dy
     # Number of sources per shot
     self.__nexp = nsy*nsx
     self.__nsrc = np.ones(self.__nexp,dtype='int32')
@@ -201,8 +201,8 @@ class defaultgeomnode:
       begs = ends; begr = endr
       # Put data in into dict
       idict = {}
-      idict['srcy'] = sychnk; idict['srcx'] = sxchnk; idict['nsrc'] = nsrccnk; 
-      idict['recy'] = rychnk; idict['recx'] = rxchnk; idict['nrec'] = nreccnk; 
+      idict['srcy'] = sychnk; idict['srcx'] = sxchnk; idict['nsrc'] = nsrccnk
+      idict['recy'] = rychnk; idict['recx'] = rxchnk; idict['nrec'] = nreccnk
       idict['wav']  = srcchnk; idict['dat'] = datchnk
       ochnks.append(idict)
 
@@ -237,7 +237,7 @@ class defaultgeomnode:
     # Tapering and padding
     self.__ntx = ntx; self.__nty = nty
     self.__px  = px ; self.__py  = py
-    
+
     # Verbosity
     if(everb):
       self.__verb = 1
@@ -247,7 +247,7 @@ class defaultgeomnode:
     # Threading
     self.__nthrds = nthrds
 
-  def model_chunk(self,nsrc,srcys,srcxs,wavs,nrec,recys,recxs,dats):
+  def model_chunk(self,chunk):
     """
     Models a chunk of data. Takes input chunked
     coordinates and source wavelets.
@@ -256,37 +256,44 @@ class defaultgeomnode:
     Note: you need to have run the set_props function before running
 
     Parameters:
-      nsrc  - number of sources for each shot in chunk
-      srcys - y-coordinates of source location for the chunk of shots
-      srcxs - x-coordinates of source location for the chunk of shots
-      wavs  - a chunk of source wavelets [inexp,nw]
-      nrec  - number of receivers for each shot in chunk [nsrc]
-      recys - y-coordinates of receiver location for the chunk of shots [ntr]
-      recxs - x-coordinates of receiver location for the chunk of shots [ntr]
-      dats  - output data computed for chunk of shots [ntr,nw]
+      chunk - a chunk created from the create_mod_chunks function.
+              This chunk is a dictionary with the following keys:
+              'nsrc'  - number of sources for each shot in chunk
+              'srcy'  - y-coordinates of source location for the chunk of shots
+              'srcx'  - x-coordinates of source location for the chunk of shots
+              'wav'   - a chunk of source wavelets [inexp,nw]
+              'nrec'  - number of receivers for each shot in chunk [nsrc]
+              'recy'  - y-coordinates of receiver location for the chunk of shots [ntr]
+              'recx'  - x-coordinates of receiver location for the chunk of shots [ntr]
+              'dat'   - output data computed for chunk of shots [ntr,nw]
+
+    Returns:
+      the data modeled for that chunk [ntr,n1]
     """
     # Get number of shots in the chunk
-    if(len(nsrc) != len(nrec)):
+    if(len(chunk['nsrc']) != len(chunk['nrec'])):
       raise Exception("nsrc and nrec array must be same length")
-    nexp = len(nrec)
+    nexp = len(chunk['nrec'])
 
     if(self.__slo is None or self.__ref is None):
       raise Exception("Must set the slowness and reflectivity with the set_model_pars function")
 
     # Perform the modeling
-    ssr3modshots(self.__nx, self.__ny, self.__nz , # Spatial sizes
-                 self.__ox, self.__oy, self.__oz , # Spatial origins
-                 self.__dx, self.__dy, self.__dz , # Spatial samplings
-                 self.__nwc,self.__ow, self.__dwc, # Temporal frequency
-                 self.__ntx, self.__nty,           # Tapering
-                 self.__px, self.__py,             # Padding
-                 self.__dtmax, self.__nrmax,       # Reference slowness
-                 self.__slo,                       # Medium slowness
-                 nexp,                             # Number of experiments
-                 nsrc, srcys, srcxs,               # Num srcs and coords per exp
-                 nrec, recys, recxs,               # Num recs and coords per exp
-                 wavs, self.__ref, dats,           # Wavelets,reflectivity and output data
-                 self.__nthrds, self.__verb)       # Threading and verbosity
+    ssr3modshots(self.__nx, self.__ny, self.__nz ,            # Spatial sizes
+                 self.__ox, self.__oy, self.__oz ,            # Spatial origins
+                 self.__dx, self.__dy, self.__dz ,            # Spatial samplings
+                 self.__nwc,self.__ow, self.__dwc,            # Temporal frequency
+                 self.__ntx, self.__nty,                      # Tapering
+                 self.__px, self.__py,                        # Padding
+                 self.__dtmax, self.__nrmax,                  # Reference slowness
+                 self.__slo,                                  # Medium slowness
+                 nexp,                                        # Number of experiments
+                 chunk['nsrc'], chunk['srcy'], chunk['srcx'], # Num srcs and coords per exp
+                 chunk['nrec'], chunk['recy'], chunk['recx'], # Num recs and coords per exp
+                 chunk['wav'], self.__ref, chunk['dat'],      # Wavelets,reflectivity, output data
+                 self.__nthrds, self.__verb)                  # Threading and verbosity
+
+    return chunk['dat']
 
   def model_data(self,wav,dt,t0,minf,maxf,vel,ref,jf=1,nrmax=3,dtmax=5e-05,time=True,
                  ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=False,client=None):
@@ -326,9 +333,9 @@ class defaultgeomnode:
     self.__nwc = wfftd.shape[0] # Get the number of frequencies to compute
     self.__dwc = jf*self.__dw
 
-    if(sverb or wverb): 
+    if(sverb or wverb):
       print("Frequency axis: nw=%d ow=%f dw=%f"%(self.__nwc,self.__ow,self.__dwc))
-      if(sverb): 
+      if(sverb):
         verb = 1
       if(wverb):
         verb = 2
@@ -364,7 +371,7 @@ class defaultgeomnode:
     # Create frequency domain source
     if(wavs is None):
       wavs    = np.zeros(self.__nt,dtype='float32')
-      wavs[0] = 1.0 
+      wavs[0] = 1.0
       nwo,ow,dw,wfft = self.fft1(wavs,self.__dt,minf=self.__minf,maxf=self.__maxf)
       wfftd = wfft[::self.__jf]
       # Replicate
@@ -399,8 +406,8 @@ class defaultgeomnode:
       begs = ends; begr = endr
       # Put data in into dict
       idict = {}
-      idict['srcy'] = sychnk; idict['srcx'] = sxchnk; idict['nsrc'] = nsrccnk; 
-      idict['recy'] = sychnk; idict['recx'] = sxchnk; idict['nrec'] = nreccnk; 
+      idict['srcy'] = sychnk; idict['srcx'] = sxchnk; idict['nsrc'] = nsrccnk
+      idict['recy'] = sychnk; idict['recx'] = sxchnk; idict['nrec'] = nreccnk
       idict['wav'] = srcchnk; idict['dat'] = datchnk
       ochnks.append(idict)
 
@@ -433,7 +440,7 @@ class defaultgeomnode:
     # Tapering and padding
     self.__ntx = ntx; self.__nty = nty
     self.__px  = px ; self.__py  = py
-    
+
     # Verbosity
     if(everb):
       self.__verb = 1
@@ -472,7 +479,7 @@ class defaultgeomnode:
     # Allocate the output image
     img = np.zeros([self.__nz,self.__ny,self.__nx],dtype='float32')
 
-    # Perform the imaging 
+    # Perform the imaging
     ssr3migshots(self.__nx, self.__ny, self.__nz , # Spatial sizes
                  self.__ox, self.__oy, self.__oz , # Spatial origins
                  self.__dx, self.__dy, self.__dz , # Spatial samplings
@@ -616,7 +623,7 @@ class defaultgeomnode:
     # Pad for the inverse FFT
     paddims2 = [(0,0)]*(sigp1.ndim-1)
     paddims2.append((0,nt-nw))
-    sigp2     = np.pad(sigp1,paddims2,mode='constant') 
+    sigp2     = np.pad(sigp1,paddims2,mode='constant')
     sigifft   = np.real(np.fft.ifft(sigp2))
     sigifftw  = sigifft[...,it0:]
     # Pad to desired output time samples
@@ -624,7 +631,7 @@ class defaultgeomnode:
     paddims3.append((0,n1-(nt-it0)))
     sigifftwp = np.pad(paddims3,mode='constant')
 
-    return sigifftwp 
+    return sigifftwp
 
   def data_f2t(self,dat,nw,ow,dw,n1,it0=None):
     """

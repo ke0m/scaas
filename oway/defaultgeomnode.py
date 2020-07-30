@@ -8,20 +8,21 @@ This code is designed to be distributed across nodes in a cluster
 @version: 2020.07.26
 """
 import numpy as np
-from oway.ssr3 interp_slow
+from oway.ssr3 import interp_slow
 from oway.ssr3wrap import ssr3modshots, ssr3migshots, ssr3migoffshots
 from scaas.off2ang import off2ang
 import matplotlib.pyplot as plt
 
-class defaultgeom:
+class defaultgeomnode:
   """
   Functions for modeling and imaging with a
   standard synthetic source receiver geometry
   """
   def __init__(self,nx,dx,ny,dy,nz,dz,                             # Model size
                nsx,dsx,nsy,dsy,osx=0.0,osy=0.0,                    # Source geometry
-               nrx=None,drx=1.0,orx=0.0,nry=None,dry=1.0,ory=0.0   # Receiver geometry
-               ox=0.0,oy=0.0,oz=0.0):                              # Model origins 
+               nrx=None,drx=1.0,orx=0.0,nry=None,dry=1.0,ory=0.0,  # Receiver geometry
+               ox=0.0,oy=0.0,oz=0.0):                              # Model origins
+
     """
     Creates a default geometry object for split-step fourier downward continuation
 
@@ -68,7 +69,7 @@ class defaultgeom:
     self.__srcy = np.zeros(self.__nexp,dtype='float32')
     self.__srcx = np.zeros(self.__nexp,dtype='float32')
     k = 0
-    for isy in range(nry):
+    for isy in range(nsy):
       self.__srcy[k] = osy + isy*dsy
       for isx in range(nsx):
         self.__srcx[k] = osx + isx*dsx
@@ -82,19 +83,22 @@ class defaultgeom:
     # Number of receivers per shot
     self.__nrec = np.zeros(self.__nexp,dtype='int32') + nry*nrx
     # Total number of traces
-    self.__ntr = np.sum(nrec)
+    self.__ntr = np.sum(self.__nrec)
     # Build receiver coordinates
-    self.__recy = np.zeros(self.__nexp,dtype='float32')
-    self.__recx = np.zeros(self.__nexp,dtype='float32')
+    self.__recy = np.zeros(self.__ntr,dtype='float32')
+    self.__recx = np.zeros(self.__ntr,dtype='float32')
     k = 0
-    for iry in range(nry):
-      self.__recy[k] = ory + iry*dry
-      for irx in range(nrx):
-        self.__recx[k] = orx + irx*drx
-        k += 1
+    #TODO: potentially use a mesh grid here
+    for iexp in range(self.__nexp):
+      for iry in range(nry):
+        self.__recy[k] = ory + iry*dry
+        for irx in range(nrx):
+          self.__recx[k] = orx + irx*drx
+          k += 1
 
-    # Frequency axis
-    self.__nwo = None; self.__ow = None; self.__dw = None;
+    # Data frequency axis and imaging/modeling axis
+    self.__nwo = None; self.__ow = None; self.__dw  = None;
+    self.__nwc = None;                   self.__dwc = None
 
     # Subsurface offsets
     self.__rnhx = None; self.__ohx = None; self.__dhx = None
@@ -114,57 +118,7 @@ class defaultgeom:
     self.__slo = None; self.__ref = None
 
     # Verbosity and threading
-    self.__verb = 0; self.__nthrds = 24
-
-  def create_mod_chunks(self,nchnks,dat,wavs):
-    """
-    Creates chunks for distributed modeling over a cluster
-
-    Parameters:
-      nchnks - number of chunks to create
-      dat    - input data [ntr,n1]
-      wavs   - input wavelets [nwav,n1]
-
-    Returns a dictionary of chunked arguments. [nchnks]
-    """
-    # Get data dimensions
-    ntr = dat.shape[0]; nwav = wavs.shape[0]
-    ochnks = []
-    expchnks = splitnum(self.__nexp,nchnks)
-
-    k = 0
-    begs = 0; ends = 0; begr = 0; endr = 0
-    for ichnk in range(len(expchnks)):
-      # Get data and sources for each chunk
-      nsrccnk = np.zeros(expchnks[ichnk],dtype='int32')
-      nreccnk = np.zeros(expchnks[ichnk],dtype='int32')
-      for iexp in range(expchnks[ichnk]):
-        nsrccnk[iexp] = self.__nsrc[k]
-        nreccnk[iexp] = self.__nrec[k]
-        ends += self.__nsrc[k]
-        endr += self.__nrec[k]
-        k += 1
-      # Chunked source data
-      sychnk  = self.__srcy[begs:ends]
-      sxchnk  = self.__srcx[begs:ends]
-      srcchnk = dat[begs:ends,:]
-      # Chunked receiver data
-      rychnk  = self.__recy[begr:endr]
-      rxchnk  = self.__recx[begr:endr]
-      datchnk = dat[begr:endr,:]
-      # Update positions
-      begs = ends; begr = endr
-      # Put data in into dict
-      idict = {}
-      idict['srcy'] = sychnk; idict['srcx'] = sxchnk; idict['wav'] = srcchnk
-      idict['recy'] = sychnk; idict['recx'] = sxchnk; idict['dat'] = rechnk
-      ochnks.append(idict)
-
-    return ochnks
-
-  def get_freq_axis(self):
-    """ Returns the frequency axis """
-    return self.__nwc,self.__ow,self.__dw
+    self.__verb = 0; self.__nthrds = 1
 
   def interp_vel(self,velin,dvx,dvy,ovx=0.0,ovy=0.0):
     """
@@ -201,20 +155,97 @@ class defaultgeom:
 
     return velot
 
-  def set_props(self,vel,ref=None):
+  def create_mod_chunks(self,nchnks,wavs):
     """
-    Sets velocity and reflectivity (if modeling)
+    Creates chunks for distributed modeling over a cluster
 
     Parameters:
-      vel - input velocity field [nz,ny,nx]
-      ref - input reflectivity [nz,ny,nx]
-    
-    Returns:
-      Nothing
+      nchnks - number of chunks to create
+      dat    - input data [ntr,n1]
+      wavs   - input wavelets [nwav,n1] or wavelet [n1]
+
+    Returns a list of dictionary arguments for each chunk. [nchnks]
     """
+    # Get wavelet dimensions
+    n1 = wavs.shape[-1]
+    if(wavs.ndim == 1):
+      wav = np.repeat(wavs[np.newaxis,:],self.__nexp,axis=0)
+
+    # Allocate the data
+    dat = np.zeros([self.__ntr,n1],dtype='complex64')
+    ntr = dat.shape[0]; nwav = wav.shape[0]
+    ochnks = []
+    expchnks = self.splitnum(self.__nexp,nchnks)
+
+    k = 0
+    begs = 0; ends = 0; begr = 0; endr = 0
+    for ichnk in range(len(expchnks)):
+      # Get data and sources for each chunk
+      nsrccnk = np.zeros(expchnks[ichnk],dtype='int32')
+      nreccnk = np.zeros(expchnks[ichnk],dtype='int32')
+      for iexp in range(expchnks[ichnk]):
+        nsrccnk[iexp] = self.__nsrc[k]
+        nreccnk[iexp] = self.__nrec[k]
+        ends += self.__nsrc[k]
+        endr += self.__nrec[k]
+        k += 1
+      # Chunked source data
+      sychnk  = self.__srcy[begs:ends]
+      sxchnk  = self.__srcx[begs:ends]
+      srcchnk = wav[begs:ends,:]
+      # Chunked receiver data
+      rychnk  = self.__recy[begr:endr]
+      rxchnk  = self.__recx[begr:endr]
+      datchnk = dat[begr:endr,:]
+      # Update positions
+      begs = ends; begr = endr
+      # Put data in into dict
+      idict = {}
+      idict['srcy'] = sychnk; idict['srcx'] = sxchnk; idict['nsrc'] = nsrccnk; 
+      idict['recy'] = rychnk; idict['recx'] = rxchnk; idict['nrec'] = nreccnk; 
+      idict['wav']  = srcchnk; idict['dat'] = datchnk
+      ochnks.append(idict)
+
+    return ochnks
+
+  def set_model_pars(self,vel,ref,nrmax=3,dtmax=5e-05,ntx=0,nty=0,px=0,py=0,wverb=False,everb=False,nthrds=1):
+    """
+    Sets the non-changing parameters (same for all chunks) for calling
+    model chunk outside of the model_data function
+
+    Parameters:
+      vel    - modeling velocity [nz,ny,nx]
+      ref    - reflectivity [nz,ny,nx]
+      nrmax  - maximum number of reference velocities [3]
+      dtmax  - maximum time error [5e-05]
+      ntx    - length of taper in x-direction (samples) [0]
+      nty    - length of taper in y-direction (samples) [0]
+      px     - amount of padding in x-direction (samples) [0]
+      py     - amount of padding in y-direction (samples) [0]
+      everb  - shot progress bar [False]
+      wverb  - frequency progress bar [False]
+      nthrds - number of OpenMP threads to use [1]
+    """
+    # Slowness and reflectivity
     self.__slo = 1/vel
-    if(ref is not None):
-      self.__ref = ref
+    self.__ref = ref
+
+    # Reference velocities
+    self.__nrmax = nrmax
+    self.__dtmax = dtmax
+
+    # Tapering and padding
+    self.__ntx = ntx; self.__nty = nty
+    self.__px  = px ; self.__py  = py
+    
+    # Verbosity
+    if(everb):
+      self.__verb = 1
+    if(wverb):
+      self.__verb = 2
+
+    # Threading
+    self.__nthrds = nthrds
 
   def model_chunk(self,nsrc,srcys,srcxs,wavs,nrec,recys,recxs,dats):
     """
@@ -229,21 +260,24 @@ class defaultgeom:
       srcys - y-coordinates of source location for the chunk of shots
       srcxs - x-coordinates of source location for the chunk of shots
       wavs  - a chunk of source wavelets [inexp,nw]
-      nrec  - number of receivers for each shot in chunk
-      recys - y-coordinates of receiver location for the chunk of shots
-      recxs - x-coordinates of receiver location for the chunk of shots
-      dats  - output data computed for chunk of shots
+      nrec  - number of receivers for each shot in chunk [nsrc]
+      recys - y-coordinates of receiver location for the chunk of shots [ntr]
+      recxs - x-coordinates of receiver location for the chunk of shots [ntr]
+      dats  - output data computed for chunk of shots [ntr,nw]
     """
     # Get number of shots in the chunk
     if(len(nsrc) != len(nrec)):
       raise Exception("nsrc and nrec array must be same length")
     nexp = len(nrec)
 
+    if(self.__slo is None or self.__ref is None):
+      raise Exception("Must set the slowness and reflectivity with the set_model_pars function")
+
     # Perform the modeling
     ssr3modshots(self.__nx, self.__ny, self.__nz , # Spatial sizes
                  self.__ox, self.__oy, self.__oz , # Spatial origins
                  self.__dx, self.__dy, self.__dz , # Spatial samplings
-                 self.__nwc,self.__owc,self.__dwc, # Temporal frequency
+                 self.__nwc,self.__ow, self.__dwc, # Temporal frequency
                  self.__ntx, self.__nty,           # Tapering
                  self.__px, self.__py,             # Padding
                  self.__dtmax, self.__nrmax,       # Reference slowness
@@ -251,10 +285,8 @@ class defaultgeom:
                  nexp,                             # Number of experiments
                  nsrc, srcys, srcxs,               # Num srcs and coords per exp
                  nrec, recys, recxs,               # Num recs and coords per exp
-                 wavs, self.__ref, dat,            # Wavelets,reflectivity and output data
+                 wavs, self.__ref, dats,           # Wavelets,reflectivity and output data
                  self.__nthrds, self.__verb)       # Threading and verbosity
-
-    return dat
 
   def model_data(self,wav,dt,t0,minf,maxf,vel,ref,jf=1,nrmax=3,dtmax=5e-05,time=True,
                  ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=False,client=None):
@@ -294,9 +326,6 @@ class defaultgeom:
     self.__nwc = wfftd.shape[0] # Get the number of frequencies to compute
     self.__dwc = jf*self.__dw
 
-    # Repeat the source nexp times
-    wavs = np.repeat(wfftd[np.newaxis,...],self.__nexp,axis=0)
-
     if(sverb or wverb): 
       print("Frequency axis: nw=%d ow=%f dw=%f"%(self.__nwc,self.__ow,self.__dwc))
       if(sverb): 
@@ -317,11 +346,148 @@ class defaultgeom:
     else:
       return datwr
 
-  def create_mig_chunks():
-    pass
+  def create_img_chunks(self,nchnks,dat,wavs=None):
+    """
+    Creates chunks for distributed imaging over a cluster
 
-  def image_chunk():
-    pass
+    Parameters:
+      nchnks - number of chunks to create
+      dat    - input data [ntr,n1]
+      wavs   - input wavelets [nwav,n1] or [n1] (None)
+
+    Returns a list of dictionary arguments for each chunk. [nchnks]
+    """
+    # Check if data are complex
+    if(dat.dtype != 'complex64'):
+      raise Exception("Data must have been FFT'd before chunking")
+
+    # Create frequency domain source
+    if(wavs is None):
+      wavs    = np.zeros(self.__nt,dtype='float32')
+      wavs[0] = 1.0 
+      nwo,ow,dw,wfft = self.fft1(wavs,self.__dt,minf=self.__minf,maxf=self.__maxf)
+      wfftd = wfft[::self.__jf]
+      # Replicate
+      wav = np.repeat(wfft[np.newaxis,:],self.__nexp,axis=0)
+
+    # Get data dimensions
+    ntr = dat.shape[0]; nwav = wav.shape[0]
+    ochnks = []
+    expchnks = self.splitnum(self.__nexp,nchnks)
+
+    k = 0
+    begs = 0; ends = 0; begr = 0; endr = 0
+    for ichnk in range(len(expchnks)):
+      # Get data and sources for each chunk
+      nsrccnk = np.zeros(expchnks[ichnk],dtype='int32')
+      nreccnk = np.zeros(expchnks[ichnk],dtype='int32')
+      for iexp in range(expchnks[ichnk]):
+        nsrccnk[iexp] = self.__nsrc[k]
+        nreccnk[iexp] = self.__nrec[k]
+        ends += self.__nsrc[k]
+        endr += self.__nrec[k]
+        k += 1
+      # Chunked source data
+      sychnk  = self.__srcy[begs:ends]
+      sxchnk  = self.__srcx[begs:ends]
+      srcchnk = dat[begs:ends,:]
+      # Chunked receiver data
+      rychnk  = self.__recy[begr:endr]
+      rxchnk  = self.__recx[begr:endr]
+      datchnk = dat[begr:endr,:]
+      # Update positions
+      begs = ends; begr = endr
+      # Put data in into dict
+      idict = {}
+      idict['srcy'] = sychnk; idict['srcx'] = sxchnk; idict['nsrc'] = nsrccnk; 
+      idict['recy'] = sychnk; idict['recx'] = sxchnk; idict['nrec'] = nreccnk; 
+      idict['wav'] = srcchnk; idict['dat'] = datchnk
+      ochnks.append(idict)
+
+    return ochnks
+
+  def set_img_pars(vel,nrmax=3,dtmax=5e-05,ntx=0,nty=0,px=0,py=0,wverb=False,everb=False,nthrds=1):
+    """
+    Sets the non-changing parameters (same for all chunks) for calling
+    image chunk outside of the image_data function
+
+    Parameters:
+      vel    - modeling velocity [nz,ny,nx]
+      nrmax  - maximum number of reference velocities [3]
+      dtmax  - maximum time error [5e-05]
+      ntx    - length of taper in x-direction (samples) [0]
+      nty    - length of taper in y-direction (samples) [0]
+      px     - amount of padding in x-direction (samples) [0]
+      py     - amount of padding in y-direction (samples) [0]
+      everb  - shot progress bar [False]
+      wverb  - frequency progress bar [False]
+      nthrds - number of OpenMP threads to use [1]
+    """
+    # Slowness and reflectivity
+    self.__slo = 1/vel
+
+    # Reference velocities
+    self.__nrmax = nrmax
+    self.__dtmax = dtmax
+
+    # Tapering and padding
+    self.__ntx = ntx; self.__nty = nty
+    self.__px  = px ; self.__py  = py
+    
+    # Verbosity
+    if(everb):
+      self.__verb = 1
+    if(wverb):
+      self.__verb = 2
+
+    # Threading
+    self.__nthrds = nthrds
+
+  def image_chunk(self,nsrc,srcys,srcxs,wavs,nrec,recys,recxs,dats):
+    """
+    Models a chunk of data. Takes input chunked
+    coordinates and source wavelets.
+    These chunks are created from the create_data_chunks function.
+
+    Note: you need to have run the set_props function before running
+
+    Parameters:
+      nsrc  - number of sources for each shot in chunk
+      srcys - y-coordinates of source location for the chunk of shots
+      srcxs - x-coordinates of source location for the chunk of shots
+      wavs  - a chunk of source wavelets [inexp,nw]
+      nrec  - number of receivers for each shot in chunk [nsrc]
+      recys - y-coordinates of receiver location for the chunk of shots [ntr]
+      recxs - x-coordinates of receiver location for the chunk of shots [ntr]
+      dats  - input chunked data [ntr,nw]
+    """
+    # Get number of shots in the chunk
+    if(len(nsrc) != len(nrec)):
+      raise Exception("nsrc and nrec array must be same length")
+    nexp = len(nrec)
+
+    if(self.__slo is None or self.__ref):
+      raise Exception("Must set the slowness and reflectivity with the set_model_pars function")
+
+    # Allocate the output image
+    img = np.zeros([self.__nz,self.__ny,self.__nx],dtype='float32')
+
+    # Perform the imaging 
+    ssr3migshots(self.__nx, self.__ny, self.__nz , # Spatial sizes
+                 self.__ox, self.__oy, self.__oz , # Spatial origins
+                 self.__dx, self.__dy, self.__dz , # Spatial samplings
+                 self.__nwc,self.__ow, self.__dwc, # Temporal frequency
+                 self.__ntx, self.__nty,           # Tapering
+                 self.__px, self.__py,             # Padding
+                 self.__dtmax, self.__nrmax,       # Reference slowness
+                 self.__slo,                       # Medium slowness
+                 nexp,                             # Number of experiments
+                 nsrc, srcys, srcxs,               # Num srcs and coords per exp
+                 nrec, recys, recxs,               # Num recs and coords per exp
+                 dats, wavs,  img,                 # Data, wavelets and output images
+                 self.__nthrds, self.__verb)       # Threading and verbosity
+
+    return img
 
   def image_data(self,dat,dt,minf,maxf,vel,jf=1,nhx=0,nhy=0,sym=True,nrmax=3,eps=0.0,dtmax=5e-05,wav=None,
                  ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=False):
@@ -375,14 +541,13 @@ class defaultgeom:
     datt = np.transpose(dfftd,(0,1,4,2,3)) # [nsy,nsx,ny,nx,nwc] -> [nsy,nsx,nwc,ny,nx]
     datw = np.ascontiguousarray(datt.reshape([self.__nexp,self.__nwc,self.__ny,self.__nx]))
 
-
   def get_off_axis(self):
     """ Returns the x subsurface offset extension axis """
     if(self.__rnhx is None):
       raise Exception("Cannot return x subsurface offset axis without running extended imaging")
     return self.__rnhx, self.__ohx, self.__dhx
 
-  def fft1(self,sig,dt,minf,maxf):
+  def fft1(self,sig,dt,minf,maxf,jf=1,save=True):
     """
     Computes the FFT along the fast axis. Input
     array can be N-dimensional
@@ -392,6 +557,7 @@ class defaultgeom:
       dt   - temporal sampling of input data
       minf - the minimum frequency for windowing the spectrum [Hz]
       maxf - the maximum frequency for windowing the spectrum
+      save - save the frequency axes [True]
 
     Returns:
       the frequency domain data (frequency is fast axis) and the
@@ -409,9 +575,56 @@ class defaultgeom:
     paddims.append((0,nt-n1))
     sigp   = np.pad(sig,paddims,mode='constant')
     # Compute the FFT
-    sigfft = np.fft.fft(sigp)[...,begw:endw]
+    sigfft  = np.fft.fft(sigp)[...,begw:endw]
+    # Subsample frequencies
+    sigfftd = sigfft[::jf]
+    # Set frequency axis
+    if(save):
+      self.__nwc = sigfftd.shape[0]
+      self.__dwc = jf*dw
+      self.__nwo = nw; self.__ow = minf; self.__dw = dw
+      return sigfftd.astype('complex64')
+    else:
+      return nw,minf,dw,sigfftd.astype('complex64')
 
-    return nw,minf,dw,sigfft.astype('complex64')
+  def get_freq_axis(self):
+    """ Returns the frequency axis """
+    return self.__nwc,self.__ow,self.__dw
+
+  def ifft1(sig,nw,ow,dw,n1,it0=0):
+    """
+    Computes the IFFT along the fast axis. Input
+    array can be N-dimensional
+
+    Parameters:
+      sig - input frequency-domain signal (frequency is fast axis)
+      nw  - original number of frequencies
+      ow  - frequency origin (minf)
+      dw  - frequency sampling interval
+      n1  - output number of time samples
+      it0 - sample index of t0 [0]
+    """
+    # Get number of computed frequencies
+    nwc = sig.shape[-1]
+    # Compute size for FFT
+    nt = 2*(nw-1)
+    # Pad to the original frequency range
+    padb = int(ow/dw); pade = nw - nwc - padb
+    paddims1 = [(0,0)]*(sig.ndim-1)
+    paddims1.append((padb,pade))
+    sigp1   = np.pad(sig,paddims1,mode='constant')
+    # Pad for the inverse FFT
+    paddims2 = [(0,0)]*(sigp1.ndim-1)
+    paddims2.append((0,nt-nw))
+    sigp2     = np.pad(sigp1,paddims2,mode='constant') 
+    sigifft   = np.real(np.fft.ifft(sigp2))
+    sigifftw  = sigifft[...,it0:]
+    # Pad to desired output time samples
+    paddims3 = [(0,0)]*(sigifftw.ndim-1)
+    paddims3.append((0,n1-(nt-it0)))
+    sigifftwp = np.pad(paddims3,mode='constant')
+
+    return sigifftwp 
 
   def data_f2t(self,dat,nw,ow,dw,n1,it0=None):
     """
@@ -460,7 +673,7 @@ class defaultgeom:
 
     return n
 
-  def splitnum(num,div):
+  def splitnum(self,num,div):
     """ Splits a number into nearly even parts """
     splits = []
     igr,rem = divmod(num,div)
@@ -470,10 +683,6 @@ class defaultgeom:
       splits[i] += 1
 
     return splits
-
-  def make_source(self,wav):
-
-    wavs = np.repeat(wav[np.newaxis,...],self.__nexp)
 
   def to_angle(self,img,amax=70,na=281,nthrds=4,transp=False,oro=None,dro=None,verb=False):
     """

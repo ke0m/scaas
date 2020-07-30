@@ -73,6 +73,35 @@ void ssr3::set_slows(float *slo) {
 
 }
 
+void ssr3::inject_src(int nsrc, float *srcy, float *srcx, float oy, float ox,
+                       std::complex<float> *wav, std::complex<float> *sou) {
+
+  /* Loop over receivers */
+  for(int is = 0; is < nsrc; ++is) {
+    int isy = (srcy[is]-oy)/_dy + 0.5;
+    int isx = (srcx[is]-ox)/_dx + 0.5;
+    if(isy >= 0 && isy < _ny && isx >= 0 && isx < _nx) {
+      memcpy(&sou[isy*_nw*_nx + isx*_nw],&wav[is*_nw],sizeof(std::complex<float>)*_nw);
+    }
+  }
+}
+
+void ssr3::inject_srct(int nsrc, float *srcy, float *srcx, float oy, float ox,
+                       std::complex<float> *wav, std::complex<float> *sou) {
+
+  /* Loop over sources */
+  for(int is = 0; is < nsrc; ++is) {
+    int isy = (srcy[is]-oy)/_dy + 0.5;
+    int isx = (srcx[is]-ox)/_dx + 0.5;
+    if(isy >= 0 && isy < _ny && isx >= 0 && isx < _nx) {
+      for(int iw = 0; iw < _nw; ++iw) {
+        sou[iw*_nx*_ny + isy*_nx + isx] = wav[is*_nw + iw];
+      }
+    }
+  }
+
+}
+
 void ssr3::ssr3ssf_modallw(float *ref, std::complex<float> *wav, std::complex<float> *dat, bool verb) {
 
   /* Check if built reference velocities */
@@ -156,6 +185,21 @@ void ssr3::restrict_data(int nrec, float *recy, float *recx, float oy, float ox,
 
 }
 
+void ssr3::restrict_datat(int nrec, float *recy, float *recx, float oy, float ox,
+                          std::complex<float> *dat, std::complex<float> *rec) {
+  /* Loop over receivers */
+  for(int ir = 0; ir < nrec; ++ir) {
+    int iry = (recy[ir]-oy)/_dy + 0.5;
+    int irx = (recx[ir]-ox)/_dx + 0.5;
+    if(iry >= 0 && iry < _ny && irx >=0 && irx < _nx) {
+      for(int iw = 0; iw < _nw; ++iw) {
+        rec[ir*_nw + iw] = dat[iw*_nx*_ny + iry*_nx + irx];
+      }
+    }
+  }
+
+}
+
 void ssr3::inject_data(int nrec, float *recy, float *recx, float oy, float ox,
                        std::complex<float> *rec, std::complex<float> *dat) {
 
@@ -167,6 +211,22 @@ void ssr3::inject_data(int nrec, float *recy, float *recx, float oy, float ox,
       memcpy(&dat[iry*_nw*_nx + irx*_nw],&rec[ir*_nw],sizeof(std::complex<float>)*_nw);
     }
   }
+}
+
+void ssr3::inject_datat(int nrec, float *recy, float *recx, float oy, float ox,
+                        std::complex<float> *rec, std::complex<float> *dat) {
+
+  /* Loop over receivers */
+  for(int ir = 0; ir < nrec; ++ir) {
+    int iry = (recy[ir]-oy)/_dy + 0.5;
+    int irx = (recx[ir]-ox)/_dx + 0.5;
+    if(iry >= 0 && iry < _ny && irx >= 0 && irx < _nx) {
+      for(int iw = 0; iw < _nw; ++iw) {
+        dat[iw*_nx*_ny + iry*_nx + irx] = rec[ir*_nw + iw];
+      }
+    }
+  }
+
 }
 
 void ssr3::ssr3ssf_migallw(std::complex<float> *dat, std::complex<float> *wav, float *img, bool verb) {

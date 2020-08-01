@@ -314,10 +314,12 @@ class defaultgeom:
 
     return allrecx, allrecz, nrec
 
-  def pad_model(self,vel):
+  def pad_model(self,vel,tvel=1500.0,zcut=0):
     """ Pad the velocity/reflectivity model """
     # Pad for absorbing layer
     velp = np.pad(vel,((self.__bx,self.__bx),(self.__bz,self.__bz)),'edge')
+    # Make the water velocity constant
+    velp[0:zcut,:] = tvel
     # Pad for laplacian stencil
     velp = np.pad(velp,((5,5),(5,5)),'constant')
 
@@ -362,14 +364,14 @@ class defaultgeom:
     if(show):
       plt.show()
 
-  def plot_acq(self,mod=None,show=True,**kwargs):
+  def plot_acq(self,mod=None,tvel=1500.0,zcut=0,show=True,**kwargs):
     """ Plots the acquisition on a velocity model """
     # Plot velocity model
     if(mod is None):
       mod  = np.zeros([self.__nx, self.__nz],dtype='float32') + 2500.0
       modp = self.pad_model(mod)
     else:
-      modp = self.pad_model(mod)
+      modp = self.pad_model(mod,zcut=zcut,tvel=tvel)
     vmin = np.min(mod); vmax = np.max(mod)
     fig = plt.figure(figsize=(kwargs.get('wbox',14),kwargs.get('hbox',7)))
     ax = fig.gca()

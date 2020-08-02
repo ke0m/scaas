@@ -660,11 +660,8 @@ class defaultgeomnode:
     else:
       return nw,minf,dw,sigfftd.astype('complex64')
 
-  def get_cfreq_axis(self):
-    """ Returns the frequency used for modeling/imaging """
-    return self.__nwc,self.__ow,self.__dwc
-
-    """ Returns the frequency used for modeling/imaging """
+  def get_freq_axis(self):
+    """ Returns the data frequency axis """
     return self.__nwo,self.__ow,self.__dw
 
   def ifft1(self,sig,nw,ow,dw,n1,it0=0):

@@ -5,11 +5,12 @@ and distributed evenly across the surface.
 This code is designed to be distributed across nodes in a cluster
 
 @author: Joseph Jennings
-@version: 2020.07.26
+@version: 2020.08.02
 """
 import numpy as np
 from oway.ssr3 import interp_slow
 from oway.ssr3wrap import ssr3modshots, ssr3migshots, ssr3migoffshots
+from dask.distributed import Client, progress
 from scaas.off2ang import off2ang
 import matplotlib.pyplot as plt
 
@@ -330,7 +331,7 @@ class defaultgeomnode:
     return shots
 
   def model_data(self,wav,dt,t0,minf,maxf,vel,ref,jf=1,nrmax=3,dtmax=5e-05,time=True,
-                 ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=False,client=None):
+                 ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=False,nchnks=None,client=None):
     """
     3D modeling of single scattered (Born) data with the one-way
     wave equation (single square root (SSR), split-step Fourier method).
@@ -345,7 +346,6 @@ class defaultgeomnode:
       ref    - input reflectivity model [nz,ny,nx]
       jf     - frequency decimation factor [1]
       nrmax  - maximum number of reference velocities [3]
-      eps    - stability parameter [0.]
       dtmax  - maximum time error [5e-05]
       time   - return the data back in the time domain [True]
       ntx    - size of taper in x direction (samples) [0]
@@ -355,37 +355,76 @@ class defaultgeomnode:
       nthrds - number of OpenMP threads for parallelizing over frequency [1]
       sverb  - verbosity flag for shot progress bar [True]
       wverb  - verbosity flag for frequency progressbar [False]
+      nchnks - number of chunks to distribute to dask workers [None]
+      client - a dask client for distributing over a cluster [None]
 
-    Returns the data at the surface (in time or frequency) [nw,nry,nrx]
+    Returns the data at the surface (in time or frequency) [nsy,nsx,nry,nrx,nt]
     """
     # Save wavelet temporal parameters
     nt = wav.shape[0]; it0 = int(t0/dt)
 
     # Create the input frequency domain source and get original frequency axis
-    self.__nwo,self.__ow,self.__dw,wfft = self.fft1(wav,dt,minf=minf,maxf=maxf)
+    self.__nwo,self.__ow,self.__dw,wfft = self.fft1(wav,dt,minf=minf,maxf=maxf,save=False)
     wfftd = wfft[::jf]
     self.__nwc = wfftd.shape[0] # Get the number of frequencies to compute
     self.__dwc = jf*self.__dw
 
-    if(sverb or wverb):
-      print("Frequency axis: nw=%d ow=%f dw=%f"%(self.__nwc,self.__ow,self.__dwc))
-      if(sverb):
-        verb = 1
-      if(wverb):
-        verb = 2
+    # Slowness and reflectivity
+    self.__slo = 1/vel
+    self.__ref = ref
 
-    # Compute slowness
-    slo = 1/vel
+    # Reference velocities
+    self.__nrmax = nrmax
+    self.__dtmax = dtmax
 
-    # Output data array
-    dat = np.zeros([self.__ntr,self.__nwc],dtype='complex64')
+    # Tapering and padding
+    self.__ntx = ntx; self.__nty = nty
+    self.__px  = px ; self.__py  = py
 
-    if(time):
-      # Inverse fourier transform
-      datt = self.data_f2t(datwr,self.__nwo,self.__ow,self.__dwc,nt,it0)
-      return datt
+    # Verbosity
+    if(sverb or wverb): print("Frequency axis: nw=%d ow=%f dw=%f"%(self.__nwc,self.__ow,self.__dwc))
+
+    # Threading
+    self.__nthrds = nthrds
+
+    odat = None
+    if(client is None):
+      # Create chunks
+      if(nchnks is None):
+        nchnks  = 1 # one chunk is most efficient for non-distributed
+      dchunks = self.create_mod_chunks(nchnks,wfftd)
+      # Set verbosity level
+      if(sverb): self.__verb = 1
+      if(wverb): self.__verb = 2
+      result = []
+      for ichnk in dchunks:
+        result.append(self.model_chunk(ichnk))
+      odat = np.concatenate(result,axis=0)
     else:
-      return datwr
+      if(nchnks is None):
+        nchnks  = len(client.cluster.workers)
+      # Create data and argument chunks
+      dchunks = self.create_mod_chunks(nchnks,wfftd)
+      futures = []; bs = []
+      # First scatter the chunks
+      bs = client.scatter(dchunks)
+      # Submit each chunk
+      for ib in bs:
+        x = client.submit(self.model_chunk,ib)
+        futures.append(x)
+      if(sverb):
+        progress(futures)
+      result = [future.result() for future in futures]
+      odat = np.concatenate(result,axis=0)
+
+    # Inverse FFT if desired
+    if(time):
+      odatt = self.ifft1(odat,self.__nwo,self.__ow,self.__dw,nt,it0)
+      odatr = self.make_sht_cube(odatt)
+    else:
+      odatr = self.make_sht_cube(odat)
+
+    return odatr
 
   def create_img_chunks(self,nchnks,wavs,dat):
     """
@@ -463,7 +502,7 @@ class defaultgeomnode:
       wverb  - frequency progress bar [False]
       nthrds - number of OpenMP threads to use [1]
     """
-    # Slowness and reflectivity
+    # Slowness
     self.__slo = 1/vel
 
     # Subsurface offsets
@@ -561,8 +600,8 @@ class defaultgeomnode:
 
     return img
 
-  def image_data(self,dat,dt,minf,maxf,vel,jf=1,nhx=0,nhy=0,sym=True,nrmax=3,eps=0.0,dtmax=5e-05,wav=None,
-                 ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=False):
+  def image_data(self,dat,dt,minf,maxf,vel,jf=1,nhx=0,nhy=0,sym=True,nrmax=3,dtmax=5e-05,wav=None,
+                 ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=False,nchnks=None,client=None):
     """
     3D migration of shot profile data via the one-way wave equation (single-square
     root split-step fourier method). Input data are assumed to follow
@@ -579,7 +618,6 @@ class defaultgeomnode:
       nhy    - number of subsurface offsets in y to compute [0]
       sym    - symmetrize the subsurface offsets [True]
       nrmax  - maximum number of reference velocities [3]
-      eps    - stability parameter [0.]
       dtmax  - maximum time error [5e-05]
       wav    - input wavelet [None,assumes an impulse at zero lag]
       ntx    - size of taper in x direction [0]
@@ -589,6 +627,8 @@ class defaultgeomnode:
       nthrds - number of OpenMP threads for parallelizing over frequency [1]
       sverb  - verbosity flag for shot progress bar [True]
       wverb  - verbosity flag for frequency progress bar [False]
+      nchnks - number of chunks to distribute over cluster
+      client - dask client for distributing work over a cluster
 
     Returns:
       an image created from the data [nhy,nhx,nz,ny,nx]
@@ -600,18 +640,77 @@ class defaultgeomnode:
     if(wav is None):
       wav    = np.zeros(nt,dtype='float32')
       wav[0] = 1.0
-    self.__nwo,self.__ow,self.__dw,wfft = self.fft1(wav,dt,minf=minf,maxf=maxf)
+    self.__nwo,self.__ow,self.__dw,wfft = self.fft1(wav,dt,minf=minf,maxf=maxf,save=False)
     wfftd = wfft[::jf]
     self.__nwc = wfftd.shape[0] # Get the number of frequencies for imaging
     self.__dwc = self.__dw*jf
 
+    # Reshape the data and FFT
+    ntr   = np.prod(dat.shape[:-1])
+    datr  = dat.reshape([ntr,nt])
+    _,_,_,dfft = self.fft1(datr,dt,minf=minf,maxf=maxf,save=False)
+    dfftd = dfft[::jf]
+
     if(sverb or wverb): print("Frequency axis: nw=%d ow=%f dw=%f"%(self.__nwc,self.__ow,self.__dwc))
 
-    # Create frequency domain data
-    _,_,_,dfft = self.fft1(dat,dt,minf=minf,maxf=maxf)
-    dfftd = dfft[:,::jf]
-    datt = np.transpose(dfftd,(0,1,4,2,3)) # [nsy,nsx,ny,nx,nwc] -> [nsy,nsx,nwc,ny,nx]
-    datw = np.ascontiguousarray(datt.reshape([self.__nexp,self.__nwc,self.__ny,self.__nx]))
+    # Slowness
+    self.__slo = 1/vel
+
+    # Subsurface offsets
+    self.__nhx = nhx; self.__nhy = nhy; self.__sym = sym
+    if(sym):
+      # Create axes
+      self.__rnhx = 2*nhx+1; self.__ohx = -nhx*self.__dx; self.__dhx = self.__dx
+      self.__rnhy = 2*nhx+1; self.__ohy = -nhy*self.__dy; self.__dhy = self.__dy
+    else:
+      # Create axes
+      self.__rnhx = nhx+1; self.__ohx = 0; self.__dhx = self.__dx
+      self.__rnhy = nhy+1; self.__ohy = 0; self.__dhy = self.__dy
+
+    # Reference velocities
+    self.__nrmax = nrmax
+    self.__dtmax = dtmax
+
+    # Tapering and padding
+    self.__ntx = ntx; self.__nty = nty
+    self.__px  = px ; self.__py  = py
+
+    # Threading
+    self.__nthrds = nthrds
+
+    if(client is None):
+      if(nchnks is None):
+        nchnks = 1
+      # Create chunks
+      ichunks = self.create_img_chunks(nchnks,wfftd,dfftd)
+      # Set verbosity level
+      if(sverb): self.__verb = 1
+      if(wverb): self.__verb = 2
+      imgl = []
+      for ichunk in ichunks:
+        imgl.append(self.image_chunk(ichunk))
+      # Sum all images to obtain output
+      img = np.sum(np.asarray(imgl),axis=0)
+    else:
+      if(nchnks is None):
+        nchnks = len(client.cluster.workers)
+      # Create chunks
+      ichunks = self.create_img_chunks(nchnks,wfftd,dfftd)
+      futures = []; bs = []
+      # Scatter the chunks
+      bs = client.scatter(ichunks)
+      # Run a job on each chunk
+      for ib in bs:
+        x = client.submit(self.image_chunk,ib)
+        futures.append(x)
+      if(sverb):
+        progress(futures)
+      # Collect results
+      result = [future.result() for future in futures]
+      # Sum all images to obtain output
+      img = np.sum(np.asarray(result),axis=0)
+
+    return img
 
   def get_off_axis(self):
     """ Returns the x subsurface offset extension axis """

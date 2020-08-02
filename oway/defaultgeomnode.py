@@ -96,16 +96,14 @@ class defaultgeomnode:
           self.__recx[k] = orx + irx*drx
           k += 1
 
-    # Time axis
-    self.__nt = None; self.__dt = None
-
     # Data frequency axis and imaging/modeling axis
     self.__nwo = None; self.__ow = None; self.__dw  = None
     self.__nwc = None;                   self.__dwc = None
 
     # Subsurface offsets
-    self.__rnhx = None; self.__ohx = None; self.__dhx = None
-    self.__rnhy = None; self.__ohy = None; self.__dhy = None
+    self.__sym = True
+    self.__nhx = 0; self.__rnhx = None; self.__ohx = None; self.__dhx = None
+    self.__nhy = 0; self.__rnhy = None; self.__ohy = None; self.__dhy = None
 
     # Angle
     self.__na = None; self.__oa = None; self.__da = None
@@ -389,14 +387,14 @@ class defaultgeomnode:
     else:
       return datwr
 
-  def create_img_chunks(self,nchnks,dat,wavs=None):
+  def create_img_chunks(self,nchnks,wavs,dat):
     """
     Creates chunks for distributed imaging over a cluster
 
     Parameters:
       nchnks - number of chunks to create
       dat    - input data [ntr,n1]
-      wavs   - input wavelets [nwav,n1] or [n1] (None)
+      wavs   - input wavelets [nwav,n1] or [n1]
 
     Returns a list of dictionary arguments for each chunk. [nchnks]
     """
@@ -404,16 +402,10 @@ class defaultgeomnode:
     if(dat.dtype != 'complex64'):
       raise Exception("Data must have been FFT'd before chunking")
 
-    # Create frequency domain source
-    #TODO: this and the saving of parameters in fft1
-    if(wavs is None):
-      wavs    = np.zeros(self.__nt,dtype='float32')
-      wavs[0] = 1.0
-      minf = self.__ow; maxf = (self.__nwc-1)*self.__dwc
-      _,_,_,wfft = self.fft1(wavs,self.__dt,minf=minf,maxf=maxf,save=False)
-      wfftd = wfft[::self.__jf]
-      # Replicate
-      wav = np.repeat(wfft[np.newaxis,:],self.__nexp,axis=0)
+    # Get wavelet dimensions
+    n1 = wavs.shape[-1]
+    if(wavs.ndim == 1):
+      wav = np.repeat(wavs[np.newaxis,:],self.__nexp,axis=0)
 
     # Get data dimensions
     ntr = dat.shape[0]; nwav = wav.shape[0]
@@ -435,7 +427,7 @@ class defaultgeomnode:
       # Chunked source data
       sychnk  = self.__srcy[begs:ends]
       sxchnk  = self.__srcx[begs:ends]
-      srcchnk = dat[begs:ends,:]
+      srcchnk = wav[begs:ends,:]
       # Chunked receiver data
       rychnk  = self.__recy[begr:endr]
       rxchnk  = self.__recx[begr:endr]
@@ -445,19 +437,22 @@ class defaultgeomnode:
       # Put data in into dict
       idict = {}
       idict['srcy'] = sychnk; idict['srcx'] = sxchnk; idict['nsrc'] = nsrccnk
-      idict['recy'] = sychnk; idict['recx'] = sxchnk; idict['nrec'] = nreccnk
+      idict['recy'] = rychnk; idict['recx'] = rxchnk; idict['nrec'] = nreccnk
       idict['wav'] = srcchnk; idict['dat'] = datchnk
       ochnks.append(idict)
 
     return ochnks
 
-  def set_img_pars(vel,nrmax=3,dtmax=5e-05,ntx=0,nty=0,px=0,py=0,wverb=False,everb=False,nthrds=1):
+  def set_image_pars(self,vel,nhx=0,nhy=0,sym=True,nrmax=3,dtmax=5e-05,ntx=0,nty=0,px=0,py=0,
+                     wverb=False,everb=False,nthrds=1):
     """
     Sets the non-changing parameters (same for all chunks) for calling
     image chunk outside of the image_data function
 
     Parameters:
       vel    - modeling velocity [nz,ny,nx]
+      nhx    - number of x subsurface offsets [0]
+      nhy    - number of y subsurface offsets [0]
       nrmax  - maximum number of reference velocities [3]
       dtmax  - maximum time error [5e-05]
       ntx    - length of taper in x-direction (samples) [0]
@@ -470,6 +465,17 @@ class defaultgeomnode:
     """
     # Slowness and reflectivity
     self.__slo = 1/vel
+
+    # Subsurface offsets
+    self.__nhx = nhx; self.__nhy = nhy; self.__sym = sym
+    if(sym):
+      # Create axes
+      self.__rnhx = 2*nhx+1; self.__ohx = -nhx*self.__dx; self.__dhx = self.__dx
+      self.__rnhy = 2*nhy+1; self.__ohy = -nhy*self.__dy; self.__dhy = self.__dy
+    else:
+      # Create axes
+      self.__rnhx = nhx+1; self.__ohx = 0; self.__dhx = self.__dx
+      self.__rnhy = nhy+1; self.__ohy = 0; self.__dhy = self.__dy
 
     # Reference velocities
     self.__nrmax = nrmax
@@ -511,26 +517,47 @@ class defaultgeomnode:
       raise Exception("nsrc and nrec array must be same length")
     nexp = len(chunk['nrec'])
 
-    if(self.__slo is None or self.__ref is None):
-      raise Exception("Must set the slowness and reflectivity with the set_model_pars function")
+    if(self.__slo is None):
+      raise Exception("Must set the slowness with the set_image_pars function")
 
-    # Allocate the output image
-    img = np.zeros([self.__nz,self.__ny,self.__nx],dtype='float32')
+    # Extended imaging
+    if(self.__nhx != 0 or self.__nhy != 0):
+      # Allocate the output image
+      img = np.zeros([self.__rnhy,self.__rnhx,self.__nz,self.__ny,self.__nx],dtype='float32')
 
-    # Perform the imaging
-    ssr3migshots(self.__nx, self.__ny, self.__nz ,            # Spatial sizes
-                 self.__ox, self.__oy, self.__oz ,            # Spatial origins
-                 self.__dx, self.__dy, self.__dz ,            # Spatial samplings
-                 self.__nwc,self.__ow, self.__dwc,            # Temporal frequency
-                 self.__ntx, self.__nty,                      # Tapering
-                 self.__px, self.__py,                        # Padding
-                 self.__dtmax, self.__nrmax,                  # Reference slowness
-                 self.__slo,                                  # Medium slowness
-                 nexp,                                        # Number of experiments
-                 chunk['nsrc'], chunk['srcy'], chunk['srcx'], # Num srcs and coords per exp
-                 chunk['nrec'], chunk['recy'], chunk['recx'], # Num recs and coords per exp
-                 chunk['dat'] , chunk['wav'],  img,           # Data, wavelets and output images
-                 self.__nthrds, self.__verb)                  # Threading and verbosity
+      # Perform the imaging
+      ssr3migoffshots(self.__nx, self.__ny, self.__nz ,            # Spatial sizes
+                      self.__ox, self.__oy, self.__oz ,            # Spatial origins
+                      self.__dx, self.__dy, self.__dz ,            # Spatial samplings
+                      self.__nwc,self.__ow, self.__dwc,            # Temporal frequency
+                      self.__ntx, self.__nty,                      # Tapering
+                      self.__px, self.__py,                        # Padding
+                      self.__dtmax, self.__nrmax,                  # Reference slowness
+                      self.__slo,                                  # Medium slowness
+                      nexp,                                        # Number of experiments
+                      chunk['nsrc'], chunk['srcy'], chunk['srcx'], # Num srcs and coords per exp
+                      chunk['nrec'], chunk['recy'], chunk['recx'], # Num recs and coords per exp
+                      chunk['dat'] , chunk['wav'],                 # Data and wavelets
+                      self.__nhy, self.__nhx, self.__sym, img,     # Subsurface offsets and image
+                      self.__nthrds, self.__verb)                  # Threading and verbosity
+    else:
+      # Allocate the output image
+      img = np.zeros([self.__nz,self.__ny,self.__nx],dtype='float32')
+
+      # Perform the imaging
+      ssr3migshots(self.__nx, self.__ny, self.__nz ,            # Spatial sizes
+                   self.__ox, self.__oy, self.__oz ,            # Spatial origins
+                   self.__dx, self.__dy, self.__dz ,            # Spatial samplings
+                   self.__nwc,self.__ow, self.__dwc,            # Temporal frequency
+                   self.__ntx, self.__nty,                      # Tapering
+                   self.__px, self.__py,                        # Padding
+                   self.__dtmax, self.__nrmax,                  # Reference slowness
+                   self.__slo,                                  # Medium slowness
+                   nexp,                                        # Number of experiments
+                   chunk['nsrc'], chunk['srcy'], chunk['srcx'], # Num srcs and coords per exp
+                   chunk['nrec'], chunk['recy'], chunk['recx'], # Num recs and coords per exp
+                   chunk['dat'] , chunk['wav'],  img,           # Data, wavelets and output images
+                   self.__nthrds, self.__verb)                  # Threading and verbosity
 
     return img
 
@@ -625,8 +652,6 @@ class defaultgeomnode:
     sigfftd = sigfft[::jf]
     # Set frequency axis
     if(save):
-      # Time axis
-      self.__nt  = n1; self.__dt = dt
       # Frequency axes
       self.__nwc = sigfftd.shape[0]
       self.__dwc = jf*dw
@@ -639,7 +664,6 @@ class defaultgeomnode:
     """ Returns the frequency used for modeling/imaging """
     return self.__nwc,self.__ow,self.__dwc
 
-  def get_ofreq_axis(self):
     """ Returns the frequency used for modeling/imaging """
     return self.__nwo,self.__ow,self.__dw
 

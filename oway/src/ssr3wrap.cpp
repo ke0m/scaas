@@ -49,7 +49,7 @@ void ssr3_modshots(int nx, int ny, int nz,
     /* Inject the sources */
     ssf.inject_srct(nsrc[iexp], srcy + nwav, srcx + nwav, oy, ox, wav + nwav*nw, sou);
     /* Downward continuation */
-    ssf.ssr3ssf_modallw(ref,sou,datw + iexp*nw*ny*nx,wverb);
+    ssf.ssr3ssf_modallw(ref,sou,datw,wverb);
     /* Restrict the data */
     ssf.restrict_datat(nrec[iexp], recy + ntr, recx + ntr, oy, ox, datw, dat + ntr*nw);
     /* Increment trace and wavelet positions */
@@ -183,7 +183,7 @@ void ssr3_migoffshots(int nx, int ny, int nz,
     /* Inject the data for this shot */
     ssf.inject_datat(nrec[iexp], recy + ntr, recx + ntr, oy, ox, dat + nw*ntr, datw);
     /* Extended Imaging */
-    ssf.ssr3ssf_migoffallw(datw, sou, img, wverb);
+    ssf.ssr3ssf_migoffallw(datw, sou, iimg, wverb);
     /* Add to ouput image */
     for(int k = 0; k < rnhy*rnhx*nz*ny*nx; ++k) img[k] += iimg[k];
     /* Increment trace and wavelet positions */

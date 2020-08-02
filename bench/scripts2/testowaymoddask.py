@@ -41,18 +41,19 @@ refsm = smooth(smooth(smooth(ref,rect1=npts),rect1=npts),rect1=npts)
 
 # Create ricker wavelet
 n1 = 2000; d1 = 0.004;
-freq = 8; amp = 0.5; dly = 0.2;
+freq = 8; amp = 0.5; dly = 0.2; it0 = int(dly/d1)
 wav = ricker(n1,d1,freq,amp,dly)
 
-osx = 50; dsx = 50; nsx = 10
+osx = 50; dsx = 50; nsx = 15
 wei = geom.defaultgeomnode(nx=nx,dx=dx,ny=ny,dy=dy,nz=nz,dz=dz,
                            nsx=nsx,dsx=dsx,osx=osx,nsy=1,dsy=1.0)
 
 # Create the frequency domain source
 wfft = wei.fft1(wav,d1,minf=1.0,maxf=31.0)
 
-dchunks = wei.create_mod_chunks(nsx,wfft)
-wei.set_model_pars(velin,ref,ntx=15,px=112,nthrds=10,wverb=False)
+nchnks = len(client.cluster.workers)
+dchunks = wei.create_mod_chunks(nchnks,wfft)
+wei.set_model_pars(velin,ref,ntx=15,px=112,nthrds=20,wverb=False)
 
 futures = []; bs = []
 # First scatter
@@ -63,13 +64,30 @@ for ib in bs:
   x = client.submit(wei.model_chunk,ib)
   futures.append(x)
 
+progress(futures)
+
 result = [future.result() for future in futures]
 
 nw,ow,dw = wei.get_freq_axis()
 
-for ires in result:
-  plt.imshow(np.real(ires).T,cmap='gray',interpolation='sinc')
-  plt.show()
+odat = np.concatenate(result,axis=0)
+
+# Inverse FFT
+odatt = wei.ifft1(odat,nw,ow,dw,n1,it0=it0)
+
+odatr = wei.make_sht_cube(odatt)
+
+plt.figure()
+plt.imshow(odatr[0].T,cmap='gray',interpolation='sinc')
+plt.figure()
+plt.imshow(odatr[-1].T,cmap='gray',interpolation='sinc')
+plt.show()
+
+sep.write_file("mydatnode.H",odatr.T,os=[0,0,osx],ds=[d1,dx,dsx])
+
+#for ires in result:
+#  plt.imshow(np.real(ires).T,cmap='gray',interpolation='sinc')
+#  plt.show()
 
 #sep.write_file("mycmplxdat.H",chnk1['dat'].T,os=[0,0,ow,0,0],ds=[dx,dy,dw,1.0,1.0])
 #sep.write_file("mydat.H",dat.T,os=[0,0,0,osx,0],ds=[d1,dx,dy,dsx,1.0])

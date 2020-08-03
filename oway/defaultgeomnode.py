@@ -661,7 +661,7 @@ class defaultgeomnode:
     if(sym):
       # Create axes
       self.__rnhx = 2*nhx+1; self.__ohx = -nhx*self.__dx; self.__dhx = self.__dx
-      self.__rnhy = 2*nhx+1; self.__ohy = -nhy*self.__dy; self.__dhy = self.__dy
+      self.__rnhy = 2*nhy+1; self.__ohy = -nhy*self.__dy; self.__dhy = self.__dy
     else:
       # Create axes
       self.__rnhx = nhx+1; self.__ohx = 0; self.__dhx = self.__dx

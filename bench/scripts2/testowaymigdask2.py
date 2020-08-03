@@ -43,41 +43,11 @@ velin[:,0,:] = vel[:]
 wei = geom.defaultgeomnode(nx=nx,dx=dx,ny=ny,dy=dy,nz=nz,dz=dz,
                            nsx=nsx,dsx=dsx,osx=osx,nsy=1,dsy=1.0)
 
-# Reshape the data
-datinr = datin.reshape([nsx*nx,nt])
+img = wei.image_data(datin,dt,minf=1.0,maxf=31.0,vel=velin,nhx=20,ntx=15,
+                     nthrds=30,client=client)
 
-# FFT the data
-datw = wei.fft1(datinr,dt,minf=1.0,maxf=31.0)
+viewimgframeskey(img[0,:,:,0],transp=False,cmap='gray')
 
-# FFT the wavelet
-wav  = np.zeros(nt,dtype='float32')
-wav[0] = 1.0
-wavw = wei.fft1(wav,dt,minf=1.0,maxf=31.0)
-
-# Chunk the data
-nchnks = len(client.cluster.workers)
-dchunks = wei.create_img_chunks(nchnks,wavw,datw)
-
-# Set the imaging pars
-wei.set_image_pars(velin,nhx=20,ntx=15,nthrds=30,wverb=False)
-
-futures = []; bs = []
-# First scatter
-bs = client.scatter(dchunks)
-
-# Now run
-for ib in bs:
-  x = client.submit(wei.image_chunk,ib)
-  futures.append(x)
-
-progress(futures)
-result = [future.result() for future in futures]
-
-# Sum all chunks
-imgs = np.sum(np.asarray(result),axis=0)
-
-viewimgframeskey(imgs[0,:,:,0],transp=False,cmap='gray')
-
-#plt.imshow(imgs[:,0,:],cmap='gray')
+#plt.imshow(img[:,0,:],cmap='gray')
 #plt.show()
 

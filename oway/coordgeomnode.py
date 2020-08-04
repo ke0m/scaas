@@ -1,7 +1,5 @@
 """
-Default geometry for synthetics
-Sources and receivers on the surface
-and distributed evenly across the surface.
+Imaging/modeling based on source and receiver coordinates
 This code is designed to be distributed across nodes in a cluster
 
 @author: Joseph Jennings
@@ -10,22 +8,20 @@ This code is designed to be distributed across nodes in a cluster
 import numpy as np
 from oway.ssr3 import interp_slow
 from oway.ssr3wrap import ssr3modshots, ssr3migshots, ssr3migoffshots
-from dask.distributed import Client, progress
+from dask.distributed import wait, Client, progress
 from scaas.off2ang import off2ang
 import matplotlib.pyplot as plt
 
-class defaultgeomnode:
+class coordgeomnode:
   """
   Functions for modeling and imaging with a
-  standard synthetic source receiver geometry
+  field data (coordinate) geometry
   """
-  def __init__(self,nx,dx,ny,dy,nz,dz,                             # Model size
-               nsx,dsx,nsy,dsy,osx=0.0,osy=0.0,                    # Source geometry
-               nrx=None,drx=1.0,orx=0.0,nry=None,dry=1.0,ory=0.0,  # Receiver geometry
-               ox=0.0,oy=0.0,oz=0.0):                              # Model origins
-
+  def __init__(self,nx,dx,ny,dy,nz,dz,nrec,srcx=None,srcy=None,recx=None,recy=None,
+               ox=0.0,oy=0.0,oz=0.0):
     """
-    Creates a default geometry object for split-step fourier downward continuation
+    Creates a coordinate geometry object for split-step fourier downward continuation.
+    Expects that the coordinates are integer sample number coordinates (already divided by dx or dy)
 
     Parameters:
       nx    - Number of x samples of the velocity model
@@ -34,68 +30,61 @@ class defaultgeomnode:
       dy    - y sampling of the velocity model
       nz    - Number of z samples of the velocity model
       dz    - z sampling of the velocity model
-      nsx   - Total number of sources in x direction
-      dsx   - Spacing between sources along x direction (in samples)
-      osx   - x-sample coordinate of first source [0.0]
-      nsy   - Total number of sources in y direction
-      dsy   - Spacing between sources along y diection (in samples)
-      osy   - y-sample coordinate of first source [0.0]
-      nrx   - Total number of receivers in x direction [One for every surface location]
-      drx   - Spacing between receivers along x direction (in samples) [1.0]
-      orx   - x-sample coordinate of first receiver [0.0]
-      nry   - Total number of receivers in y direction [One for every surface location]
-      dry   - Spacing between receivers along y direction (in samples) [1.0]
-      ory   - y-sample coordinate of first receiver [0.0]
-      ox    - origin of model/image x-axis
-      oy    - origin of model/image y-axis
-      oz    - origin of model/image z-axis
+      nrec  - number of receivers per shot (int) [number of shots]
+      srcx  - x coordinates of source locations [number of shots]
+      srcy  - y coordinates of source locations [number of shots]
+      recx  - x coordinates of receiver locations [number of traces]
+      recy  - y coordinates of receiver locations [number of traces]
 
     Returns:
-      a default geom node object
+      a coordinate geom object
     """
     # Spatial axes
     self.__nx = nx; self.__ox = ox; self.__dx = dx
     self.__ny = ny; self.__oy = oy; self.__dy = dy
     self.__nz = nz; self.__oz = oz; self.__dz = dz
-
-    # Source gometry
-    osx *= dx; dsx *= dx
-    osy *= dy; dsy *= dy
-    # Number of sources per shot
-    self.__nexp = nsy*nsx
-    self.__nsrc = np.ones(self.__nexp,dtype='int32')
+    ## Source gometry
+    # Check if either is none
+    if(srcx is None and srcy is None):
+      raise Exception("Must provide either srcx or srcy coordinates")
+    if(srcx is None):
+      srcx = np.zeros(len(srcy),dtype='int')
+    if(srcy is None):
+      srcy = np.zeros(len(srcx),dtype='int')
+    # Make sure coordinates are within the model
+    if(np.any(srcx >= ox+(nx)*dx) or np.any(srcy >= oy+(ny)*dy)):
+      print("Warning: Some source coordinates are greater than model size")
+    if(np.any(srcx < ox) or np.any(srcy <  oy)):
+      print("Warning: Some source coordinates are less than model size")
+    if(len(srcx) != len(srcy)):
+      raise Exception("Length of srcx must equal srcy")
+    self.__srcx = srcx.astype('float32'); self.__srcy = srcy.astype('float32')
     # Total number of sources
-    self.__nwav = np.sum(self.__nsrc)
-    # Build source coordinates
-    self.__srcy = np.zeros(self.__nexp,dtype='float32')
-    self.__srcx = np.zeros(self.__nexp,dtype='float32')
-    k = 0
-    for isy in range(nsy):
-      self.__srcy[k] = osy + isy*dsy
-      for isx in range(nsx):
-        self.__srcx[k] = osx + isx*dsx
-        k += 1
-
-    # Receiver geometry
-    if(nry is None): nry = ny
-    if(nrx is None): nrx = nx
-    orx *= dx; drx *= dx
-    ory *= dy; dry *= dy
+    self.__nexp = len(srcx)
+    # Assume one source per shot
+    self.__nsrc = np.ones(self.__nexp,dtype='int32')
+    ## Receiver geometry
+    # Check if either is none
+    if(recx is None and recy is None):
+      raise Exception("Must provide either recx or recy coordinates")
+    if(recx is None):
+      recx = np.zeros(len(recy),dtype='int')
+    if(recy is None):
+      recy = np.zeros(len(recx),dtype='int')
+    # Make sure coordinates are within the model
+    if(np.any(recx >= ox + nx*dx) or np.any(recy >= oy + ny*dy)):
+      print("Warning: Some receiver coordinates are greater than model size")
+    if(np.any(recx < ox) or np.any(recy <  oy)):
+      print("Warning: Some receiver coordinates are less than model size")
+    if(len(recx) != len(recy)):
+      raise Exception("Each trace must have same number of x and y coordinates")
+    self.__recx = recx.astype('float32'); self.__recy = recy.astype('float32')
     # Number of receivers per shot
-    self.__nrec = np.zeros(self.__nexp,dtype='int32') + nry*nrx
-    # Total number of traces
-    self.__ntr = np.sum(self.__nrec)
-    # Build receiver coordinates
-    self.__recy = np.zeros(self.__ntr,dtype='float32')
-    self.__recx = np.zeros(self.__ntr,dtype='float32')
-    k = 0
-    #TODO: potentially use a mesh grid here
-    for iexp in range(self.__nexp):
-      for iry in range(nry):
-        self.__recy[k] = ory + iry*dry
-        for irx in range(nrx):
-          self.__recx[k] = orx + irx*drx
-          k += 1
+    if(nrec.dtype != 'int'):
+      raise Exception("nrec (number of receivers) must be integer type array")
+    self.__nrec = nrec
+    # Number of traces
+    self.__ntr = len(recx)
 
     # Data frequency axis and imaging/modeling axis
     self.__nwo = None; self.__ow = None; self.__dw  = None
@@ -253,7 +242,7 @@ class defaultgeomnode:
     """
     Models a chunk of data. Takes input chunked
     coordinates and source wavelets.
-    These chunks are created from the create_data_chunks function.
+    These chunks are created from the create_model_chunks function.
 
     Parameters:
       chunk - a chunk created from the create_mod_chunks function.
@@ -533,19 +522,20 @@ class defaultgeomnode:
 
   def image_chunk(self,chunk):
     """
-    Models a chunk of data. Takes input chunked
-    coordinates and source wavelets.
-    These chunks are created from the create_data_chunks function.
+    Images a chunk of data. Takes input chunked data
+    These chunks are created from the create_image_chunks function.
 
     Parameters:
-      nsrc  - number of sources for each shot in chunk
-      srcys - y-coordinates of source location for the chunk of shots
-      srcxs - x-coordinates of source location for the chunk of shots
-      wavs  - a chunk of source wavelets [inexp,nw]
-      nrec  - number of receivers for each shot in chunk [nsrc]
-      recys - y-coordinates of receiver location for the chunk of shots [ntr]
-      recxs - x-coordinates of receiver location for the chunk of shots [ntr]
-      dats  - input chunked data [ntr,nw]
+      chunk - a chunk created from the create_mod_chunks function.
+              This chunk is a dictionary with the following keys:
+              'nsrc'  - number of sources for each shot in chunk
+              'srcy'  - y-coordinates of source location for the chunk of shots
+              'srcx'  - x-coordinates of source location for the chunk of shots
+              'wav'   - a chunk of source wavelets [inexp,nw]
+              'nrec'  - number of receivers for each shot in chunk [nsrc]
+              'recy'  - y-coordinates of receiver location for the chunk of shots [ntr]
+              'recx'  - x-coordinates of receiver location for the chunk of shots [ntr]
+              'dat'   - output data computed for chunk of shots [ntr,nw]
     """
     # Get number of shots in the chunk
     if(len(chunk['nsrc']) != len(chunk['nrec'])):
@@ -702,6 +692,7 @@ class defaultgeomnode:
       if(sverb):
         progress(futures)
       # Collect results
+      wait(futures)
       result = [future.result() for future in futures]
       # Sum all images to obtain output
       img = np.sum(np.asarray(result),axis=0)
@@ -903,32 +894,6 @@ class defaultgeomnode:
     print("Test frequency axis: nw=%d ow=%d dw=%f"%(nwc,minf,dw*jf))
 
   def plot_acq(self,mod=None,show=True,**kwargs):
-    """ Plots the acquisition on the slowness model """
-    # Plot the slowness model
-    if(mod is None):
-      mod = np.zeros([self.__nz,self.__ny,self.__nx],dtype='float32') + 2.5
-    vmin = np.min(mod); vmax = np.max(mod)
-    if(self.__ny == 1):
-      # 2D acquisition
-      fig = plt.figure(figsize=(kwargs.get('wbox',14),kwargs.get('hbox',7)))
-      ax = fig.gca()
-      # Plot model
-      im = ax.imshow(mod[:,0,:],extent=[0,self.__nx,self.__nz,0],vmin=kwargs.get('vmin',vmin),vmax=kwargs.get('vmax',vmax),
-                     cmap=kwargs.get('cmap','jet'))
-      ax.set_xlabel(kwargs.get('xlabel','X (gridpoints)'),fontsize=kwargs.get('labelsize',14))
-      ax.set_ylabel(kwargs.get('ylabel','Z (gridpoints)'),fontsize=kwargs.get('labelsize',14))
-      ax.set_title(kwargs.get('title',''),fontsize=kwargs.get('labelsize',14))
-      ax.tick_params(labelsize=kwargs.get('labelsize',14))
-      # Make receiver coords
-      zplt = 5
-      recx = np.linspace(0,self.__nx-1,self.__nx)
-      rzros = np.zeros(self.__nx) + zplt
-      # Make source coords
-      scoords  = self.__srcx/self.__dx
-      szros    = np.zeros(self.__nexp) + zplt
-      # Plot geometry
-      #plt.scatter(recx,rzros,c='tab:green',marker='v')
-      plt.scatter(scoords,szros,c='yellow',marker='*')
-      if(show):
-        plt.show()
+    """ Plots the acquisition on the velocity model for a specified shot """
+    pass
 

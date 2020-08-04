@@ -5,8 +5,6 @@ import matplotlib.pyplot as plt
 from utils.movie import viewimgframeskey
 from dask.distributed import Client, SSHCluster, progress
 
-sep = seppy.sep()
-
 # Read in the data
 sep = seppy.sep()
 
@@ -22,7 +20,7 @@ datin = np.ascontiguousarray(datt.reshape([1,nsx,1,nx,nt]))
 cluster = SSHCluster(
                      ["localhost", "fantastic", "thing"],
                      connect_options={"known_hosts": None},
-                     worker_options={"nthreads": 1},
+                     worker_options={"nthreads": 1, "nprocs": 1, "memory_limit": 20e9},
                      scheduler_options={"port": 0, "dashboard_address": ":8797"}
                     )
 

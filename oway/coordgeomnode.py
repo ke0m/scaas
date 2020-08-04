@@ -8,7 +8,7 @@ This code is designed to be distributed across nodes in a cluster
 import numpy as np
 from oway.ssr3 import interp_slow
 from oway.ssr3wrap import ssr3modshots, ssr3migshots, ssr3migoffshots
-from dask.distributed import Client, progress
+from dask.distributed import wait, Client, progress
 from scaas.off2ang import off2ang
 import matplotlib.pyplot as plt
 
@@ -17,9 +17,8 @@ class coordgeomnode:
   Functions for modeling and imaging with a
   field data (coordinate) geometry
   """
-  def __init__(self,nx,dx,ny,dy,nz,dz,srcx=None,srcy=None,recx=None,recy=None,
-               ox=0.0,oy=0.0,oz=0.0)
-
+  def __init__(self,nx,dx,ny,dy,nz,dz,nrec,srcx=None,srcy=None,recx=None,recy=None,
+               ox=0.0,oy=0.0,oz=0.0):
     """
     Creates a coordinate geometry object for split-step fourier downward continuation.
     Expects that the coordinates are integer sample number coordinates (already divided by dx or dy)
@@ -50,7 +49,7 @@ class coordgeomnode:
       raise Exception("Must provide either srcx or srcy coordinates")
     if(srcx is None):
       srcx = np.zeros(len(srcy),dtype='int')
-    if(srcys is None):
+    if(srcy is None):
       srcy = np.zeros(len(srcx),dtype='int')
     # Make sure coordinates are within the model
     if(np.any(srcx >= ox+(nx)*dx) or np.any(srcy >= oy+(ny)*dy)):
@@ -62,9 +61,11 @@ class coordgeomnode:
     self.__srcx = srcx.astype('float32'); self.__srcy = srcy.astype('float32')
     # Total number of sources
     self.__nexp = len(srcx)
+    # Assume one source per shot
+    self.__nsrc = np.ones(self.__nexp,dtype='int32')
     ## Receiver geometry
     # Check if either is none
-    if(recxs is None and recys is None):
+    if(recx is None and recy is None):
       raise Exception("Must provide either recx or recy coordinates")
     if(recx is None):
       recx = np.zeros(len(recy),dtype='int')
@@ -83,7 +84,7 @@ class coordgeomnode:
       raise Exception("nrec (number of receivers) must be integer type array")
     self.__nrec = nrec
     # Number of traces
-    self.__ntr = len(recxs)
+    self.__ntr = len(recx)
 
     # Data frequency axis and imaging/modeling axis
     self.__nwo = None; self.__ow = None; self.__dw  = None
@@ -241,7 +242,7 @@ class coordgeomnode:
     """
     Models a chunk of data. Takes input chunked
     coordinates and source wavelets.
-    These chunks are created from the create_data_chunks function.
+    These chunks are created from the create_model_chunks function.
 
     Parameters:
       chunk - a chunk created from the create_mod_chunks function.
@@ -521,21 +522,20 @@ class coordgeomnode:
 
   def image_chunk(self,chunk):
     """
-    Models a chunk of data. Takes input chunked
-    coordinates and source wavelets.
-    These chunks are created from the create_data_chunks function.
-
-    Note: you need to have run the set_props function before running
+    Images a chunk of data. Takes input chunked data
+    These chunks are created from the create_image_chunks function.
 
     Parameters:
-      nsrc  - number of sources for each shot in chunk
-      srcys - y-coordinates of source location for the chunk of shots
-      srcxs - x-coordinates of source location for the chunk of shots
-      wavs  - a chunk of source wavelets [inexp,nw]
-      nrec  - number of receivers for each shot in chunk [nsrc]
-      recys - y-coordinates of receiver location for the chunk of shots [ntr]
-      recxs - x-coordinates of receiver location for the chunk of shots [ntr]
-      dats  - input chunked data [ntr,nw]
+      chunk - a chunk created from the create_mod_chunks function.
+              This chunk is a dictionary with the following keys:
+              'nsrc'  - number of sources for each shot in chunk
+              'srcy'  - y-coordinates of source location for the chunk of shots
+              'srcx'  - x-coordinates of source location for the chunk of shots
+              'wav'   - a chunk of source wavelets [inexp,nw]
+              'nrec'  - number of receivers for each shot in chunk [nsrc]
+              'recy'  - y-coordinates of receiver location for the chunk of shots [ntr]
+              'recx'  - x-coordinates of receiver location for the chunk of shots [ntr]
+              'dat'   - output data computed for chunk of shots [ntr,nw]
     """
     # Get number of shots in the chunk
     if(len(chunk['nsrc']) != len(chunk['nrec'])):
@@ -647,7 +647,7 @@ class coordgeomnode:
     if(sym):
       # Create axes
       self.__rnhx = 2*nhx+1; self.__ohx = -nhx*self.__dx; self.__dhx = self.__dx
-      self.__rnhy = 2*nhx+1; self.__ohy = -nhy*self.__dy; self.__dhy = self.__dy
+      self.__rnhy = 2*nhy+1; self.__ohy = -nhy*self.__dy; self.__dhy = self.__dy
     else:
       # Create axes
       self.__rnhx = nhx+1; self.__ohx = 0; self.__dhx = self.__dx
@@ -692,6 +692,7 @@ class coordgeomnode:
       if(sverb):
         progress(futures)
       # Collect results
+      wait(futures)
       result = [future.result() for future in futures]
       # Sum all images to obtain output
       img = np.sum(np.asarray(result),axis=0)

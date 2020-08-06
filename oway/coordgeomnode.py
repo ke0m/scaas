@@ -8,18 +8,96 @@ This code is designed to be distributed across nodes in a cluster
 import numpy as np
 from oway.ssr3 import interp_slow
 from oway.ssr3wrap import ssr3modshots, ssr3migshots, ssr3migoffshots
-from dask.distributed import Client, progress
+from dask.distributed import wait, Client, progress
 from scaas.off2ang import off2ang
 import matplotlib.pyplot as plt
+
+def splitnum(num,div):
+  """ Splits a number into nearly even parts """
+  splits = []
+  igr,rem = divmod(num,div)
+  for i in range(div):
+    splits.append(igr)
+  for i in range(rem):
+    splits[i] += 1
+
+  return splits
+
+def create_outer_chunks(nchnks,dat,nrec,recx=None,recy=None,srcx=None,srcy=None):
+  """
+  Splits the input data into chunks. These will then be futher
+  chunked and distributed over a cluster by coordgeomnode for
+  modeling or imaging
+
+  Parameters:
+    nchnks - number of chunks to return 
+    dat    - input data (ntr,nt)
+    nrec   - number of receivers per shot
+    srcx   - source x positions (nexp) [None]
+    srcy   - source y positions (nexp) [None]
+    recx   - receiver x positions (ntr) [None]
+    recy   - receiver y positions (ntr) [None]
+  """
+  # Get data dimensions
+  ntr = dat.shape[0]
+  if(np.sum(nrec) != ntr):
+    raise Exception("Sum of nrec must equal number of traces")
+
+  # Check source coordinates
+  if(srcx is None and srcy is None):
+    raise Exception("Must provide either srcx or srcy coordinates")
+  if(srcx is None):
+    srcx = np.zeros(len(srcy),dtype='int')
+  if(srcy is None):
+    srcy = np.zeros(len(srcx),dtype='int')
+
+  # Check receiver coordinates
+  if(recx is None and recy is None):
+    raise Exception("Must provide either recx or recy coordinates")
+  if(recx is None):
+    recx = np.zeros(len(recy),dtype='int')
+  if(recy is None):
+    recy = np.zeros(len(recx),dtype='int')
+
+  # Create chunk sizes
+  nexp = len(nrec)
+  expchnks = splitnum(nexp,nchnks)
+
+  ochnks = []; k = 0 
+  begs = 0; ends = 0; begr = 0; endr = 0 
+  for ichnk in range(len(expchnks)):
+    # Get data and sources for each chunk
+    nreccnk = np.zeros(expchnks[ichnk],dtype='int32')
+    for iexp in range(expchnks[ichnk]):
+      nreccnk[iexp] = nrec[k]
+      endr += nrec[k]
+      ends += 1
+      k += 1
+    # Chunked source data
+    sychnk  = srcy[begs:ends]
+    sxchnk  = srcx[begs:ends]
+    # Chunked receiver data
+    rychnk  = recy[begr:endr]
+    rxchnk  = recx[begr:endr]
+    datchnk = dat[begr:endr,:]
+    # Update positions
+    begs = ends; begr = endr
+    # Put data in into dict
+    idict = {}
+    idict['srcy'] = sychnk; idict['srcx'] = sxchnk
+    idict['recy'] = rychnk; idict['recx'] = rxchnk; idict['nrec'] = nreccnk
+    idict['dat'] = datchnk
+    ochnks.append(idict)
+
+  return ochnks
 
 class coordgeomnode:
   """
   Functions for modeling and imaging with a
   field data (coordinate) geometry
   """
-  def __init__(self,nx,dx,ny,dy,nz,dz,srcx=None,srcy=None,recx=None,recy=None,
-               ox=0.0,oy=0.0,oz=0.0)
-
+  def __init__(self,nx,dx,ny,dy,nz,dz,nrec,srcx=None,srcy=None,recx=None,recy=None,
+               ox=0.0,oy=0.0,oz=0.0):
     """
     Creates a coordinate geometry object for split-step fourier downward continuation.
     Expects that the coordinates are integer sample number coordinates (already divided by dx or dy)
@@ -50,7 +128,7 @@ class coordgeomnode:
       raise Exception("Must provide either srcx or srcy coordinates")
     if(srcx is None):
       srcx = np.zeros(len(srcy),dtype='int')
-    if(srcys is None):
+    if(srcy is None):
       srcy = np.zeros(len(srcx),dtype='int')
     # Make sure coordinates are within the model
     if(np.any(srcx >= ox+(nx)*dx) or np.any(srcy >= oy+(ny)*dy)):
@@ -62,9 +140,11 @@ class coordgeomnode:
     self.__srcx = srcx.astype('float32'); self.__srcy = srcy.astype('float32')
     # Total number of sources
     self.__nexp = len(srcx)
+    # Assume one source per shot
+    self.__nsrc = np.ones(self.__nexp,dtype='int32')
     ## Receiver geometry
     # Check if either is none
-    if(recxs is None and recys is None):
+    if(recx is None and recy is None):
       raise Exception("Must provide either recx or recy coordinates")
     if(recx is None):
       recx = np.zeros(len(recy),dtype='int')
@@ -79,11 +159,11 @@ class coordgeomnode:
       raise Exception("Each trace must have same number of x and y coordinates")
     self.__recx = recx.astype('float32'); self.__recy = recy.astype('float32')
     # Number of receivers per shot
-    if(nrec.dtype != 'int'):
+    if(nrec.dtype != 'int' and  nrec.dtype != 'int32'):
       raise Exception("nrec (number of receivers) must be integer type array")
     self.__nrec = nrec
     # Number of traces
-    self.__ntr = len(recxs)
+    self.__ntr = len(recx)
 
     # Data frequency axis and imaging/modeling axis
     self.__nwo = None; self.__ow = None; self.__dw  = None
@@ -145,6 +225,7 @@ class coordgeomnode:
 
     return velot
 
+
   def create_mod_chunks(self,nchnks,wavs):
     """
     Creates chunks for distributed modeling over a cluster
@@ -165,7 +246,7 @@ class coordgeomnode:
     dat = np.zeros([self.__ntr,n1],dtype='complex64')
     ntr = dat.shape[0]; nwav = wav.shape[0]
     ochnks = []
-    expchnks = self.splitnum(self.__nexp,nchnks)
+    expchnks = splitnum(self.__nexp,nchnks)
 
     k = 0
     begs = 0; ends = 0; begr = 0; endr = 0
@@ -241,7 +322,7 @@ class coordgeomnode:
     """
     Models a chunk of data. Takes input chunked
     coordinates and source wavelets.
-    These chunks are created from the create_data_chunks function.
+    These chunks are created from the create_model_chunks function.
 
     Parameters:
       chunk - a chunk created from the create_mod_chunks function.
@@ -399,7 +480,7 @@ class coordgeomnode:
         x = client.submit(self.model_chunk,ib)
         futures.append(x)
       if(sverb):
-        progress(futures)
+        progress(futures); print(" ")
       result = [future.result() for future in futures]
       odat = np.concatenate(result,axis=0)
 
@@ -435,7 +516,7 @@ class coordgeomnode:
     # Get data dimensions
     ntr = dat.shape[0]; nwav = wav.shape[0]
     ochnks = []
-    expchnks = self.splitnum(self.__nexp,nchnks)
+    expchnks = splitnum(self.__nexp,nchnks)
 
     k = 0
     begs = 0; ends = 0; begr = 0; endr = 0
@@ -521,21 +602,20 @@ class coordgeomnode:
 
   def image_chunk(self,chunk):
     """
-    Models a chunk of data. Takes input chunked
-    coordinates and source wavelets.
-    These chunks are created from the create_data_chunks function.
-
-    Note: you need to have run the set_props function before running
+    Images a chunk of data. Takes input chunked data
+    These chunks are created from the create_image_chunks function.
 
     Parameters:
-      nsrc  - number of sources for each shot in chunk
-      srcys - y-coordinates of source location for the chunk of shots
-      srcxs - x-coordinates of source location for the chunk of shots
-      wavs  - a chunk of source wavelets [inexp,nw]
-      nrec  - number of receivers for each shot in chunk [nsrc]
-      recys - y-coordinates of receiver location for the chunk of shots [ntr]
-      recxs - x-coordinates of receiver location for the chunk of shots [ntr]
-      dats  - input chunked data [ntr,nw]
+      chunk - a chunk created from the create_mod_chunks function.
+              This chunk is a dictionary with the following keys:
+              'nsrc'  - number of sources for each shot in chunk
+              'srcy'  - y-coordinates of source location for the chunk of shots
+              'srcx'  - x-coordinates of source location for the chunk of shots
+              'wav'   - a chunk of source wavelets [inexp,nw]
+              'nrec'  - number of receivers for each shot in chunk [nsrc]
+              'recy'  - y-coordinates of receiver location for the chunk of shots [ntr]
+              'recx'  - x-coordinates of receiver location for the chunk of shots [ntr]
+              'dat'   - output data computed for chunk of shots [ntr,nw]
     """
     # Get number of shots in the chunk
     if(len(chunk['nsrc']) != len(chunk['nrec'])):
@@ -647,7 +727,7 @@ class coordgeomnode:
     if(sym):
       # Create axes
       self.__rnhx = 2*nhx+1; self.__ohx = -nhx*self.__dx; self.__dhx = self.__dx
-      self.__rnhy = 2*nhx+1; self.__ohy = -nhy*self.__dy; self.__dhy = self.__dy
+      self.__rnhy = 2*nhy+1; self.__ohy = -nhy*self.__dy; self.__dhy = self.__dy
     else:
       # Create axes
       self.__rnhx = nhx+1; self.__ohx = 0; self.__dhx = self.__dx
@@ -690,9 +770,11 @@ class coordgeomnode:
         x = client.submit(self.image_chunk,ib)
         futures.append(x)
       if(sverb):
-        progress(futures)
+        progress(futures); print(" ")
       # Collect results
-      result = [future.result() for future in futures]
+      wait(futures)
+      #result = [future.result() for future in futures]
+      result = client.gather(futures)
       # Sum all images to obtain output
       img = np.sum(np.asarray(result),axis=0)
 
@@ -831,16 +913,6 @@ class coordgeomnode:
 
     return n
 
-  def splitnum(self,num,div):
-    """ Splits a number into nearly even parts """
-    splits = []
-    igr,rem = divmod(num,div)
-    for i in range(div):
-      splits.append(igr)
-    for i in range(rem):
-      splits[i] += 1
-
-    return splits
 
   def to_angle(self,img,amax=70,na=281,nthrds=4,transp=False,oro=None,dro=None,verb=False):
     """

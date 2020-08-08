@@ -13,8 +13,12 @@ laplacianold.o: laplacianFWDISPC.ispc #laplacian10.ispc
 	${ISPC}/ispc --target=avx $< -o $@
 
 scaas2d.o: scaas2d.cpp
-	g++ -O3 -fPIC -ffast-math -fopenmp -std=c++1y -shared -Wall -I${CONDA_PREFIX}/include/python3.5m \
-		-I${NPPATH}/include -Wl,-rpath=${CONDA_PREFIX}/lib -L${CONDA_PREFIX}/lib -lpython3.5m -c $< -o $@
+	g++ -O3 -fPIC -ffast-math -fopenmp -std=c++1y -shared -Wall -I${CONDA_PREFIX}/include/python3.7m \
+		-I${NPPATH}/include -Wl,-rpath=${CONDA_PREFIX}/lib -L${CONDA_PREFIX}/lib -lpython3.7m -c $< -o $@
+
+adcigkzkx.o: adcigkzkx.cpp
+	g++ -O3 -fPIC -ffast-math -fopenmp -std=c++1y -shared -Wall -I${CONDA_PREFIX}/include/python3.7m \
+		-I${NPPATH}/include -Wl,-rpath=${CONDA_PREFIX}/lib -L${CONDA_PREFIX}/lib -lpython3.7m -c $< -o $@
 
 #XXX: The -shared is necessary for linking
 scaas2dpy: scaas2d.o laplacian10.o laplacianold.o
@@ -52,6 +56,10 @@ adcig: adcig.o tan2ang.o slantstk.o halfint.o aainterp.o kiss_fft.o kiss_fftr.o
 	g++ -O3 -fPIC -ffast-math -fopenmp -std=c++1y -shared -Wall `${CONDA_PREFIX}/bin/python3 -m pybind11 --includes` \
 		-g kiss_fftr.o kiss_fft.o halfint.o aainterp.o slantstk.o tan2ang.o \
 		adcig.o adcigpy.cpp -o ../adcig`${CONDA_PREFIX}/bin/python3-config --extension-suffix`
+
+adcigkzkx: adcigkzkx.o ctrist.o
+	g++ -O3 -fPIC -ffast-math -fopenmp -std=c++1y -shared -Wall `${CONDA_PREFIX}/bin/python3 -m pybind11 --includes` \
+		-g ctrist.o adcigkzkx.o adcigkzkxpy.cpp -o ../adcigkzkx`${CONDA_PREFIX}/bin/python3-config --extension-suffix` -lfftw3f
 
 testimshow: testimshow.cpp
 	g++ testimshow.cpp -I${CONDA_PREFIX}/include/python3.5m/ \

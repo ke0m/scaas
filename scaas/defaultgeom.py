@@ -7,7 +7,7 @@ and distributed evenly across the surface
 """
 import numpy as np
 import scaas.scaas2dpy as sca2d
-from scaas.off2ang import off2ang
+from scaas.off2ang import off2angssk
 from scaas.gradtaper import build_taper
 import matplotlib.pyplot as plt
 
@@ -254,8 +254,8 @@ class defaultgeom:
     amin = -amax; avals = np.linspace(amin,amax,na)
     # Compute angle axis
     self.na = na; self.da = avals[1] - avals[0]; self.oa = avals[0]
-    return off2ang(img,self.oh,self.dh,self.__dz,na=na,amax=amax,nta=601,ota=-3,dta=0.01,
-                   nthrds=nthrds,transp=transp,oro=oro,dro=dro,verb=verb)
+    return off2angssk(img,self.oh,self.dh,self.__dz,na=na,amax=amax,nta=601,ota=-3,dta=0.01,
+                      nthrds=nthrds,transp=transp,oro=oro,dro=dro,verb=verb)
 
   def get_off_axis(self):
     """ Returns the subsurface offset extension axis """

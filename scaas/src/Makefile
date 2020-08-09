@@ -31,3 +31,6 @@ adcig: adcig.o tan2ang.o slantstk.o halfint.o aainterp.o kiss_fft.o kiss_fftr.o
 		-g kiss_fftr.o kiss_fft.o halfint.o aainterp.o slantstk.o tan2ang.o \
 		adcig.o adcigpy.cpp -o ../adcig`${CONDA_PREFIX}/bin/python3-config --extension-suffix`
 
+adcigkzkx: adcigkzkx.o ctrist.o
+	g++ -O3 -fPIC -ffast-math -fopenmp -std=c++1y -shared -Wall `${CONDA_PREFIX}/bin/python3 -m pybind11 --includes` \
+		-g  ctrist.o adcigkzkx.o adcigkzkxpy.cpp -o ../adcigkzkx`${CONDA_PREFIX}/bin/python3-config --extension-suffix`

@@ -7,7 +7,7 @@ and distributed evenly across the surface
 """
 import numpy as np
 import scaas.scaas2dpy as sca2d
-from scaas.off2ang import off2ang
+from scaas.off2ang import off2angssk
 from scaas.gradtaper import build_taper
 import matplotlib.pyplot as plt
 
@@ -254,8 +254,8 @@ class defaultgeom:
     amin = -amax; avals = np.linspace(amin,amax,na)
     # Compute angle axis
     self.na = na; self.da = avals[1] - avals[0]; self.oa = avals[0]
-    return off2ang(img,self.oh,self.dh,self.__dz,na=na,amax=amax,nta=601,ota=-3,dta=0.01,
-                   nthrds=nthrds,transp=transp,oro=oro,dro=dro,verb=verb)
+    return off2angssk(img,self.oh,self.dh,self.__dz,na=na,amax=amax,nta=601,ota=-3,dta=0.01,
+                      nthrds=nthrds,transp=transp,oro=oro,dro=dro,verb=verb)
 
   def get_off_axis(self):
     """ Returns the subsurface offset extension axis """
@@ -314,10 +314,12 @@ class defaultgeom:
 
     return allrecx, allrecz, nrec
 
-  def pad_model(self,vel):
+  def pad_model(self,vel,tvel=1500.0,zcut=0):
     """ Pad the velocity/reflectivity model """
     # Pad for absorbing layer
     velp = np.pad(vel,((self.__bx,self.__bx),(self.__bz,self.__bz)),'edge')
+    # Make the water velocity constant
+    velp[0:zcut,:] = tvel
     # Pad for laplacian stencil
     velp = np.pad(velp,((5,5),(5,5)),'constant')
 
@@ -362,14 +364,14 @@ class defaultgeom:
     if(show):
       plt.show()
 
-  def plot_acq(self,mod=None,show=True,**kwargs):
+  def plot_acq(self,mod=None,tvel=1500.0,zcut=0,show=True,**kwargs):
     """ Plots the acquisition on a velocity model """
     # Plot velocity model
     if(mod is None):
       mod  = np.zeros([self.__nx, self.__nz],dtype='float32') + 2500.0
       modp = self.pad_model(mod)
     else:
-      modp = self.pad_model(mod)
+      modp = self.pad_model(mod,zcut=zcut,tvel=tvel)
     vmin = np.min(mod); vmax = np.max(mod)
     fig = plt.figure(figsize=(kwargs.get('wbox',14),kwargs.get('hbox',7)))
     ax = fig.gca()

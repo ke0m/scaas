@@ -3,13 +3,13 @@ Imaging/modeling based on source and receiver coordinates
 This code is designed to be distributed across nodes in a cluster
 
 @author: Joseph Jennings
-@version: 2020.08.02
+@version: 2020.08.09
 """
 import numpy as np
 from oway.ssr3 import interp_slow
 from oway.ssr3wrap import ssr3modshots, ssr3migshots, ssr3migoffshots
 from dask.distributed import wait, Client, progress
-from scaas.off2ang import off2ang
+from scaas.off2angssk import off2angssk
 import matplotlib.pyplot as plt
 
 def splitnum(num,div):
@@ -933,8 +933,8 @@ class coordgeomnode:
     amin = -amax; avals = np.linspace(amin,amax,na)
     # Compute angle axis
     self.__na = na; self.__da = avals[1] - avals[0]; self.__oa = avals[0]
-    return off2ang(imgin,self.__ohx,self.__dhx,self.__dz,na=na,amax=amax,nta=601,ota=-3,dta=0.01,
-                   nthrds=nthrds,transp=transp,oro=oro,dro=dro,verb=verb)
+    return off2angssk(imgin,self.__ohx,self.__dhx,self.__dz,na=na,amax=amax,nta=601,ota=-3,dta=0.01,
+                      nthrds=nthrds,transp=transp,oro=oro,dro=dro,verb=verb)
 
   def get_ang_axis(self):
     """ Returns the opening angle extension axis """

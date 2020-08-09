@@ -3,11 +3,11 @@ Default geometry for synthetics
 Sources and receivers on the surface
 and distributed evenly across the surface
 @author: Joseph Jennings
-@version: 2020.07.20
+@version: 2020.08.09
 """
 import numpy as np
 from oway.ssr3 import ssr3, interp_slow
-from scaas.off2ang import off2ang
+from scaas.off2angssk import off2angssk
 from utils.ptyprint import progressbar
 import matplotlib.pyplot as plt
 
@@ -402,8 +402,8 @@ class defaultgeom:
     amin = -amax; avals = np.linspace(amin,amax,na)
     # Compute angle axis
     self.__na = na; self.__da = avals[1] - avals[0]; self.__oa = avals[0]
-    return off2ang(imgin,self.__ohx,self.__dhx,self.__dz,na=na,amax=amax,nta=601,ota=-3,dta=0.01,
-                   nthrds=nthrds,transp=transp,oro=oro,dro=dro,verb=verb)
+    return off2angssk(imgin,self.__ohx,self.__dhx,self.__dz,na=na,amax=amax,nta=601,ota=-3,dta=0.01,
+                      nthrds=nthrds,transp=transp,oro=oro,dro=dro,verb=verb)
 
   def get_ang_axis(self):
     """ Returns the opening angle extension axis """

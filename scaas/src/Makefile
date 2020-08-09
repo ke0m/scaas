@@ -1,4 +1,4 @@
-NPPATH=${CONDA_PREFIX}/lib/python3.5/site-packages/numpy/core
+NPPATH=${CONDA_PREFIX}/lib/python3.7/site-packages/numpy/core
 
 %.o: %.cpp
 	g++ -O3 -fPIC -ffast-math -fopenmp -shared -Wall -I. -c -fPIC -o $@ $<
@@ -60,6 +60,10 @@ adcig: adcig.o tan2ang.o slantstk.o halfint.o aainterp.o kiss_fft.o kiss_fftr.o
 adcigkzkx: adcigkzkx.o ctrist.o
 	g++ -O3 -fPIC -ffast-math -fopenmp -std=c++1y -shared -Wall `${CONDA_PREFIX}/bin/python3 -m pybind11 --includes` \
 		-g ctrist.o adcigkzkx.o adcigkzkxpy.cpp -o ../adcigkzkx`${CONDA_PREFIX}/bin/python3-config --extension-suffix` -lfftw3f
+
+fftw_example: fftw_example.cpp
+	g++ -o fftw_example fftw_example.cpp -std=c++11 -I/usr/include/python3.6 -I/usr/include/x86_64-linux-gnu/python3.6 \
+		-I/usr/local/lib/python3.6/dist-packages/numpy/core/include -lpython3.6m -ldl  -lutil -lm -lfftw3f
 
 testimshow: testimshow.cpp
 	g++ testimshow.cpp -I${CONDA_PREFIX}/include/python3.5m/ \

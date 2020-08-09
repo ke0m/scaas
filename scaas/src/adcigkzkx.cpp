@@ -1,6 +1,8 @@
 #include <fftw3.h>
 #include <cstring>
+#include <omp.h>
 #include "adcigkzkx.h"
+#include "progressbar.h"
 #include <map>
 #include <string>
 #include "/opt/matplotlib-cpp/matplotlibcpp.h"
@@ -58,9 +60,8 @@ void convert2angkzkykx(int ngat,
 
   /*  Allocate memory */
   std::complex<float> *offkzkx = new std::complex<float>[ngat*nz*nhy*nhx]();
-  std::complex<float> *angkz   = new std::complex<float>[ngat*nz*nhy*nhx]();
-
-  //plotimg_cmplx(nz,nhx,off,0);
+  std::complex<float> *angkz   = new std::complex<float>[nz*nhy*nhx]();
+  std::complex<float> *angz    = new std::complex<float>[nz*nhy*nhx]();
 
   /* FFTW plans*/
   int rankf = 3; int nf[] = {nz,nhy,nhx}; int howmanyf = ngat;
@@ -74,7 +75,7 @@ void convert2angkzkykx(int ngat,
                                          onembedf,ostridef,odistf,
                                          FFTW_FORWARD,FFTW_MEASURE);
 
-  int ranki = 1; int ni[] = {nz}; int howmanyi = ngat*nhy*nhx;
+  int ranki = 1; int ni[] = {nz}; int howmanyi = nhy*nhx;
   int idisti = 1; int odisti = 1;
   int istridei = nhy*nhx; int ostridei = istridei;
   int *inembedi = ni, *onembedi = ni;
@@ -82,14 +83,13 @@ void convert2angkzkykx(int ngat,
   fftwf_plan iplan = fftwf_plan_many_dft(ranki,ni,howmanyi,
                                          reinterpret_cast<fftwf_complex*>(angkz),
                                          inembedi,istridei,idisti,
-                                         reinterpret_cast<fftwf_complex*>(ang),
+                                         reinterpret_cast<fftwf_complex*>(angz),
                                          onembedi,ostridei,odisti,
                                          FFTW_BACKWARD,FFTW_MEASURE);
 
   /* Compute 3D FFT over all gathers */
   fftwf_execute(fplan);
 
-  //plotimg_cmplx(nz, nhx, offkzkx, 0);
 
   /* Vertical wavenumber (kz) */
   float *kzi = new float[nz]();
@@ -115,36 +115,39 @@ void convert2angkzkykx(int ngat,
     }
   }
 
-  std::map<std::string,std::string> vals;
-  //vals["vmax"] = "0.01"; //vals["vmin"] = "0.0";
-  vals["cmap"] = "jet"; vals["aspect"] = "auto";
-  //plt::imshow((const float*)stretch,nz,nhx,1,vals); plt::show();
+//  std::map<std::string,std::string> vals;
+//  //vals["vmax"] = "0.01"; //vals["vmin"] = "0.0";
+//  vals["cmap"] = "jet"; vals["aspect"] = "auto";
 
   /* Create the solver to be passed */
   ctrist *solv = new ctrist(nhx,okhx,dkhx,eps);
+  float iscale = 1/sqrt(nz);
 
   /* Loop over gathers */
   //TODO: parallelize with OpenMP (will need to create one solv per thread)
+  //TODO: put a progressbar here
   for(int igat = 0; igat < ngat; ++igat) {
+    /* TODO: Verbosity */
     /* Apply forward shift */
     forwardshift(nz,oz,dz,nhy,ohy,dhy,nhx,ohx,dhx,offkzkx + igat*nz*nhy*nhx);
     /* Offset to angle conversion */
+    memset(angkz,0,sizeof(std::complex<float>)*nz*nhy*nhx);
     convertone2angkhx(nz,nhx,okhx,dkhx,nhy,stretch,eps,solv,
-                       offkzkx + igat*nz*nhy*nhx, angkz + igat*nz*nhy*nhx);
+                       offkzkx + igat*nz*nhy*nhx, angkz);
     /* Apply Inverse shift */
-    inverseshift(nz, oz, dz, nhy, nhx, angkz + igat*nz*nhy*nhx);
+    inverseshift(nz, oz, dz, nhy, nhx, angkz);
+    /* Inverse FFT along z for this gather */
+    fftwf_execute(iplan);
+    /* Apply inverse scale */
+    for(int k = 0; k < nz*nhy*nhx; ++k) angz[k] *= iscale;
+    /* Copy to output angle */
+    memcpy(&ang[igat*nhx*nhy*nz],angz,sizeof(std::complex<float>)*nhy*nhx*nz);
   }
-
-  /* Inverse FFT along z for all gathers*/
-  fftwf_execute(iplan);
-
-  float iscale = 1/sqrt(nz);
-  for(int k = 0; k < ngat*nz*nhy*nhx; ++k) ang[k] *= iscale;
 
   /* Destroy plans and free memory */
   fftwf_destroy_plan(fplan); fftwf_destroy_plan(iplan);
   delete solv;
-  delete[] offkzkx; delete[] angkz;
+  delete[] offkzkx; delete[] angkz; delete[] angz;
   delete[] kzi; delete[] stretch;
 }
 
@@ -165,7 +168,6 @@ void convertone2angkhx(int nz, int nkhx, float okhx, float dkhx, int nkhy,
       /* Get the data for this depth */
       memcpy(&data[0  ],&off[iz*nkhy*nkhx + ihy*nkhx + jhx],sizeof(std::complex<float>)*jhx);
       memcpy(&data[jhx],&off[iz*nkhy*nkhx + ihy*nkhx +   0],sizeof(std::complex<float>)*jhx);
-      //plotplt_cmplx(nkhx, data, 0);
       /* Perform the inverse interpolation */
       solv->apply(ang + iz*nkhy*nkhx + ihy*nkhx, data);
     }

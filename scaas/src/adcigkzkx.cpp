@@ -3,52 +3,6 @@
 #include <omp.h>
 #include "adcigkzkx.h"
 #include "progressbar.h"
-#include <map>
-#include <string>
-#include "/opt/matplotlib-cpp/matplotlibcpp.h"
-
-namespace plt = matplotlibcpp;
-
-void plotimg_cmplx(int n1,int n2,std::complex<float> *arr,int option) {
-  float * tmp = new float[n1*n2];
-
-  for(int i1 = 0; i1 < n1; ++i1) {
-    for(int i2 = 0; i2 < n2; ++i2) {
-      if(option == 0) {
-        tmp[i1*n2 + i2] = real(arr[i1*n2 + i2]);
-      } else if(option == 1) {
-        tmp[i1*n2 + i2] = imag(arr[i1*n2 + i2]);
-      } else {
-        tmp[i1*n2 + i2] = abs(arr[i1*n2 + i2]);
-      }
-    }
-  }
-  std::map<std::string,std::string> vals;
-  //vals["vmax"] = "0.01"; //vals["vmin"] = "0.0";
-  vals["cmap"] = "gray"; vals["aspect"] = "auto"; vals["interpolation"] = "sinc";
-  plt::imshow((const float *)tmp,n1,n2,1,vals); plt::show();
-
-  delete [] tmp;
-}
-
-void plotplt_cmplx(int n1, std::complex<float> *arr, int option) {
-  float * tmp = new float[n1];
-
-  for(int i1 = 0; i1 < n1; ++i1) {
-    if(option == 0) {
-      tmp[i1] = real(arr[i1]);
-    } else if(option == 1) {
-      tmp[i1] = imag(arr[i1]);
-    } else {
-      tmp[i1] = abs(arr[i1]);
-    }
-  }
-  std::vector<float> v {tmp,tmp+n1};
-  plt::plot(v); plt::show();
-
-  delete [] tmp;
-
-}
 
 void convert2angkzkykx(int ngat,
                        int nz, float oz, float dz,
@@ -56,12 +10,12 @@ void convert2angkzkykx(int ngat,
                        int nhx, float ohx, float dhx,
                        float oa, float da,
                        std::complex<float> *off, std::complex<float> *ang,
-                       float eps, int nthrd, bool verb) {
+                       float eps, int nthrds, bool verb) {
 
   /*  Allocate memory */
   std::complex<float> *offkzkx = new std::complex<float>[ngat*nz*nhy*nhx]();
-  std::complex<float> *angkz   = new std::complex<float>[nz*nhy*nhx]();
-  std::complex<float> *angz    = new std::complex<float>[nz*nhy*nhx]();
+  std::complex<float> **angkzs  = new std::complex<float>*[nthrds]();
+  std::complex<float> **angzs   = new std::complex<float>*[nthrds]();
 
   /* FFTW plans*/
   int rankf = 3; int nf[] = {nz,nhy,nhx}; int howmanyf = ngat;
@@ -75,21 +29,41 @@ void convert2angkzkykx(int ngat,
                                          onembedf,ostridef,odistf,
                                          FFTW_FORWARD,FFTW_MEASURE);
 
+  /* Arguments for inverse FFTW */
   int ranki = 1; int ni[] = {nz}; int howmanyi = nhy*nhx;
   int idisti = 1; int odisti = 1;
   int istridei = nhy*nhx; int ostridei = istridei;
   int *inembedi = ni, *onembedi = ni;
 
-  fftwf_plan iplan = fftwf_plan_many_dft(ranki,ni,howmanyi,
-                                         reinterpret_cast<fftwf_complex*>(angkz),
+  /* FFTW Inverse plans */
+  fftwf_plan *iplans = new fftwf_plan[nthrds]();
+  /* Inverse FFT scaling */
+  float iscale = 1/sqrt(nz);
+
+  /* Khx axis */
+  float okhx = -static_cast<int>(nhx/2 + 0.5) * 2*M_PI/(nhx*dhx);
+  float dkhx = 2*M_PI/(nhx*dhx);
+  /* Complex tridiagonal solver for each thread */
+  ctrist **solves = new ctrist*[nthrds]();
+
+  /* Allocate memory for each thread */
+  for(int ithrd = 0; ithrd < nthrds; ++ithrd) {
+    /* Temporary arrays */
+    angkzs[ithrd] = new std::complex<float>[nz*nhy*nhx]();
+    angzs [ithrd] = new std::complex<float>[nz*nhy*nhx]();
+    /* Inverse FFTW Plans */
+    iplans[ithrd] =  fftwf_plan_many_dft(ranki,ni,howmanyi,
+                                         reinterpret_cast<fftwf_complex*>(angkzs[ithrd]),
                                          inembedi,istridei,idisti,
-                                         reinterpret_cast<fftwf_complex*>(angz),
+                                         reinterpret_cast<fftwf_complex*>(angzs [ithrd]),
                                          onembedi,ostridei,odisti,
                                          FFTW_BACKWARD,FFTW_MEASURE);
+    /* Complex tridiagonal solvers */
+    solves[ithrd] = new ctrist(nhx,okhx,dkhx,eps);
+  }
 
   /* Compute 3D FFT over all gathers */
   fftwf_execute(fplan);
-
 
   /* Vertical wavenumber (kz) */
   float *kzi = new float[nz]();
@@ -98,10 +72,6 @@ void convert2angkzkykx(int ngat,
     kzi[iz    ] = iz;
     kzi[iz+nzh] = (-nzh+iz);
   }
-
-  /* Khx axis */
-  float okhx = -static_cast<int>(nhx/2 + 0.5) * 2*M_PI/(nhx*dhx);
-  float dkhx = 2*M_PI/(nhx*dhx);
 
   /* Compute mapping from khx to angle */
   float *stretch = new float[nz*nhx]();
@@ -115,40 +85,49 @@ void convert2angkzkykx(int ngat,
     }
   }
 
-//  std::map<std::string,std::string> vals;
-//  //vals["vmax"] = "0.01"; //vals["vmin"] = "0.0";
-//  vals["cmap"] = "jet"; vals["aspect"] = "auto";
-
-  /* Create the solver to be passed */
-  ctrist *solv = new ctrist(nhx,okhx,dkhx,eps);
-  float iscale = 1/sqrt(nz);
+  /* Verbosity */
+  int *gidx = new int[nthrds]();
+  int csize = (int)ngat/nthrds;
+  bool firstiter = true;
 
   /* Loop over gathers */
-  //TODO: parallelize with OpenMP (will need to create one solv per thread)
-  //TODO: put a progressbar here
+  omp_set_num_threads(nthrds);
+#pragma omp parallel for default(shared)
   for(int igat = 0; igat < ngat; ++igat) {
-    /* TODO: Verbosity */
+    int gthd = omp_get_thread_num();
+    /* Verbosity */
+    if(firstiter && verb) gidx[gthd] = igat;
+    if(verb) printprogress_omp("ngat", igat-gidx[gthd], csize, gthd);
     /* Apply forward shift */
     forwardshift(nz,oz,dz,nhy,ohy,dhy,nhx,ohx,dhx,offkzkx + igat*nz*nhy*nhx);
     /* Offset to angle conversion */
-    memset(angkz,0,sizeof(std::complex<float>)*nz*nhy*nhx);
-    convertone2angkhx(nz,nhx,okhx,dkhx,nhy,stretch,eps,solv,
-                       offkzkx + igat*nz*nhy*nhx, angkz);
+    memset(angkzs[gthd],0,sizeof(std::complex<float>)*nz*nhy*nhx);
+    convertone2angkhx(nz,nhx,okhx,dkhx,nhy,stretch,eps,solves[gthd],
+                       offkzkx + igat*nz*nhy*nhx, angkzs[gthd]);
     /* Apply Inverse shift */
-    inverseshift(nz, oz, dz, nhy, nhx, angkz);
+    inverseshift(nz, oz, dz, nhy, nhx, angkzs[gthd]);
     /* Inverse FFT along z for this gather */
-    fftwf_execute(iplan);
+    fftwf_execute(iplans[gthd]);
     /* Apply inverse scale */
-    for(int k = 0; k < nz*nhy*nhx; ++k) angz[k] *= iscale;
+    for(int k = 0; k < nz*nhy*nhx; ++k) angzs[gthd][k] *= iscale;
     /* Copy to output angle */
-    memcpy(&ang[igat*nhx*nhy*nz],angz,sizeof(std::complex<float>)*nhy*nhx*nz);
+    memcpy(&ang[igat*nhx*nhy*nz],angzs[gthd],sizeof(std::complex<float>)*nhy*nhx*nz);
+    /* Verbosity */
+    firstiter = false;
   }
+  if(verb) printf("\n");
 
   /* Destroy plans and free memory */
-  fftwf_destroy_plan(fplan); fftwf_destroy_plan(iplan);
-  delete solv;
-  delete[] offkzkx; delete[] angkz; delete[] angz;
-  delete[] kzi; delete[] stretch;
+  fftwf_destroy_plan(fplan);
+  delete[] offkzkx; delete[] kzi; delete[] stretch;
+  delete[] gidx;
+  for(int ithrd = 0; ithrd < nthrds; ++ithrd) {
+    fftwf_destroy_plan(iplans[ithrd]);
+    delete[] angkzs[ithrd]; delete[] angzs[ithrd];
+    delete solves[ithrd];
+  }
+  delete[] iplans; delete[] angkzs; delete[] angzs;
+  delete[] solves;
 }
 
 void convertone2angkhx(int nz, int nkhx, float okhx, float dkhx, int nkhy,

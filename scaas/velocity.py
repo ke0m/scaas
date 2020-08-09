@@ -121,7 +121,7 @@ def create_randomptb_loc(nz,nx,romin,romax,naz,nax,cz,cx,
   px1 = cx - int(nax/2)
   if(nax%2 != 0): px1 -= 1
   if(px1 < 0):
-    cx = nax/2
+    cx = int(nax/2)
   px2 = nx - cx - int(nax/2)
   noisep   = np.pad(noiseout,((pz1,pz2),(px1,px2)),'constant',constant_values=1)
   noisepsm = flt.gaussian_filter(noisep,sigma=sigma)

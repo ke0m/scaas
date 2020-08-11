@@ -11,7 +11,7 @@ import numpy as np
 from oway.ssr3 import interp_slow
 from oway.ssr3wrap import ssr3modshots, ssr3migshots, ssr3migoffshots
 from dask.distributed import Client, progress
-from scaas.off2angssk import off2angssk
+from scaas.off2ang import off2angssk,off2angkzx
 import matplotlib.pyplot as plt
 
 class defaultgeomnode:

@@ -149,7 +149,7 @@ def off2angkzx(off,ohx,dhx,dz,ohy=0.0,dhy=1.0,oz=0.0,na=None,amax=60,oa=None,da=
   oa = -amax; da = 2*amax/na
 
   # Loop over rho
-  for iro in progressbar(range(nro),"rho",verb=rverb):
+  for iro in progressbar(range(nro),"nrho:",verb=rverb):
     convert2angkzkykx(nx*ny,                                   # Number of gathers
                       nz,oz,dz,nhy,ohy,dhy,na,ohx,dhx,oa,da,   # Axes of input and output
                       offip[iro],ang[iro],eps,nthrds,cverb)    # Input and output and parameters
@@ -158,19 +158,19 @@ def off2angkzx(off,ohx,dhx,dz,ohy=0.0,dhy=1.0,oz=0.0,na=None,amax=60,oa=None,da=
   if(transp):
     if(nro > 1):
       angw = ang[:,0,:,:,0,:] # [nro,ny,nx,nz,naz,na] -> [nro,nx,nz,na]
-      return np.ascontiguousarray(np.transpose(angw,(0,1,3,2))) # [nro,nx,nz,na] -> [nro,nx,na,nz]
+      ango = np.transpose(angw,(0,1,3,2)) # [nro,nx,nz,na] -> [nro,nx,na,nz]
     else:
       angw = ang[0]
-      ango = np.ascontiguousarray(np.transpose(angw,(0,1,3,4,2))) # [ny,nx,nz,naz,na] -> [ny,nx,naz,na,nz]
+      ango = np.transpose(angw,(0,1,3,4,2)) # [ny,nx,nz,naz,na] -> [ny,nx,naz,na,nz]
   else:
     if(nro > 1):
       angw = ang[:,0,:,:,0,:] # [nro,ny,nx,nz,naz,na] -> [nro,nx,nz,na]
-      ango = np.ascontiguousarray(np.transpose(angw,(0,3,2,1))) # [nro,nx,nz,na] -> [nro,na,nz,nx]
+      ango = np.transpose(angw,(0,3,2,1)) # [nro,nx,nz,na] -> [nro,na,nz,nx]
     else:
       angw = ang[0]
-      ango = np.ascontiguousarray(np.transpose(angw,(3,4,2,0,1))) # [ny,nx,nz,naz,na] -> [naz,na,nz,ny,nx]
+      ango = np.transpose(angw,(3,4,2,0,1)) # [ny,nx,nz,naz,na] -> [naz,na,nz,ny,nx]
 
-  return ango
+  return np.real(np.ascontiguousarray(ango))
 
 def get_angkzx_axis(na,amax=60):
   """

@@ -36,10 +36,14 @@ wei = geom.defaultgeom(nx=nx,dx=dx,ny=ny,dy=dy,nz=nz,dz=dz,
 
 beg = time.time()
 img = wei.image_data(datin,dt,minf=1.0,maxf=31.0,vel=velin,nhx=20,ntx=15,
-                     nthrds=24,wverb=True,eps=0.0)
+                     nthrds=24,wverb=False,eps=0.0)
 print("Elapsed=%f"%(time.time()-beg))
 
+imgang = wei.to_angle(img,transp=True)
+print(imgang.shape)
+
 #viewimgframeskey(img[0,:,:,0,:],transp=False)
+viewimgframeskey(imgang[0,:,0,:,:],transp=True)
 
 #plt.figure(); plt.imshow(img[:,0,:],cmap='gray',interpolation='sinc'); plt.show()
 

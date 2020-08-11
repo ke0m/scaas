@@ -1,8 +1,13 @@
-# Build point scatterer models for imaging
+"""
+Velocity utility functions for imaging
+@author: Joseph Jennings
+@version: 2020.08.10
+"""
 import numpy as np
 import scaas.noise_generator as noise_generator
 import scipy.ndimage as flt
 from utils.rand import randfloat
+from scaas.trismooth import smooth
 
 def find_optimal_sizes(n,j,nb):
   """
@@ -128,6 +133,38 @@ def create_randomptb_loc(nz,nx,romin,romax,naz,nax,cz,cx,
 
   return noisepsm.astype('float32')
 
+def create_constptb_loc(nz,nx,ptb,naz,nax,cz,cx,rectx=20,rectz=20):
+  """
+  Creates a constant perturbation of size nax by nax and at position
+  (cz,cx)
+
+  Parameters
+    nz    - number of depth samples of output velocity model
+    nx    - number of lateral samples of output velocity model
+    ptb   - percent perturbation
+    naz   - number of depth samples of perturbation 
+    nax   - number of lateral samples of perturbation
+    cz    - z center position of anomaly
+    cx    - x center position of anomaly
+    rectx - number of points to smooth in x [20]
+    rectz - number of points to smooth in z [20]
+
+  Returns a model [nz,nx] with the anomaly positioned at (cz,cx) in the model
+  """
+  velc = np.zeros([naz,nax],dtype='float32') + ptb
+  pz1 = cz - int(naz/2)
+  if(naz%2 != 0): pz1 -= 1
+  if(pz1 < 0): 
+    cz = int(naz/2)
+  pz2 = nz - cz - int(naz/2)
+  px1 = cx - int(nax/2)
+  if(nax%2 != 0): px1 -= 1
+  if(px1 < 0): 
+    cx = int(nax/2)
+  px2 = nx - cx - int(nax/2)
+  velcp = np.pad(velc,((pz1,pz2),(px1,px2)),'constant',constant_values=1)
+  return smooth(velcp,rect1=rectx,rect2=rectz)
+
 def create_randomptbs_loc(nz,nx,nptbs,romin=0.95,romax=1.06,minnaz=150,maxnaz=300,minnax=150,maxnax=300,mindist=200,
     mincz=None,mincx=None,maxcz=None,maxcx=None,nptsz=1,nptsx=1,octaves=4,period=80,Ngrad=80,
     persist=0.2,ncpu=1,sigma=20):
@@ -247,4 +284,43 @@ def create_layered(nz,nx,dz,dx,z0s=[],vels=[],flat=True,
     ovel[ref[ix]:,ix] = vels[-1]
 
   return ovel,lyrs
+
+def salt_mask(img,vel,saltvel,thresh=0.95,rectx=30,rectz=30):
+  """
+  Masks the image based on the salt velocity
+
+  Parameters
+    img     - input image (can be extended or not) [nhy,nhx,nz,ny,nx]
+    vel     - input migration velocity model [nz,ny,nx]
+    saltvel - salt velocity for masking
+    thresh  - mask threshold [0.95]
+    rectx   - amount of smoothing to be applied to mask along x
+    rectz   - amount of smoothing to be applied to mask along z
+
+  Returns mask and masked image
+  """
+  # Create the mask
+  idx = vel >= saltvel
+  msk = np.ascontiguousarray(np.copy(vel)).astype('float32')
+  msk[idx] = 0.0 
+  msk[~idx] = 1.0 
+  mskw = msk[:,0,:]
+
+  # Smooth and threshold the mask
+  smmsk = smooth(mskw,rect1=30,rect2=30)
+  idx2 = smmsk > 0.95
+  smmsk[idx2] = 1.0 
+  smmsk[~idx2] = 0.0 
+  smmsk2 = smooth(smmsk,rect1=2,rect2=2)
+
+  # Apply the mask to the image
+  imgo = np.zeros(img.shape,dtype='float32')
+  if(len(img.shape) == 5):
+    nhx = img.shape[1]
+    for ihx in range(nhx):
+      imgo[0,ihx,:,0,:] = smmsk2*img[0,ihx,:,0,:]
+  else:
+    imgo = smmsk2*img[:,0,:]
+
+  return smmsk2,imgo
 

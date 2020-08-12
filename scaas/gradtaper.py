@@ -1,3 +1,8 @@
+"""
+Taper functions. Useful for tapering the FWI gradient
+@author: Joseph Jennings
+@version: 2020.08.11
+"""
 import numpy as np
 import matplotlib.pyplot as plt
 

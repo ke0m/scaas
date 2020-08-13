@@ -319,8 +319,10 @@ def salt_mask(img,vel,saltvel,thresh=0.95,rectx=30,rectz=30):
     nhx = img.shape[1]
     for ihx in range(nhx):
       imgo[0,ihx,:,0,:] = smmsk2*img[0,ihx,:,0,:]
-  else:
+  elif(len(img.shape) == 3):
     imgo = smmsk2*img[:,0,:]
+  elif(len(img.shape) == 2):
+    imgo = smmsk2*img
 
   return smmsk2,imgo
 

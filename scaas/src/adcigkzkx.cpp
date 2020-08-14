@@ -17,7 +17,7 @@ void convert2angkzkykx(int ngat,
   std::complex<float> **angkzs  = new std::complex<float>*[nthrds]();
   std::complex<float> **angzs   = new std::complex<float>*[nthrds]();
 
-  /* FFTW plans*/
+  /* FFTW plans */
   int rankf = 3; int nf[] = {nz,nhy,nhx}; int howmanyf = ngat;
   int idistf = nz*nhy*nhx; int odistf = idistf;
   int istridef = 1; int ostridef = istridef;

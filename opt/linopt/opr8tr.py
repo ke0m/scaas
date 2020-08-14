@@ -1,3 +1,9 @@
+"""
+A very simple abstract operator class
+
+@author: Joseph Jennings
+@version: 2020.08.13
+"""
 from abc import ABC, abstractmethod 
 
 class operator(ABC):

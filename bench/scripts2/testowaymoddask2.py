@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from utils.plot import plot_wavelet
 from utils.movie import viewimgframeskey
 from dask.distributed import Client, SSHCluster, progress
+from cluster.daskutils import shutdown_sshcluster
 
 sep = seppy.sep()
 
@@ -33,24 +34,25 @@ n1 = 2000; d1 = 0.004;
 freq = 8; amp = 0.5; dly = 0.2; it0 = int(dly/d1)
 wav = ricker(n1,d1,freq,amp,dly)
 
-osx = 20; dsx = 10; nsx = 76
+osx = 20; dsx = 10; nsx = 70
 wei = geom.defaultgeomnode(nx=nx,dx=dx,ny=ny,dy=dy,nz=nz,dz=dz,
                            nsx=nsx,dsx=dsx,osx=osx,nsy=1,dsy=1.0)
 
 wei.plot_acq(velin)
 
 # Create Dask cluster
+hosts = ["localhost", "torch", "thing", "jarvis"]
 cluster = SSHCluster(
-                     ["localhost", "fantastic", "thing"],
+                     hosts,
                      connect_options={"known_hosts": None},
-                     worker_options={"nthreads": 1,"nprocs": 1, "memory_limit": 20e9},
+                     worker_options={"nthreads": 1, "nprocs": 1, "memory_limit": 20e9, "worker_port": '33149:33150'},
                      scheduler_options={"port": 0, "dashboard_address": ":8797"}
                     )
 
 client = Client(cluster)
 
 odatr = wei.model_data(wav,d1,dly,minf=1.0,maxf=31.0,vel=velin,ref=refsm,ntx=15,px=112,
-                       nthrds=30,client=client)
+                       nthrds=40,client=client)
 
 plt.figure()
 plt.imshow(odatr[0].T,cmap='gray',interpolation='sinc')
@@ -59,4 +61,8 @@ plt.imshow(odatr[-1].T,cmap='gray',interpolation='sinc')
 plt.show()
 
 sep.write_file("mydatnode.H",odatr.T,os=[0,0,osx],ds=[d1,dx,dsx])
+
+# Shutdown dask
+client.shutdown()
+shutdown_sshcluster(hosts)
 

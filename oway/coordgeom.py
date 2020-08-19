@@ -200,7 +200,7 @@ class coordgeom:
       isy = int((sy-self.__oy)/self.__dy+0.5); isx = int((sx-self.__ox)/self.__dx+0.5)
       # Create the source for this shot
       sou[:] = 0.0
-      sou[:,isy,isx]  = wfft[:]
+      sou[:,isy,isx]  = wfftd[:]
       # Downward continuation
       datw[:] = 0.0
       ssf.modallw(ref,sou,datw,wverb)

@@ -9,7 +9,7 @@ import numpy as np
 from oway.ssr3 import ssr3, interp_slow
 from server.utils import splitnum
 from scaas.off2ang import off2angssk,off2angkzx
-from utyls.ptyprint import progressbar
+from genutils.ptyprint import progressbar
 import matplotlib.pyplot as plt
 
 def default_coord(nx,dx,ny,dy,nz,dz,

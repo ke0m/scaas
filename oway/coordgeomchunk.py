@@ -7,7 +7,6 @@ This code is designed to be distributed across nodes in a cluster
 """
 import numpy as np
 from oway.ssr3 import ssr3, interp_slow
-from server.utils import splitnum
 from scaas.off2ang import off2angssk,off2angkzx
 from genutils.ptyprint import progressbar
 import matplotlib.pyplot as plt

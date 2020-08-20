@@ -8,7 +8,7 @@ one-way wave equation
 import numpy as np
 from oway.ssr3 import interp_slow
 
-def interp_vel(self,nz,ny,oy,dy,nx,ox,dx,
+def interp_vel(nz,ny,oy,dy,nx,ox,dx,
                velin,dvx,dvy,ovx=0.0,ovy=0.0):
   """
   Lateral nearest-neighbor interpolation of velocity. Use

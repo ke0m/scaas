@@ -28,6 +28,8 @@ while True:
   wei = coordgeomchunk(**chunk[0])
   # Do the modeling
   ochunk['result'] = wei.image_data(**chunk[1])
+  # Return other parameters if desired
+  ochunk['cid'] = chunk[2]
   # Tell server this is the result
   ochunk['msg'] = "result"
   # Send back the result

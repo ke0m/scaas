@@ -9,7 +9,7 @@ import numpy as np
 from oway.ssr3 import ssr3, interp_slow
 from server.utils import splitnum
 from scaas.off2ang import off2angssk,off2angkzx
-from utils.ptyprint import progressbar
+from utyls.ptyprint import progressbar
 import matplotlib.pyplot as plt
 
 def default_coord(nx,dx,ny,dy,nz,dz,
@@ -156,10 +156,6 @@ class coordgeomchunk:
     # Number of traces
     self.__ntr = len(recx)
 
-    # Data frequency axis and imaging/modeling axis
-    self.__nwo = None; self.__ow = None; self.__dw  = None
-    self.__nwc = None;                   self.__dwc = None
-
     # Subsurface offsets
     self.__sym = True
     self.__nhx = 0; self.__rnhx = None; self.__ohx = None; self.__dhx = None
@@ -280,8 +276,8 @@ class coordgeomchunk:
 
     return recw
 
-  def image_data(self,dat,owc,dwc,vel,
-                 nhx=0,nhy=0,sym=True,nrmax=3,dtmax=5e-05,wav=None,
+  def image_data(self,rec,owc,dwc,vel,
+                 nhx=0,nhy=0,sym=True,eps=0,nrmax=3,dtmax=5e-05,wav=None,
                  ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=False):
     """
     3D migration of shot profile data via the one-way wave equation (single-square
@@ -289,9 +285,7 @@ class coordgeomchunk:
     the default geometry (sources and receivers on a regular grid)
 
     Parameters:
-      dat    - input shot profile data
-      minf   - minimum frequency to image in the data [Hz]
-      maxf   - maximum frequency to image in the data [Hz]
+      rec    - flattened input shot profile data
       vel    - input migration velocity model [nz,ny,nx]
       jf     - frequency decimation factor
       nhx    - number of subsurface offsets in x to compute [0]
@@ -314,8 +308,16 @@ class coordgeomchunk:
       an image created from the data [nhy,nhx,nz,ny,nx]
     """
     # Make sure data are same size as coordinates
-    if(dat.shape[0] != self.__ntr):
+    if(rec.shape[0] != self.__ntr):
       raise Exception("Data must have same number of traces passed to constructor")
+
+    nwc = wav.shape[0]
+    if(rec.shape[-1] != nwc):
+      raise Exception("Data and wavelet must have same frequency axis")
+
+    # Allocate source and data for one shot
+    datw = np.zeros([self.__ny,self.__nx,nwc],dtype='complex64')
+    sou  = np.zeros([nwc,self.__ny,self.__nx],dtype='complex64')
 
     # Single square root object
     ssf = ssr3(self.__nx ,self.__ny,self.__nz ,     # Spatial Sizes
@@ -359,16 +361,16 @@ class coordgeomchunk:
       sou[:,isy,isx]  = wav[:]
       # Inject the data for this shot
       datw[:] = 0.0
-      ssf.inject_data(self.__nrec[iexp],self.__recy[ntr:],self.__recx[ntr:],self.__oy,self.__ox,dfftd[ntr:,:],datw)
+      ssf.inject_data(self.__nrec[iexp],self.__recy[ntr:],self.__recx[ntr:],self.__oy,self.__ox,rec[ntr:,:],datw)
       datwt = np.ascontiguousarray(np.transpose(datw,(2,0,1))) # [ny,nx,nwc] -> [nwc,ny,nx]
       # Initialize temporary image
       imgtmp[:] = 0.0
       if(nhx == 0 and nhy == 0):
         # Conventional imaging
-        ssf.migallw(datwt,sou,imgar[iexp],wverb)
+        ssf.migallw(datwt,sou,imgtmp,wverb)
       else:
         # Extended imaging
-        ssf.migoffallw(datwt,sou,imgar[iexp],wverb)
+        ssf.migoffallw(datwt,sou,imgtmp,wverb)
       oimg += imgtmp
       # Increase number of traces
       ntr += self.__nrec[iexp]
@@ -384,10 +386,6 @@ class coordgeomchunk:
     if(self.__rnhx is None):
       raise Exception("Cannot return x subsurface offset axis without running extended imaging")
     return self.__rnhx, self.__ohx, self.__dhx
-
-  def get_freq_axis(self):
-    """ Returns the data frequency axis """
-    return self.__nwo,self.__ow,self.__dw
 
   def to_angle(self,img,mode='kzx',amax=None,na=None,nthrds=4,transp=False,
                eps=1.0,oro=None,dro=None,verb=False):
@@ -436,30 +434,6 @@ class coordgeomchunk:
   def get_ang_axis(self):
     """ Returns the opening angle extension axis """
     return self.__na, self.__oa, self.__da
-
-  def test_freq_axis(self,n1,dt,minf,maxf,jf=1):
-    """
-    For testing different frequency axes based on
-    the input wavelet time axis
-
-    Parameters:
-      n1   - length of wavelet
-      dt   - temporal sampling of wavelet
-      minf - minimum frequency to propagate
-      maxf - maximum frequency to propagate
-      jf   - frequency decimation factor [1]
-
-    Returns:
-      Nothing. Just a verbose output of the frequency axis
-    """
-    nt = 2*self.next_fast_size(int((n1+1)/2))
-    if(nt%2): nt += 1
-    nw = int(nt/2+1)
-    dw = 1/(nt*dt)
-    # Min and max frequencies
-    begw = int(minf/dw); endw = int(maxf/dw)
-    nwc = (endw-begw)/jf
-    print("Test frequency axis: nw=%d ow=%d dw=%f"%(nwc,minf,dw*jf))
 
   def plot_acq(self,mod=None,show=True,**kwargs):
     """ Plots the acquisition on the velocity model for a specified shot """

@@ -146,6 +146,17 @@ class imagechunkr:
     self.__nthrds = nthrds
     self.__wverb  = wverb; self.__sverb = sverb
 
+  def get_img_shape(self):
+    """ Returns the shape of the output image """
+    if(self.__nhx == 0 and self.__nhy == 0):
+      return [self.__nz,self.__ny,self.__nx]
+    else:
+      if(self.__sym):
+        rnhx = 2*self.__nhx+1; rnhy = 2*self.__nhy+1
+      else:
+        rnhx = self.__nhx+1; rnhy = self.__nhy+1
+      return [rnhy,rnhx,self.__nz,self.__ny,self.__nx]
+
   def __iter__(self):
     """
     Defines the iterator for creating chunks

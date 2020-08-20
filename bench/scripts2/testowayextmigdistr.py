@@ -49,7 +49,7 @@ icnkr = imagechunkr(nchnk,
                     nx,dx,ny,dy,nz,dz,velin,datin,dt,minf=1.0,maxf=31.0,
                     nrec=nrec,srcx=srcx,srcy=srcy,recx=recx,recy=recy)
 
-icnkr.set_image_pars(ntx=15,nthrds=40,sverb=True)
+icnkr.set_image_pars(ntx=15,nhx=20,nthrds=40,sverb=True)
 gen = iter(icnkr)
 
 # Bind to socket
@@ -60,9 +60,8 @@ socket.bind("tcp://0.0.0.0:5555")
 # Distribute work to workers and sum over results
 oimg = dstr_sum('cid','result',nchnk,gen,socket,icnkr.get_img_shape())
 
-plt.figure()
-plt.imshow(oimg[:,0,:],cmap='gray',interpolation='sinc')
-plt.show()
+#print(oimg.shape)
+viewimgframeskey(oimg[0,:,:,0,:])
 
 kill_sshworkers(cfile,hosts,verb=False)
 

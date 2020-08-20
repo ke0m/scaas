@@ -7,7 +7,7 @@ and receiver coordinates
 import numpy as np
 from oway.ssr3 import ssr3, interp_slow
 from scaas.off2ang import off2angssk,off2angkzx
-from utils.ptyprint import progressbar
+from genutils.ptyprint import progressbar
 import matplotlib.pyplot as plt
 
 class coordgeom:

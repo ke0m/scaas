@@ -6,7 +6,7 @@ Velocity utility functions for imaging
 import numpy as np
 import scaas.noise_generator as noise_generator
 import scipy.ndimage as flt
-from utils.rand import randfloat
+from genutils.rand import randfloat
 from scaas.trismooth import smooth
 
 def find_optimal_sizes(n,j,nb):

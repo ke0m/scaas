@@ -6,7 +6,7 @@ with the one-way wave equation
 """
 import numpy as np
 from oway.ssr3 import ssr3, interp_slow
-from utils.ptyprint import progressbar
+from genutils.ptyprint import progressbar
 import matplotlib.pyplot as plt
 
 class zerooffset:

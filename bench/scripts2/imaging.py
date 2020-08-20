@@ -2,9 +2,9 @@ import numpy as np
 import scaas.defaultgeom as geom
 from scaas.wavelet import ricker
 from resfoc.resmig import preresmig, get_rho_axis
-from utils.movie import viewimgframeskey
-from utils.plot import plot_wavelet, plot_imgpoff, plot_imgpang
-from utils.signal import ampspec2d
+from utyls.movie import viewimgframeskey
+from utyls.plot import plot_wavelet, plot_imgpoff, plot_imgpang
+from utyls.signal import ampspec2d
 import matplotlib.pyplot as plt
 
 # Create a single point scatterer model

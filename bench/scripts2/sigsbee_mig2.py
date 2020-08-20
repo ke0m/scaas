@@ -1,7 +1,7 @@
 import inpout.seppy as seppy
 import numpy as np
 import oway.coordgeom as geom
-from utils.signal import butter_bandpass_filter, ampspec1d
+from utyls.signal import butter_bandpass_filter, ampspec1d
 import matplotlib.pyplot as plt
 
 sep = seppy.sep()

@@ -25,21 +25,18 @@ ref[349,0,49:749] = 1.0
 npts = 25
 refsm = smooth(smooth(smooth(ref,rect1=npts),rect1=npts),rect1=npts)
 
-# Read in time domain wavelet
-waxes,wav = sep.read_file("wav.rsf",form='native')
-[n1] = waxes.n; [d1] = waxes.d
-t0 = 50*d1
+# Create ricker wavelet
+n1 = 2000; d1 = 0.004;
+freq = 8; amp = 0.5; dly = 0.2; it0 = int(dly/d1)
+wav = ricker(n1,d1,freq,amp,dly)
 
-osx = 300; dsx = 100
+osx = 20; dsx = 10; nsx = 70
 wei = geom.defaultgeom(nx=nx,dx=dx,ny=ny,dy=dy,nz=nz,dz=dz,
-                       nsx=2,dsx=dsx,osx=osx,nsy=1,dsy=1.0)
+                       nsx=nsx,dsx=dsx,osx=osx,nsy=1,dsy=1.0)
 
-beg = time.time()
 dat = wei.model_data(wav,d1,t0,minf=1.0,maxf=31.0,vel=velin,ref=refsm,time=True,ntx=15,px=112,
-                     nthrds=4,wverb=True,eps=0.0)
-print("Elapsed=%f"%(time.time()-beg))
+                     nthrds=40,wverb=False,eps=0.0)
 
-nw,ow,dw = wei.get_freq_axis()
 
 #sep.write_file("mycmplxdat.H",dat.T,os=[0,0,ow,0,0],ds=[dx,dy,dw,1.0,1.0])
 sep.write_file("mydat.H",dat.T,os=[0,0,0,osx,0],ds=[d1,dx,dy,dsx,1.0])

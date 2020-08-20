@@ -54,7 +54,7 @@ class imagechunkr:
     self.__nchnks = nchnks
 
     # Reflectivity and dimensions
-    [self.__nz,self.__ny,self.__nx] = ref.shape
+    self.__nz = nz; self.__ny = ny; self.__nx = nx
     self.__oz = oz; self.__oy = oy; self.__ox = ox
     self.__dz = dz; self.__dy = dy; self.__dx = dx
 
@@ -80,17 +80,18 @@ class imagechunkr:
     self.__nexp = len(nrec)
 
     # Create frequency domain source
+    self.__nt = dat.shape[-1]; self.__dt = dt
     if(wav is None):
-      wav    = np.zeros(nt,dtype='float32')
+      wav    = np.zeros(self.__nt,dtype='float32')
       wav[0] = 1.0
     self.__nwo,self.__ow,self.__dw,wfft = fft1(wav,dt,minf=minf,maxf=maxf)
-    wfftd = wfft[::jf]
-    self.__nwc = wfftd.shape[0] # Get the number of frequencies for imaging
+    self.__wfftd = wfft[::jf]
+    self.__nwc = self.__wfftd.shape[0] # Get the number of frequencies for imaging
     self.__dwc = self.__dw*jf
 
     # Create frequency domain data
-    _,_,_,dfft = self.fft1(dat,dt,minf=minf,maxf=maxf)
-    dfftd = dfft[:,::jf]
+    _,_,_,dfft = fft1(dat,dt,minf=minf,maxf=maxf)
+    self.__dfftd = dfft[:,::jf]
 
     if(verb): print("Frequency axis: nw=%d ow=%f dw=%f"%(self.__nwc,self.__ow,self.__dwc))
 
@@ -120,7 +121,7 @@ class imagechunkr:
   def set_image_pars(self,nrmax=3,dtmax=5e-05,eps=0.0,
                      ntx=0,nty=0,px=0,py=0,
                      nhx=0,nhy=0,sym=True,
-                     nthrds=1,wverb=False,everb=False):
+                     nthrds=1,wverb=False,sverb=False):
     """
     Overrides default parameters set in the constructor for the modeling parameters
 
@@ -143,7 +144,7 @@ class imagechunkr:
     self.__nhx = nhx; self.__nhy = nhy; self.__sym = sym
     # Verbosity and threads
     self.__nthrds = nthrds
-    self.__wverb  = wverb; self.__everb = everb
+    self.__wverb  = wverb; self.__sverb = sverb
 
   def __iter__(self):
     """
@@ -151,7 +152,7 @@ class imagechunkr:
 
     To create the generator, use gen = iter(modelchunkr(args))
     """
-    # Get the number of shots
+    # Number of shots per chunk
     expchnks = splitnum(self.__nexp,self.__nchnks)
 
     k = 0
@@ -169,20 +170,20 @@ class imagechunkr:
       sychnk  = self.__srcy[begs:ends]
       sxchnk  = self.__srcx[begs:ends]
       # Chunked receiver data
-      rychnk  = self.__recy[begr:endr]
-      rxchnk  = self.__recx[begr:endr]
+      rychnk  = self.__recy [begr:endr]
+      rxchnk  = self.__recx [begr:endr]
+      datchnk = self.__dfftd[begr:endr,:]
       # Update positions
       begs = ends; begr = endr
       ## Constructor arguments
       cdict = {}
       # Parameters for constructor
-      cdict['ox']   = self.__ox;  cdict['dx']   = self.__dx
-      cdict['oy']   = self.__oy;  cdict['dy']   = self.__dy
-      cdict['oz']   = self.__oz;  cdict['dz']   = self.__dz
+      cdict['nx']   = self.__nx;  cdict['ox']   = self.__ox;  cdict['dx'] = self.__dx
+      cdict['ny']   = self.__ny;  cdict['oy']   = self.__oy;  cdict['dy'] = self.__dy
+      cdict['nz']   = self.__nz;  cdict['oz']   = self.__oz;  cdict['dz'] = self.__dz
       cdict['srcy'] = sychnk;     cdict['srcx'] = sxchnk
       cdict['recy'] = rychnk;     cdict['recx'] = rxchnk
       cdict['nrec'] = nreccnk
-      cdict['dwc']  = self.__dwc; cdict['owc']  = self.__ow
       ## Imaging arguments
       idict = {}
       # Parameters for imaging
@@ -191,8 +192,12 @@ class imagechunkr:
       idict['px']     = self.__px;     idict['py']    = self.__py;
       idict['nthrds'] = self.__nthrds
       idict['sverb']  = self.__sverb;  idict['wverb'] = self.__wverb
+      # Extended imaging parameters
+      idict['nhx']    = self.__nhx;    idict['nhy']   = self.__nhy;   idict['sym'] = self.__sym
+      # Frequency domain axis
+      idict['dwc']  = self.__dwc;      idict['owc']   = self.__ow
       # Imaging inputs
-      idict['wav']    = self.__wfftd;  idict['vel']   = self.__vel;   idict['dat']  = self.__dat
-      yield [cdict,idict]
+      idict['wav']  = self.__wfftd;    idict['vel']   = self.__vel;   idict['rec']  = datchnk
+      yield [cdict,idict,ichnk]
       ichnk += 1
 

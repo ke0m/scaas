@@ -4,8 +4,8 @@ from scaas.wavelet import ricker
 import oway.defaultgeomnode as geom
 from  scaas.trismooth import smooth
 import matplotlib.pyplot as plt
-from utils.plot import plot_wavelet
-from utils.movie import viewimgframeskey
+from utyls.plot import plot_wavelet
+from utyls.movie import viewimgframeskey
 from dask.distributed import Client, SSHCluster, progress
 from cluster.daskutils import shutdown_sshcluster
 

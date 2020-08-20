@@ -3,7 +3,7 @@ import numpy as np
 import oway.defaultgeom as geom
 from  scaas.trismooth import smooth
 import matplotlib.pyplot as plt
-from utils.movie import viewimgframeskey
+from utyls.movie import viewimgframeskey
 import time
 
 sep = seppy.sep()

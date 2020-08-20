@@ -2,7 +2,7 @@ import inpout.seppy as seppy
 import numpy as np
 import oway.defaultgeomnode as geom
 import matplotlib.pyplot as plt
-from utils.movie import viewimgframeskey
+from utyls.movie import viewimgframeskey
 from dask.distributed import Client, SSHCluster, progress
 
 # Read in the data

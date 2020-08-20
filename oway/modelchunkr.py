@@ -134,6 +134,7 @@ class modelchunkr:
 
     To create the generator, use gen = iter(modelchunkr(args))
     """
+    # Number of shots per chunk
     expchnks = splitnum(self.__nexp,self.__nchnks)
 
     k = 0
@@ -158,24 +159,24 @@ class modelchunkr:
       ## Constructor arguments
       cdict = {}
       # Parameters for constructor
-      cdict['nx']   = self.__nx; cdict['ox']   = self.__ox;  cdict['dx']   = self.__dx
-      cdict['ny']   = self.__ny; cdict['oy']   = self.__oy;  cdict['dy']   = self.__dy
-      cdict['nz']   = self.__nz; cdict['oz']   = self.__oz;  cdict['dz']   = self.__dz
+      cdict['nx']   = self.__nx;  cdict['ox']   = self.__ox;  cdict['dx']   = self.__dx
+      cdict['ny']   = self.__ny;  cdict['oy']   = self.__oy;  cdict['dy']   = self.__dy
+      cdict['nz']   = self.__nz;  cdict['oz']   = self.__oz;  cdict['dz']   = self.__dz
       cdict['srcy'] = sychnk;     cdict['srcx'] = sxchnk
       cdict['recy'] = rychnk;     cdict['recx'] = rxchnk
       cdict['nrec'] = nreccnk
       ## Modeling arguments
       mdict = {}
       # Parameters for modeling
-      mdict['nrmax']  = self.__nrmax;  mdict['dtmax'] = self.__dtmax; mdict['eps'] = self.__eps
+      mdict['nrmax']  = self.__nrmax;  mdict['dtmax'] = self.__dtmax; mdict['eps']  = self.__eps
       mdict['ntx']    = self.__ntx;    mdict['nty']   = self.__nty;
       mdict['px']     = self.__px;     mdict['py']    = self.__py;
       mdict['nthrds'] = self.__nthrds
       mdict['sverb']  = self.__sverb;  mdict['wverb'] = self.__wverb
       # Frequency domain axis
-      mdict['dwc']  = self.__dwc; mdict['owc']  = self.__ow
+      mdict['dwc']  = self.__dwc;      mdict['owc']   = self.__ow
       # Modeling inputs
-      mdict['wav']    = self.__wfftd;  mdict['vel']   = self.__vel;   mdict['ref']  = self.__ref
+      mdict['wav']  = self.__wfftd;    mdict['vel']   = self.__vel;   mdict['ref']  = self.__ref
       yield [cdict,mdict,ichnk]
       ichnk += 1
 

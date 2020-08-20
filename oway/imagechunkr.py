@@ -97,13 +97,16 @@ class imagechunkr:
 
     # Interpolate the velocity if needed
     if(vel.shape != (self.__nz,self.__ny,self.__nx)):
-      if(dvx is None or dvy is None):
+      if(dvx is None and dvy is None):
         raise Exception("If vel shape != output image shape, must provide dvx or dvy")
+      if(dvy is None and self.__ny == 1): dvy = 1.0
+      if(dvx is None and self.__nx == 1): dvx = 1.0
 
       self.__vel = interp_vel(self.__nz,
                               self.__ny,self.__oy,self.__dy,
                               self.__nx,self.__ox,self.__dx,
                               vel,dvx,dvy,ovx,ovy)
+
     else:
       self.__vel = vel
 
@@ -112,8 +115,10 @@ class imagechunkr:
     self.__ntx    = 0; self.__nty   = 0
     self.__px     = 0; self.__py    = 0
     # Extended imaging parameters
-    self.__nhx = 0; self.__nhy = 0
-    self.__sym = True
+    self.__nhx  = 0; self.__ohx = 0.0
+    self.__nhy  = 0; self.__ohy = 0.0
+    self.__sym  = True
+    self.__rnhx = None; self.__rnhy = None
     # Verbosity and threading
     self.__nthrds = 1
     self.__wverb  = False; self.__everb = False
@@ -152,10 +157,19 @@ class imagechunkr:
       return [self.__nz,self.__ny,self.__nx]
     else:
       if(self.__sym):
-        rnhx = 2*self.__nhx+1; rnhy = 2*self.__nhy+1
+        self.__rnhx = 2*self.__nhx+1; self.__rnhy = 2*self.__nhy+1
       else:
-        rnhx = self.__nhx+1; rnhy = self.__nhy+1
-      return [rnhy,rnhx,self.__nz,self.__ny,self.__nx]
+        self.__rnhx = self.__nhx+1; self.__rnhy = self.__nhy+1
+      return [self.__rnhy,self.__rnhx,self.__nz,self.__ny,self.__nx]
+
+  def get_offx_axis(self):
+    """ Returns the x subsurface offset axes """
+    if(self.__rnhx is None):
+      raise Exception("Cannot return x subsurface offset axis without running extended imaging")
+    if(self.__sym): ohx = -self.__nhx*self.__dx
+    else: ohx = 0.0
+
+    return self.__rnhx, ohx, self.__dx
 
   def __iter__(self):
     """

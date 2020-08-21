@@ -6,7 +6,7 @@ Velocity utility functions for imaging
 import numpy as np
 import scaas.noise_generator as noise_generator
 import scipy.ndimage as flt
-from utils.rand import randfloat
+from genutils.rand import randfloat
 from scaas.trismooth import smooth
 
 def find_optimal_sizes(n,j,nb):
@@ -319,8 +319,10 @@ def salt_mask(img,vel,saltvel,thresh=0.95,rectx=30,rectz=30):
     nhx = img.shape[1]
     for ihx in range(nhx):
       imgo[0,ihx,:,0,:] = smmsk2*img[0,ihx,:,0,:]
-  else:
+  elif(len(img.shape) == 3):
     imgo = smmsk2*img[:,0,:]
+  elif(len(img.shape) == 2):
+    imgo = smmsk2*img
 
   return smmsk2,imgo
 

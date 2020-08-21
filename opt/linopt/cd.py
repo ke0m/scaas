@@ -8,7 +8,7 @@ import numpy as np
 from opt.linopt.opr8tr import operator
 from opt.linopt.combops import colop
 from opt.optqc import optqc
-from utils.ptyprint import create_inttag
+from genutils.ptyprint import create_inttag
 
 def cd(op,dat,mod0,regop=None,rdat=None,grdop=None,shpop=None,eps=None,niter=None,toler=None,
        optqc=None,objs=None,mods=None,grds=None,ress=None,verb=True):

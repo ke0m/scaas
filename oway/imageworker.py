@@ -1,5 +1,5 @@
 """
-SSH worker for modeling with one-way wave equation
+Worker for imaging with one-way wave equation
 
 @author: Joseph Jennings
 @version: 2020.08.18
@@ -11,7 +11,7 @@ from oway.coordgeomchunk import coordgeomchunk
 # Connect to socket
 context = zmq.Context()
 socket = context.socket(zmq.REQ)
-socket.connect("tcp://oas.stanford.edu:5555")
+socket.connect("tcp://hostname:5555")
 
 # Listen for work from server
 while True:
@@ -27,9 +27,9 @@ while True:
   # Create the modeling object
   wei = coordgeomchunk(**chunk[0])
   # Do the modeling
-  ochunk['result'] = wei.model_data(**chunk[1])
+  ochunk['result'] = wei.image_data(**chunk[1])
   # Return other parameters if desired
-  ochunk['cid']  = chunk[2]
+  ochunk['cid'] = chunk[2]
   # Tell server this is the result
   ochunk['msg'] = "result"
   # Send back the result

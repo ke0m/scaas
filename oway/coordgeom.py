@@ -6,6 +6,7 @@ and receiver coordinates
 """
 import numpy as np
 from oway.ssr3 import ssr3, interp_slow
+from oway.utils import fft1, ifft1, make_sht_cube
 from scaas.off2ang import off2angssk,off2angkzx
 from genutils.ptyprint import progressbar
 import matplotlib.pyplot as plt
@@ -93,48 +94,12 @@ class coordgeom:
     # Angle
     self.__na = None; self.__oa = None; self.__da = None
 
-
   def get_freq_axis(self):
     """ Returns the frequency axis """
     return self.__nwc,self.__ow,self.__dw
 
-  def interp_vel(self,velin,dvx,dvy,ovx=0.0,ovy=0.0):
-    """
-    Lateral nearest-neighbor interpolation of velocity. Use
-    this when imaging grid is different than velocity
-    grid. Assumes the same depth axis for imaging
-    and slowness grid
-
-    Parameters:
-      velin - the input velocity field [nz,nvy,nvx]
-      dvy   - the y sampling of the slowness field
-      dvx   - the x sampling of the slowness field
-      ovy   - the y origin of the slowness field [0.0]
-      ovx   - the x origin of the slowness field [0.0]
-
-    Returns:
-      the interpolated velocity field now same size
-      as output imaging grid [nz,ny,nx]
-    """
-    # Get dimensions
-    [nz,nvy,nvx] = velin.shape
-    if(nz != self.__nz):
-      raise Exception("Slowness depth axis must be same as output image")
-
-    # Output slowness
-    velot = np.zeros([nz,self.__ny,self.__nx],dtype='float32')
-
-    interp_slow(self.__nz,                     # Depth saples
-                nvy,ovy,dvy,                   # Slowness y axis
-                nvx,ovx,dvx,                   # Slowness x axis
-                self.__ny,self.__oy,self.__dy, # Image y axis
-                self.__nx,self.__ox,self.__dx, # Image x axis
-                velin,velot)                   # Inputs and outputs
-
-    return velot
-
   def model_data(self,wav,dt,t0,minf,maxf,vel,ref,jf=1,nrmax=3,eps=0.,dtmax=5e-05,time=True,
-                 ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=True):
+                 ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=False):
     """
     3D modeling of single scattered (Born) data with the one-way
     wave equation (single square root (SSR), split-step Fourier method).
@@ -167,7 +132,7 @@ class coordgeom:
     nt = wav.shape[0]; it0 = int(t0/dt)
 
     # Create the input frequency domain source and get original frequency axis
-    self.__nwo,self.__ow,self.__dw,wfft = self.fft1(wav,dt,minf=minf,maxf=maxf)
+    self.__nwo,self.__ow,self.__dw,wfft = fft1(wav,dt,minf=minf,maxf=maxf)
     wfftd = wfft[::jf]
     self.__nwc = wfftd.shape[0] # Get the number of frequencies to compute
     self.__dwc = jf*self.__dw
@@ -194,7 +159,7 @@ class coordgeom:
 
     # Loop over sources
     ntr = 0
-    for iexp in progressbar(range(self.__nexp),"nexp:"):
+    for iexp in progressbar(range(self.__nexp),"nexp:",verb=sverb):
       # Get the source coordinates
       sy = self.__srcys[iexp]; sx = self.__srcxs[iexp]
       isy = int((sy-self.__oy)/self.__dy+0.5); isx = int((sx-self.__ox)/self.__dx+0.5)
@@ -204,6 +169,9 @@ class coordgeom:
       # Downward continuation
       datw[:] = 0.0
       ssf.modallw(ref,sou,datw,wverb)
+      #plt.figure()
+      #plt.imshow(np.real(datw[:,0,:]),cmap='gray',interpolation='sinc',aspect='auto')
+      #plt.show()
       # Restrict to receiver locations
       datwt = np.ascontiguousarray(np.transpose(datw,(1,2,0)))  # [nwc,ny,nx] -> [ny,nx,nwc]
       ssf.restrict_data(self.__nrec[iexp],self.__recys[ntr:],self.__recxs[ntr:],self.__oy,self.__ox,datwt,recw[ntr:,:])
@@ -211,15 +179,13 @@ class coordgeom:
       ntr += self.__nrec[iexp]
 
     if(time):
-      # Inverse fourier transform
-      #TODO: need to modify this program (how to handle frequency decimation?)
-      rect = self.data_f2t(recw,self.__nwo,self.__ow,self.__dw,nt,it0)
+      rect = ifft1(recw,self.__nwo,self.__ow,self.__dw,nt,it0)
       return rect
     else:
       return recw
 
   def image_data(self,dat,dt,minf,maxf,vel,jf=1,nhx=0,nhy=0,sym=True,nrmax=3,eps=0.,dtmax=5e-05,wav=None,
-                 ntx=0,nty=0,px=0,py=0,nthrds=1,partial=False,sverb=True,wverb=False):
+                 ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=False):
     """
     3D migration of shot profile data via the one-way wave equation (single-square
     root split-step fourier method). Input data are assumed to follow
@@ -244,7 +210,6 @@ class coordgeom:
       px      - amount of padding in x direction (samples) [0]
       py      - amount of padding in y direction (samples) [0]
       nthrds  - number of OpenMP threads for frequency parallelization [1]
-      partial - flag for also returning partial images (for each shot)
       sverb   - verbosity flag for shot progress bar [True]
       wverb   - verbosity flag for frequency progress bar [False]
 
@@ -262,7 +227,7 @@ class coordgeom:
     if(wav is None):
       wav    = np.zeros(nt,dtype='float32')
       wav[0] = 1.0
-    self.__nwo,self.__ow,self.__dw,wfft = self.fft1(wav,dt,minf=minf,maxf=maxf)
+    self.__nwo,self.__ow,self.__dw,wfft = fft1(wav,dt,minf=minf,maxf=maxf)
     wfftd = wfft[::jf]
     self.__nwc = wfftd.shape[0] # Get the number of frequencies for imaging
     self.__dwc = self.__dw*jf
@@ -270,7 +235,7 @@ class coordgeom:
     if(sverb or wverb): print("Frequency axis: nw=%d ow=%f dw=%f"%(self.__nwc,self.__ow,self.__dwc))
 
     # Create frequency domain data
-    _,_,_,dfft = self.fft1(dat,dt,minf=minf,maxf=maxf)
+    _,_,_,dfft = fft1(dat,dt,minf=minf,maxf=maxf)
     dfftd = dfft[:,::jf]
     # Allocate the data for one shot
     datw = np.zeros([self.__ny,self.__nx,self.__nwc],dtype='complex64')
@@ -290,24 +255,27 @@ class coordgeom:
 
     # Allocate partial image array
     if(nhx == 0 and nhy == 0):
-      imgar = np.zeros([self.__nexp,self.__nz,self.__ny,self.__nx],dtype='float32')
+      imgtmp = np.zeros([self.__nz,self.__ny,self.__nx],dtype='float32')
+      oimg   = np.zeros([self.__nz,self.__ny,self.__nx],dtype='float32')
     else:
       if(sym):
         # Create axes
         self.__rnhx = 2*nhx+1; self.__ohx = -nhx*self.__dx; self.__dhx = self.__dx
         self.__rnhy = 2*nhy+1; self.__ohy = -nhy*self.__dy; self.__dhy = self.__dy
-        imgar = np.zeros([self.__nexp,self.__rnhy,self.__rnhx,self.__nz,self.__ny,self.__nx],dtype='float32')
+        imgtmp = np.zeros([self.__rnhy,self.__rnhx,self.__nz,self.__ny,self.__nx],dtype='float32')
+        oimg   = np.zeros([self.__rnhy,self.__rnhx,self.__nz,self.__ny,self.__nx],dtype='float32')
       else:
         # Create axes
         self.__rnhx = nhx+1; self.__ohx = 0; self.__dhx = self.__dx
         self.__rnhy = nhy+1; self.__ohy = 0; self.__dhy = self.__dy
-        imgar = np.zeros([self.__nexp,self.__rnhy,self.__rnhx,self.__nz,self.__ny,self.__nx],dtype='float32')
+        imgtmp = np.zeros([self.__rnhy,self.__rnhx,self.__nz,self.__ny,self.__nx],dtype='float32')
+        oimg   = np.zeros([self.__rnhy,self.__rnhx,self.__nz,self.__ny,self.__nx],dtype='float32')
       # Allocate memory necessary for extension
       ssf.set_ext(nhy,nhx,sym)
 
     # Loop over sources
     ntr = 0
-    for iexp in progressbar(range(self.__nexp),"nexp:"):
+    for iexp in progressbar(range(self.__nexp),"nexp:",verb=sverb):
       # Get the source coordinates
       sy = self.__srcys[iexp]; sx = self.__srcxs[iexp]
       isy = int((sy-self.__oy)/self.__dy+0.5); isx = int((sx-self.__ox)/self.__dx+0.5)
@@ -318,143 +286,29 @@ class coordgeom:
       datw[:] = 0.0
       ssf.inject_data(self.__nrec[iexp],self.__recys[ntr:],self.__recxs[ntr:],self.__oy,self.__ox,dfftd[ntr:,:],datw)
       datwt = np.ascontiguousarray(np.transpose(datw,(2,0,1))) # [ny,nx,nwc] -> [nwc,ny,nx]
+      # Initialize temporary image
+      imgtmp[:] = 0.0
       if(nhx == 0 and nhy == 0):
         # Conventional imaging
-        ssf.migallw(datwt,sou,imgar[iexp],wverb)
+        ssf.migallw(datwt,sou,imgtmp,wverb)
       else:
         # Extended imaging
-        ssf.migoffallw(datwt,sou,imgar[iexp],wverb)
+        ssf.migoffallw(datwt,sou,imgtmp,wverb)
+      oimg += imgtmp
       # Increase number of traces
       ntr += self.__nrec[iexp]
-
-    # Sum over all partial images
-    img = np.sum(imgar,axis=0)
 
     # Free memory for extension
     if(nhx != 0 or nhy != 0):
       ssf.del_ext()
 
-    if(partial):
-      return imgar,img
-    else:
-      return img
+    return oimg
 
   def get_off_axis(self):
     """ Returns the x subsurface offset extension axis """
     if(self.__rnhx is None):
       raise Exception("Cannot return x subsurface offset axis without running extended imaging")
     return self.__rnhx, self.__ohx, self.__dhx
-
-  def fft1(self,sig,dt,minf,maxf):
-    """
-    Computes the FFT along the fast axis. Input
-    array can be N-dimensional
-
-    Parameters:
-      sig  - the input time-domain signal (time is fast axis)
-      dt   - temporal sampling of input data
-      minf - the minimum frequency for windowing the spectrum [Hz]
-      maxf - the maximum frequency for windowing the spectrum
-
-    Returns:
-      the frequency domain data (frequency is fast axis) and the
-      frequency axis [nw,ow,dw]
-    """
-    n1 = sig.shape[-1]
-    nt = 2*self.next_fast_size(int((n1+1)/2))
-    if(nt%2): nt += 1
-    nw = int(nt/2+1)
-    dw = 1/(nt*dt)
-    # Min and max frequencies
-    begw = int(minf/dw); endw = int(maxf/dw)
-    # Create the padded dimensions (only last axis)
-    paddims = [(0,0)]*(sig.ndim-1)
-    paddims.append((0,nt-n1))
-    sigp   = np.pad(sig,paddims,mode='constant')
-    # Compute the FFT
-    sigfft = np.fft.fft(sigp)[...,begw:endw]
-
-    return nw,minf,dw,sigfft.astype('complex64')
-
-  def data_f2t(self,dat,nw,ow,dw,n1,it0=None):
-    """
-    Converts the data from frequency to time
-
-    Parameters:
-      dat - input data [nw,ny,nx]
-      nw  - original number of frequencies
-      ow  - frequency origin (minf)
-      dw  - frequency sampling interval
-      n1  - output number of time samples
-      it0 - sample index of t0 [0]
-    """
-    # Get number of computed frequencies
-    nwc = dat.shape[2]
-    # Compute size for FFT
-    nt = 2*(nw-1)
-    # Transpose the data so frequency is on fast axis
-    datt = np.transpose(dat,(0,2,3,1)) # [nexp,nwc,ny,nx] -> [nexp,ny,nx,nwc]
-    # Pad to the original frequency range
-    padb = int(ow/dw); pade = nw - nwc - padb
-    dattpad  = np.pad(datt,((0,0),(0,0),(0,0),(padb,pade)),mode='constant')  # [*,nwc] -> [*,nw]
-    # Pad for the inverse FFT
-    dattpadp = np.pad(dattpad,((0,0),(0,0),(0,0),(0,nt-nw)),mode='constant') # [*,nw] -> [*,nt]
-    # Inverse FFT and window to t0 (wavelet shift)
-    datf2t = np.real(np.fft.ifft(dattpadp))
-    if(it0 is not None):
-      datf2tw = datf2t[:,:,:,it0:]
-    else:
-      datf2tw = datf2t
-    # Pad and transpose
-    datf2tp = np.pad(datf2tw,((0,0),(0,0),(0,0),(0,n1-(nt-it0))),mode='constant')
-
-    return datf2tp
-
-  def make_sht_cube(self,dat):
-    """
-    Makes a regular cube of shots from the input traces.
-    Assumes that the data are already sorted by common
-    shot
-
-    Note only works for 2D data at the moment
-
-    Parameters:
-      dat - input shot data [ntr,nt]
-
-    Returns:
-      regular shot cube [nsht,nrx,nt]
-    """
-    # Get data dimensions
-    if(dat.ndim != 2):
-      raise Exception("Data must be of dimension [ntr,nt]")
-    nt = dat.shape[1]
-
-    # Get maximum number of receivers
-    nrecxmax = np.max(self.__nrec)
-
-    # Output shot array
-    shots = np.zeros([self.__nexp,nrecxmax,nt],dtype='float32')
-
-    # Loop over all sources
-    ntr = 0
-    for iexp in range(self.__nexp):
-      shots[iexp,:self.__nrec[iexp],:] = dat[ntr:ntr+self.__nrec[iexp],:]
-      ntr += self.__nrec[iexp]
-
-    return shots
-
-  def next_fast_size(self,n):
-    """ Gets the optimal size for computing the FFT """
-    while(1):
-      m = n
-      while( (m%2) == 0 ): m/=2
-      while( (m%3) == 0 ): m/=3
-      while( (m%5) == 0 ): m/=5
-      if(m<=1):
-        break
-      n += 1
-
-    return n
 
   def to_angle(self,img,mode='kzx',amax=None,na=None,nthrds=4,transp=False,
                eps=1.0,oro=None,dro=None,verb=False):

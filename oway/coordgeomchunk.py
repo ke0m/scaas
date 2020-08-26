@@ -7,6 +7,7 @@ This code is designed to be distributed across nodes in a cluster
 """
 import numpy as np
 from oway.ssr3 import ssr3, interp_slow
+from oway.utils import phzshft
 from scaas.off2ang import off2angssk,off2angkzx
 from genutils.ptyprint import progressbar
 import matplotlib.pyplot as plt
@@ -209,7 +210,7 @@ class coordgeomchunk:
 
     return shots
 
-  def model_data(self,wav,owc,dwc,vel,ref,
+  def model_data(self,wav,t0,owc,dwc,vel,ref,
                  nrmax=3,eps=0.,dtmax=5e-05,ntx=0,nty=0,px=0,py=0,
                  nthrds=1,sverb=True,wverb=True):
     """
@@ -218,6 +219,9 @@ class coordgeomchunk:
 
     Parameters:
       wav    - the input wavelet (source time function) [nt]
+      t0     - time zero of input wavelet
+      owc    - minimum frequency of wavelet
+      dwc    - frequency sampling of wavelet
       vel    - input velocity model [nz,ny,nx]
       ref    - input reflectivity model [nz,ny,nx]
       nrmax  - maximum number of reference velocities [3]
@@ -273,7 +277,10 @@ class coordgeomchunk:
       # Increase number of traces
       ntr += self.__nrec[iexp]
 
-    return recw
+    # Apply phase shift to data to account for t0
+    recs = phzshft(recw,owc,dwc,t0)
+
+    return recs
 
   def image_data(self,rec,owc,dwc,vel,
                  nhx=0,nhy=0,sym=True,eps=0,nrmax=3,dtmax=5e-05,wav=None,

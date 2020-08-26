@@ -7,15 +7,15 @@ from oway.coordgeomchunk import default_coord, coordgeomchunk
 from scaas.trismooth import smooth
 from server.distribute import dstr_collect, dstr_sum
 from client.sshworkers import launch_sshworkers, kill_sshworkers
-from utyls.plot import plot_wavelet
-from utyls.movie import viewimgframeskey
+from genutils.plot import plot_wavelet
+from genutils.movie import viewimgframeskey
 import matplotlib.pyplot as plt
 
 sep = seppy.sep()
 
 # Start workers
-hosts = ['fantastic','storm','vision','thing']
-cfile = "/homes/sep/joseph29/projects/scaas/oway/modelsshworker.py"
+hosts = ['fantastic','storm','torch','thing']
+cfile = "/homes/sep/joseph29/projects/scaas/oway/modelworker.py"
 launch_sshworkers(cfile,hosts=hosts,sleep=1,verb=1)
 
 # Dimensions
@@ -64,16 +64,17 @@ socket.bind("tcp://0.0.0.0:5555")
 okeys = ['result','cid']
 output = dstr_collect(okeys,nchnk,gen,socket)
 
-odat = miter.reconstruct_data(output,dly,reg=True)
+odat = miter.reconstruct_data(output,dly,reg=False,time=False)
 
-plt.figure()
-plt.imshow(odat[0].T,cmap='gray',interpolation='sinc')
-plt.figure()
-plt.imshow(odat[-1].T,cmap='gray',interpolation='sinc')
-plt.show()
+#plt.figure()
+#plt.imshow(odat[0].T,cmap='gray',interpolation='sinc')
+#plt.figure()
+#plt.imshow(odat[-1].T,cmap='gray',interpolation='sinc')
+#plt.show()
 
-sep.write_file("mydatnode2.H",odat.T,os=[0,0,osx],ds=[d1,dx,dsx])
+#sep.write_file("mydatnode2.H",odat.T,os=[0,0,osx],ds=[d1,dx,dsx])
+nw,ow,dw = miter.get_freq_axis()
+sep.write_file("mydatcmplx.H",odat.T,os=[ow,0.0],ds=[dw,1.0])
 
 kill_sshworkers(cfile,hosts,verb=False)
-
 

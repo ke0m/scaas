@@ -128,6 +128,12 @@ class modelchunkr:
     self.__nthrds = nthrds
     self.__wverb  = wverb; self.__sverb = sverb
 
+  def get_freq_axis(self):
+    """
+    Returns the frequency axis
+    """
+    return self.__nwo,self.__ow,self.__dw
+
   def __iter__(self):
     """
     Defines the iterator for creating chunks

@@ -114,6 +114,33 @@ def fft1(sig,dt,minf,maxf):
 
   return nw,minf,dw,sigfft.astype('complex64')
 
+def phzshft(sig,ow,dw,dly):
+  """
+  Applies a phase shift to the frequency domain
+  data. Corrects for any delay in source time function
+
+  Parameters:
+    sig - input signal [ntr,nw]
+    ow  - origin of frequency axis
+    dw  - frequency sampling
+    dly - time delay of wavelet (seconds)
+
+  Return phase-shifted data [ntr,nw]
+  """
+  [ntr,nw] = sig.shape
+  pshift = np.zeros(sig.shape,dtype='complex64')
+  ws      = np.linspace(ow,ow+(nw-1)*dw,nw)
+  phz    = np.zeros(nw) + 1j*2*np.pi*ws*dly
+  pshift = np.exp(phz)
+
+  # Construct the operator for each trace
+  psop = np.repeat(pshift[np.newaxis],ntr,axis=0)
+
+  # Apply the operator
+  sigshft = sig*psop
+
+  return sigshft.astype('complex64')
+
 def ifft1(sig,nw,ow,dw,n1,it0=0):
   """
   Computes the IFFT along the fast axis. Input

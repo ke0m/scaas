@@ -1,7 +1,7 @@
 /**
  * Python interface to ssr3.cpp
  * @author: Joseph Jennings
- * @version: 2020.07.22
+ * @version: 2020.09.01
  */
 
 #include <pybind11/pybind11.h>
@@ -64,14 +64,14 @@ PYBIND11_MODULE(ssr3,m) {
              float oy,
              float ox,
              py::array_t<std::complex<float>, py::array::c_style> dat,
-             py::array_t<std::complex<float>, py::array::c_style> rec,
+             py::array_t<std::complex<float>, py::array::c_style> rec
              )
              {
                sr3d.restrict_data(nrec, recy.mutable_data(), recx.mutable_data(), oy, ox,
                                   dat.mutable_data(), rec.mutable_data());
              },
              py::arg("nrec"), py::arg("recy"), py::arg("recx"), py::arg("oy"), py::arg("ox"),
-             py::arg("dat"), py::arg("dat")
+             py::arg("dat"), py::arg("rec")
           )
       .def("inject_data",[](ssr3 &sr3d,
              int nrec,

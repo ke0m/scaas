@@ -171,9 +171,9 @@ class modelchunkr:
       ## Constructor arguments
       cdict = {}
       # Parameters for constructor
-      cdict['nx']   = self.__nx;  cdict['ox']   = self.__ox;  cdict['dx']   = self.__dx
-      cdict['ny']   = self.__ny;  cdict['oy']   = self.__oy;  cdict['dy']   = self.__dy
-      cdict['nz']   = self.__nz;  cdict['oz']   = self.__oz;  cdict['dz']   = self.__dz
+      cdict['nx']   = self.__nx;  cdict['ox']   = self.__ox;  cdict['dx'] = self.__dx
+      cdict['ny']   = self.__ny;  cdict['oy']   = self.__oy;  cdict['dy'] = self.__dy
+      cdict['nz']   = self.__nz;  cdict['oz']   = self.__oz;  cdict['dz'] = self.__dz
       cdict['srcy'] = sychnk;     cdict['srcx'] = sxchnk
       cdict['recy'] = rychnk;     cdict['recx'] = rxchnk
       cdict['nrec'] = nreccnk
@@ -188,7 +188,7 @@ class modelchunkr:
       # Frequency domain axis
       mdict['dwc']  = self.__dwc;      mdict['owc']   = self.__ow;    mdict['t0']  = self.__t0
       # Modeling inputs
-      mdict['wav']  = self.__wfftd;  mdict['vel']   = self.__vel;   mdict['ref']  = self.__ref
+      mdict['wav']  = self.__wfftd;    mdict['vel']   = self.__vel;   mdict['ref'] = self.__ref
       yield [cdict,mdict,ichnk]
       ichnk += 1
 

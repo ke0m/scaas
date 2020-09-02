@@ -11,7 +11,7 @@ from oway.coordgeomchunk import coordgeomchunk
 # Connect to socket
 context = zmq.Context()
 socket = context.socket(zmq.REQ)
-socket.connect("tcp://hostname:5555")
+socket.connect("tcp://cees-rcf:5555")
 
 # Listen for work from server
 while True:

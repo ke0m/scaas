@@ -63,8 +63,8 @@ PYBIND11_MODULE(ssr3,m) {
              py::array_t<float, py::array::c_style> recx,
              float oy,
              float ox,
+             py::array_t<std::complex<float>, py::array::c_style> dat,
              py::array_t<std::complex<float>, py::array::c_style> rec,
-             py::array_t<std::complex<float>, py::array::c_style> dat
              )
              {
                sr3d.restrict_data(nrec, recy.mutable_data(), recx.mutable_data(), oy, ox,

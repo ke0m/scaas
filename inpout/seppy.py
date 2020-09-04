@@ -48,7 +48,7 @@ class sep:
 
     return fname
 
-  def read_header(self,ifname,tag=None):
+  def read_header(self,ifname,tag=None,hdict=False):
     """ Reads a SEP header file from tag and returns the axes """
     self.hdict = {}
     # Get the filename with the given tag
@@ -109,9 +109,11 @@ class sep:
         del ns[-1]; del os[-1]; del ds[-1]; del lbls[-1]
 
     if(lbls == []):
-      return axes(ns,os,ds,None)
+      if(hdict): return self.hdict,axes(ns,os,ds,None)
+      else: return axes(ns,os,ds,None)
     else:
-      return axes(ns,os,ds,lbls)
+      if(hdict): return self.hdict, axes(ns,os,ds,lbls)
+      else: return axes(ns,os,ds,lbls)
 
   def read_header_dict(self,ifname,tag=None):
     """ Reads a SEP header file and returns a dictionary """
@@ -252,6 +254,29 @@ class sep:
 
     return opath
 
+  def get_esize_dtype(self,data,form):
+    """ Returns the esize, type and endianness for writing to a file """
+    if("f" in "%s"%(data.dtype)):
+      esize = 4
+      if(form == 'xdr'):
+        dtype = '>f'
+      elif(form == 'native'):
+        dtype = '<f'
+      else:
+        raise Exception('Failed to write file. Format %s not recognized\n'%(form))
+    elif("c" in "%s"%(data.dtype)):
+      esize = 8
+      if(form == 'xdr'):
+        dtype = '>c8'
+      elif(form == 'native'):
+        dtype = '<c8'
+      else:
+        raise Exception('Failed to write file. Format %s not recognized\n'%(form))
+    else:
+      raise Exception("Error: can only write real or complex data")
+
+    return esize,dtype
+
   def write_file(self,ofname,data,os=None,ds=None,ofaxes=None,tag=None,dpath=None,form='xdr'):
     """ Writes data and axes to a SEP header and binary """
     # Get data type and esize (real or complex)
@@ -262,7 +287,7 @@ class sep:
       elif(form == 'native'):
         dtype = '<f'
       else:
-        print('Failed to write file. Format %s not recognized\n'%(form))
+        raise Exception('Failed to write file. Format %s not recognized\n'%(form))
     elif("c" in "%s"%(data.dtype)):
       esize = 8
       if(form == 'xdr'):
@@ -270,12 +295,71 @@ class sep:
       elif(form == 'native'):
         dtype = '<c8'
       else:
-        print('Failed to write file. Format %s not recognized\n'%(form))
+        raise Exception('Failed to write file. Format %s not recognized\n'%(form))
     else:
-      print("Error: can only write real or complex data")
+      raise Exception("Error: can only write real or complex data")
     # Write header
     opath = self.write_header(ofname,data.shape,esize,os,ds,ofaxes,tag,dpath,form)
     with open(opath,'wb') as f:
+      data.flatten('F').astype(dtype).tofile(f)
+
+  def append_file(self,ofname,data,os=None,ds=None,newaxis=False,ofaxes=None,tag=None):
+    """ Appends the input data to a SEP file (use this after first writing the file) """
+
+    # Read in the header to be appended and get the last axis
+    hdict,faxes = self.read_header(ofname,tag,hdict=True)
+    diffn = data.ndim - faxes.ndims
+    if(diffn == -1):
+      # Appending one new example to an already appended file (output is larger than input)
+      odim = faxes.ndims
+      nnew = faxes.n[-1] + 1
+      onew = faxes.o[-1]; dnew = faxes.d[-1]
+
+    elif(diffn == 0):
+      if(newaxis == False):
+        # Appending examples to an already appended file (input and output are same size)
+        odim = faxes.ndims
+        nnew = faxes.n[-1] + data.shape[-1]
+        onew = faxes.o[-1]; dnew = faxes.d[-1]
+
+      else:
+        # Appending one example for the first time (input and output are same size)
+        odim = faxes.ndims + 1
+        nnew = 2
+        if(os is not None):
+          if(len(os) > faxes.ndims): onew = os[-1]
+          else: onew = 0.0
+        else: onew = 0.0
+        if(ds is not None):
+          if(len(ds) > faxes.ndims): dnew = ds[-1]
+          else: dnew = 1.0
+        else: dnew = 1.0
+
+    elif(diffn == 1):
+      # Appending >= 1 examples to a non-appended file (input is larger than output)
+      odim = faxes.ndims + 1
+      nnew = 1 + data.shape[-1]
+      if(os is not None): onew = os[-1]
+      else: onew = 0.0
+      if(ds is not None): dnew = ds[-1]
+      else: dnew = 1.0
+
+    else:
+      raise Exception("Input shape not correct for appending to file. \
+                       Output ndim is %d and input is %d"%(len(data.shape),len(faxes.n)))
+
+    # Write info to header
+    if(ofname == None):
+      ofname = self.get_fname(tag)
+    fout = open(ofname,"a")
+    fout.write("\n\t\tn%d=%d o%d=%f d%d=%f\n"%(odim,nnew,odim,onew,odim,dnew))
+    fout.close()
+
+    # Append data to binary
+    if  (hdict['data_format'] == '"xdr_float"'):    form = 'xdr'
+    elif(hdict['data_format'] == '"native_float"'): form = 'native'
+    esize,dtype = self.get_esize_dtype(data,form)
+    with open(hdict['in'],'ab') as f:
       data.flatten('F').astype(dtype).tofile(f)
 
   def to_header(self,ofname,info,tag=None):
@@ -390,7 +474,7 @@ class sep:
               hname = cols[2]
 
     return hname
-  
+
   def isnotebook(self):
     """ Checks if running in a notebook/ipython """
     try:
@@ -400,7 +484,7 @@ class sep:
       else:
         return False  # Other type (?)
     except NameError:
-      return False  
+      return False
 
   def id_generator(self,size=6, chars=string.ascii_uppercase + string.digits):
     """ Creates a random string with uppercase letters and integers """

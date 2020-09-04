@@ -1,8 +1,8 @@
 """
-Worker for modeling with one-way wave equation
+SLURM worker for applying the one-way wave equation hessian
 
 @author: Joseph Jennings
-@version: 2020.08.18
+@version: 2020.08.31
 """
 import zmq
 from comm.sendrecv import notify_server, send_zipped_pickle, recv_zipped_pickle
@@ -24,10 +24,12 @@ while True:
     continue
   # If I received something, do some work
   ochunk = {}
-  # Create the modeling object
+  # Create the modeling/imaging object
   wei = coordgeomchunk(**chunk[0])
   # Do the modeling
-  ochunk['result'] = wei.model_data(**chunk[1])
+  chunk[2]['rec'] = wei.model_data(**chunk[1])
+  # Do the imaging
+  ochunk['result'] = wei.image_data(**chunk[2])
   # Return other parameters if desired
   ochunk['cid']  = chunk[2]
   # Tell server this is the result

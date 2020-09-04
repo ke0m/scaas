@@ -10,7 +10,6 @@ from oway.ssr3 import ssr3, interp_slow
 from oway.utils import phzshft
 from scaas.off2ang import off2angssk,off2angkzx
 from genutils.ptyprint import progressbar
-import matplotlib.pyplot as plt
 
 def default_coord(nx,dx,ny,dy,nz,dz,
                   nsx,dsx,nsy,dsy,osx=0.0,osy=0.0,

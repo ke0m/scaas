@@ -9,7 +9,6 @@ from oway.ssr3 import ssr3, interp_slow
 from oway.utils import fft1, ifft1, make_sht_cube
 from scaas.off2ang import off2angssk,off2angkzx
 from genutils.ptyprint import progressbar
-import matplotlib.pyplot as plt
 
 class coordgeom:
   """
@@ -169,9 +168,6 @@ class coordgeom:
       # Downward continuation
       datw[:] = 0.0
       ssf.modallw(ref,sou,datw,wverb)
-      #plt.figure()
-      #plt.imshow(np.real(datw[:,0,:]),cmap='gray',interpolation='sinc',aspect='auto')
-      #plt.show()
       # Restrict to receiver locations
       datwt = np.ascontiguousarray(np.transpose(datw,(1,2,0)))  # [nwc,ny,nx] -> [ny,nx,nwc]
       ssf.restrict_data(self.__nrec[iexp],self.__recys[ntr:],self.__recxs[ntr:],self.__oy,self.__ox,datwt,recw[ntr:,:])

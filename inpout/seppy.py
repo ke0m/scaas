@@ -151,24 +151,7 @@ class sep:
     faxes  = self.read_header(ifname,tag)
     # Get the correct data type
     esize = int(self.hdict['esize'])
-    # Real
-    if(esize == 4):
-      if(form == 'xdr'):
-        dtype = '>f'
-      elif(form == 'native'):
-        dtype = '<f'
-      else:
-        print("Failed to read in file. Format %s not recognized\n"%(form))
-    # Complex
-    elif(esize == 8):
-      if(form == 'xdr'):
-        dtype = '>c8'
-      elif(form == 'native'):
-        dtype = '<c8'
-      else:
-        print("Failed to read in file. Format %s not recognized\n"%(form))
-    else:
-      print("Failed to read in file. Must have esize 4 or 8 (esize=%d)"%(esize))
+    dtype = self.get_dtype(form,esize)
     # Read in the file
     if(safe):
       dat = np.zeros(faxes.get_nelem())
@@ -177,6 +160,27 @@ class sep:
     else:
       with open(self.hdict["in"],'rb') as f:
         dat = np.fromfile(f, dtype=dtype)
+
+    return faxes, dat
+
+  def read_wind(self,ifname,fw,nw,form='xdr',safe=False,tag=None):
+    """ Reads a portion of a SEP file (from last axis) and returns the data and the axes """
+    faxes = self.read_header(ifname,tag)
+    # Get the correct data type
+    esize = int(self.hdict['esize'])
+    dtype = self.get_dtype(form,esize)
+    # Compute the offset and update output axes
+    offset = esize*fw*np.prod(faxes.n[:-1])
+    faxes.n[-1] = nw; count = faxes.get_nelem()
+    if(nw == 1):
+      del faxes.n[-1]
+    if(safe):
+      dat = np.zeros(faxes.n)
+      with open(self.hdict["in"],'rb') as f:
+        dat[:] = np.fromfile(f, dtype=dtype, count=count, offset=offset)
+    else:
+      with open(self.hdict["in"],'rb') as f:
+        dat = np.fromfile(f, dtype=dtype, count=count, offset=offset)
 
     return faxes, dat
 
@@ -253,6 +257,29 @@ class sep:
     fout.close()
 
     return opath
+
+  def get_dtype(self,form,esize):
+    """ Returns the datatype based on the esize and output file format """
+    # Real
+    if(esize == 4):
+      if(form == 'xdr'):
+        dtype = '>f'
+      elif(form == 'native'):
+        dtype = '<f'
+      else:
+        raise Exception("Failed to read in file. Format %s not recognized\n"%(form))
+    # Complex
+    elif(esize == 8):
+      if(form == 'xdr'):
+        dtype = '>c8'
+      elif(form == 'native'):
+        dtype = '<c8'
+      else:
+        raise Exception("Failed to read in file. Format %s not recognized\n"%(form))
+    else:
+      raise Exception("Failed to read in file. Must have esize 4 or 8 (esize=%d)"%(esize))
+
+    return dtype
 
   def get_esize_dtype(self,data,form):
     """ Returns the esize, type and endianness for writing to a file """

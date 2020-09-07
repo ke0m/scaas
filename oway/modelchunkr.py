@@ -16,7 +16,7 @@ class modelchunkr:
                ref,vel,wav,dt,minf,maxf,
                nrec,srcx=None,srcy=None,recx=None,recy=None,
                ox=0.0,oy=0.0,oz=0.0,dvx=None,ovx=0.0,dvy=None,ovy=0.0,
-               jf=1):
+               jf=1,t0=0):
     """
     Creates a generator from inputs necessary
     for modeling data
@@ -45,6 +45,7 @@ class modelchunkr:
       dvy    - y sampling of velocity model
       ovy    - y origin of velocity model
       jf     - subsampling of frequency axis
+      t0     - time zero of modeling wavelet [0]
     """
     # Number of chunks to create (length of generator)
     self.__nchnks = nchnks
@@ -79,7 +80,7 @@ class modelchunkr:
     self.__nexp = len(nrec)
 
     # Create the input frequency domain source and get original frequency axis
-    self.__nt = wav.shape[0]; self.__dt = dt
+    self.__nt = wav.shape[0]; self.__dt = dt; self.__t0 = t0
     self.__nwo,self.__ow,self.__dw,wfft = fft1(wav,dt,minf=minf,maxf=maxf)
     self.__wfftd = wfft[::jf]
     self.__nwc = self.__wfftd.shape[0] # Get the number of frequencies to compute
@@ -87,8 +88,10 @@ class modelchunkr:
 
     # Interpolate the velocity if needed
     if(vel.shape != ref.shape):
-      if(dvx is None or dvy is None):
+      if(dvx is None and dvy is None):
         raise Exception("If vel shape != ref shape, must provide dvx or dvy")
+      if(dvy is None and self.__ny == 1): dvy = 1.0
+      if(dvx is None and self.__nx == 1): dvx = 1.0
 
       self.__vel = interp_vel(self.__nz,
                               self.__ny,self.__oy,self.__dy,
@@ -174,15 +177,15 @@ class modelchunkr:
       ## Modeling arguments
       mdict = {}
       # Parameters for modeling
-      mdict['nrmax']  = self.__nrmax;  mdict['dtmax'] = self.__dtmax; mdict['eps']  = self.__eps
+      mdict['nrmax']  = self.__nrmax;  mdict['dtmax'] = self.__dtmax; mdict['eps'] = self.__eps
       mdict['ntx']    = self.__ntx;    mdict['nty']   = self.__nty;
       mdict['px']     = self.__px;     mdict['py']    = self.__py;
       mdict['nthrds'] = self.__nthrds
       mdict['sverb']  = self.__sverb;  mdict['wverb'] = self.__wverb
       # Frequency domain axis
-      mdict['dwc']  = self.__dwc;      mdict['owc']   = self.__ow
+      mdict['dwc']  = self.__dwc;      mdict['owc']   = self.__ow;    mdict['t0']  = self.__t0
       # Modeling inputs
-      mdict['wav']  = self.__wfftd;    mdict['vel']   = self.__vel;   mdict['ref']  = self.__ref
+      mdict['wav']  = self.__wfftd;    mdict['vel']   = self.__vel;   mdict['ref'] = self.__ref
       yield [cdict,mdict,ichnk]
       ichnk += 1
 

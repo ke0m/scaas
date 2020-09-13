@@ -101,12 +101,12 @@ class sep:
 
     # Remove ones at the end
     for n in ns:
-      if(ns[-1] == 1.0):
+      if(ns[-1] == 1.0 and len(ns) != 1):
         del ns[-1]; del os[-1]; del ds[-1]; del lbls[-1]
 
     # Take care of the remaining
-    if ns[-1] == 1.0:
-        del ns[-1]; del os[-1]; del ds[-1]; del lbls[-1]
+    if(ns[-1] == 1.0 and len(ns) != 1):
+      del ns[-1]; del os[-1]; del ds[-1]; del lbls[-1]
 
     if(lbls == []):
       if(hdict): return self.hdict,axes(ns,os,ds,None)

@@ -243,11 +243,11 @@ class hessnchunkr:
       idict['nthrds'] = self.__nthrds
       idict['sverb']  = self.__sverb;  idict['wverb'] = self.__wverb
       # Extended imaging parameters
-      idict['nhx'] = self.__nhx;       idict['nhy'] = self.__nhy;     idict['sym'] = self.__sym
+      idict['nhx'] = self.__nhx;       idict['nhy']   = self.__nhy;     idict['sym'] = self.__sym
       # Frequency domain axis
-      idict['dwc']  = self.__dwc;      idict['owc']   = self.__ow
+      idict['dwc'] = self.__dwc;       idict['owc']   = self.__ow
       # Imaging inputs
-      idict['wav'] = self.__migwfftd;  idict['vel'] = self.__velmig
+      idict['wav'] = self.__migwfftd;  idict['vel']   = self.__velmig
       yield [cdict,mdict,idict,ichnk]
       ichnk += 1
 

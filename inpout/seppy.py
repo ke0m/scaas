@@ -170,7 +170,7 @@ class sep:
     esize = int(self.hdict['esize'])
     dtype = self.get_dtype(form,esize)
     # Compute the offset and update output axes
-    offset = esize*fw*np.prod(faxes.n[:-1])
+    offset = int(esize*fw*np.prod(faxes.n[:-1]))
     faxes.n[-1] = nw; count = faxes.get_nelem()
     if(nw == 1):
       del faxes.n[-1]

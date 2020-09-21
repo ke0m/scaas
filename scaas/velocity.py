@@ -297,14 +297,17 @@ def salt_mask(img,vel,saltvel,thresh=0.95,rectx=30,rectz=30):
     rectx   - amount of smoothing to be applied to mask along x
     rectz   - amount of smoothing to be applied to mask along z
 
-  Returns mask and masked image
+  Returns mask and masked image (msk,maskedimg)
   """
   # Create the mask
   idx = vel >= saltvel
   msk = np.ascontiguousarray(np.copy(vel)).astype('float32')
   msk[idx] = 0.0 
   msk[~idx] = 1.0 
-  mskw = msk[:,0,:]
+  if(len(msk.shape) == 3):
+    mskw = msk[:,0,:]
+  else:
+    mskw = msk
 
   # Smooth and threshold the mask
   smmsk = smooth(mskw,rect1=30,rect2=30)

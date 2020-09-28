@@ -7,7 +7,7 @@
 default: scaas2dpy halfint trismooth slantstk adcig
 
 laplacian10.o: laplacian10.ispc
-	ispc --target=avx $< -o $@
+	$(ISPC)/ispc --target=avx $< -o $@
 
 scaas2dpy: scaas2d.o laplacian10.o
 	g++ -O3 -fPIC -ffast-math -fopenmp -std=c++1y -shared -Wall `${CONDA_PREFIX}/bin/python3 -m pybind11 --includes` \

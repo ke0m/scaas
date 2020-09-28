@@ -142,7 +142,7 @@ def create_constptb_loc(nz,nx,ptb,naz,nax,cz,cx,rectx=20,rectz=20):
     nz    - number of depth samples of output velocity model
     nx    - number of lateral samples of output velocity model
     ptb   - percent perturbation
-    naz   - number of depth samples of perturbation 
+    naz   - number of depth samples of perturbation
     nax   - number of lateral samples of perturbation
     cz    - z center position of anomaly
     cx    - x center position of anomaly
@@ -154,12 +154,12 @@ def create_constptb_loc(nz,nx,ptb,naz,nax,cz,cx,rectx=20,rectz=20):
   velc = np.zeros([naz,nax],dtype='float32') + ptb
   pz1 = cz - int(naz/2)
   if(naz%2 != 0): pz1 -= 1
-  if(pz1 < 0): 
+  if(pz1 < 0):
     cz = int(naz/2)
   pz2 = nz - cz - int(naz/2)
   px1 = cx - int(nax/2)
   if(nax%2 != 0): px1 -= 1
-  if(px1 < 0): 
+  if(px1 < 0):
     cx = int(nax/2)
   px2 = nx - cx - int(nax/2)
   velcp = np.pad(velc,((pz1,pz2),(px1,px2)),'constant',constant_values=1)
@@ -302,8 +302,8 @@ def salt_mask(img,vel,saltvel,thresh=0.95,rectx=30,rectz=30):
   # Create the mask
   idx = vel >= saltvel
   msk = np.ascontiguousarray(np.copy(vel)).astype('float32')
-  msk[idx] = 0.0 
-  msk[~idx] = 1.0 
+  msk[idx] = 0.0
+  msk[~idx] = 1.0
   if(len(msk.shape) == 3):
     mskw = msk[:,0,:]
   else:
@@ -312,8 +312,8 @@ def salt_mask(img,vel,saltvel,thresh=0.95,rectx=30,rectz=30):
   # Smooth and threshold the mask
   smmsk = smooth(mskw,rect1=30,rect2=30)
   idx2 = smmsk > 0.95
-  smmsk[idx2] = 1.0 
-  smmsk[~idx2] = 0.0 
+  smmsk[idx2] = 1.0
+  smmsk[~idx2] = 0.0
   smmsk2 = smooth(smmsk,rect1=2,rect2=2)
 
   # Apply the mask to the image
@@ -328,4 +328,49 @@ def salt_mask(img,vel,saltvel,thresh=0.95,rectx=30,rectz=30):
     imgo = smmsk2*img
 
   return smmsk2,imgo
+
+def insert_circle(vel,dx,dz,centerx,centerz,rad,val) -> np.ndarray:
+  """
+  Inserts a circle into the velocity model
+
+  Parameters:
+    vel     - the input velocity model [nz,nx]
+    dx      - x-sampling of velocity model
+    dz      - z-sampling of velocity model
+    xcenter - the x-coordinate of circle center
+    zcenter - the z-coordinate of circle center
+    rad     - the radius of the circle
+    val     - the value of the velocity within the circle
+
+  Returns a velocity model with a circle of radius rad inserted
+  at centerx, centerz
+  """
+  # Get dimensions of model
+  [nz,nx] = vel.shape
+
+  # Model coordinates
+  xvals = np.linspace(0,(nx-1)*dx,nx)
+  zvals = np.linspace(0,(nz-1)*dz,nz)
+
+  # X bound
+  zcirc = np.arange(centerz-rad,centerz+rad+dz,dz)
+  zt = centerz-rad; zb = centerz + rad
+  lxbnd = np.zeros(len(zvals)); rxbnd = np.zeros(len(zvals))
+
+  zlo = zvals < zt
+  zhi = zvals > zb
+
+  lxbnd = centerx - np.sqrt(rad**2 - (zvals-centerz)**2)
+  lxbnd[zlo] = centerx
+  lxbnd[zhi] = centerx
+
+  rxbnd = centerx + np.sqrt(rad**2 - (zvals-centerz)**2)
+  rxbnd[zlo] = centerx
+  rxbnd[zhi] = centerx
+
+  for iz in range(nz):
+    idx = np.logical_and(xvals > lxbnd[iz],xvals < rxbnd[iz])
+    vel[iz,idx] = val
+
+  return vel
 

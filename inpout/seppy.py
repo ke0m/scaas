@@ -276,6 +276,8 @@ class sep:
         dtype = '<c8'
       else:
         raise Exception("Failed to read in file. Format %s not recognized\n"%(form))
+    elif(esize == 1):
+     dtype = np.ubyte
     else:
       raise Exception("Failed to read in file. Must have esize 4 or 8 (esize=%d)"%(esize))
 
@@ -906,4 +908,10 @@ class sep:
         sp.check_call("convert %s %s"%(figfile+".pdf",figname),shell=True)
 
     return
+
+def bytes2float(img):
+  """ Converts an array of bytes (uint8) to floats """
+  imgtmp = img - 255/2.
+  imgtmp *= 1./255
+  return imgtmp
 

@@ -101,12 +101,12 @@ class sep:
 
     # Remove ones at the end
     for n in ns:
-      if(ns[-1] == 1.0 and len(ns) != 1):
+      if(ns[-1] == 1.0):
         del ns[-1]; del os[-1]; del ds[-1]; del lbls[-1]
 
     # Take care of the remaining
-    if(ns[-1] == 1.0 and len(ns) != 1):
-      del ns[-1]; del os[-1]; del ds[-1]; del lbls[-1]
+    if ns[-1] == 1.0:
+        del ns[-1]; del os[-1]; del ds[-1]; del lbls[-1]
 
     if(lbls == []):
       if(hdict): return self.hdict,axes(ns,os,ds,None)
@@ -276,6 +276,8 @@ class sep:
         dtype = '<c8'
       else:
         raise Exception("Failed to read in file. Format %s not recognized\n"%(form))
+    elif(esize == 1):
+     dtype = np.ubyte
     else:
       raise Exception("Failed to read in file. Must have esize 4 or 8 (esize=%d)"%(esize))
 
@@ -906,4 +908,10 @@ class sep:
         sp.check_call("convert %s %s"%(figfile+".pdf",figname),shell=True)
 
     return
+
+def bytes2float(img):
+  """ Converts an array of bytes (uint8) to floats """
+  imgtmp = img - 255/2.
+  imgtmp *= 1./255
+  return imgtmp
 

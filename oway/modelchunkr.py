@@ -53,11 +53,11 @@ class modelchunkr:
     # Reflectivity and dimensions
     self.__ref = ref
     [self.__nz,self.__ny,self.__nx] = ref.shape
-    self.__oz = oz; self.__oy = oy; self.__ox = ox
-    self.__dz = dz; self.__dy = dy; self.__dx = dx
+    self.__oz, self.__oy, self.__ox = oz, oy, ox
+    self.__dz, self.__dy, self.__dx = dz, dy, dx
 
     # Check source coordinates
-    self.__srcx = srcx; self.__srcy = srcy
+    self.__srcx, self.__srcy = srcx, srcy
     if(self.__srcx is None and self.__srcy is None):
       raise Exception("Must provide either srcx or srcy coordinates")
     if(self.__srcx is None):
@@ -68,7 +68,7 @@ class modelchunkr:
       raise Exception("srcx and srcy are not same length")
 
     # Check receiver coordinates
-    self.__recx = recx; self.__recy = recy; self.__nrec = nrec
+    self.__recx, self.__recy, self.__nrec = recx, recy, nrec
     if(self.__recx is None and self.__recy is None):
       raise Exception("Must provide either recx or recy coordinates")
     if(self.__recx is None):

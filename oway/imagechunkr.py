@@ -54,12 +54,12 @@ class imagechunkr:
     self.__nchnks = nchnks
 
     # Reflectivity and dimensions
-    self.__nz = nz; self.__ny = ny; self.__nx = nx
-    self.__oz = oz; self.__oy = oy; self.__ox = ox
-    self.__dz = dz; self.__dy = dy; self.__dx = dx
+    self.__nz,self.__ny,self.__nx = nz,ny,nx
+    self.__oz,self.__oy,self.__ox = oz,oy,ox
+    self.__dz,self.__dy,self.__dx = dz,dy,dx
 
     # Check source coordinates
-    self.__srcx = srcx; self.__srcy = srcy
+    self.__srcx,self.__srcy = srcx,srcy
     if(self.__srcx is None and self.__srcy is None):
       raise Exception("Must provide either srcx or srcy coordinates")
     if(self.__srcx is None):
@@ -68,7 +68,7 @@ class imagechunkr:
       self.__srcy = np.zeros(len(self.__srcx),dtype='int')
 
     # Check receiver coordinates
-    self.__recx = recx; self.__recy = recy; self.__nrec = nrec
+    self.__recx,self.__recy,self.__nrec = recx,recy,nrec
     if(self.__recx is None and self.__recy is None):
       raise Exception("Must provide either recx or recy coordinates")
     if(self.__recx is None):
@@ -80,7 +80,7 @@ class imagechunkr:
     self.__nexp = len(nrec)
 
     # Create frequency domain source
-    self.__nt = dat.shape[-1]; self.__dt = dt
+    self.__nt,self.__dt = dat.shape[-1],dt
     if(wav is None):
       wav    = np.zeros(self.__nt,dtype='float32')
       wav[0] = 1.0
@@ -111,17 +111,17 @@ class imagechunkr:
       self.__vel = vel
 
     # Default imaging parameters
-    self.__nrmax  = 3; self.__dtmax = 5e-05; self.__eps = 0.0
-    self.__ntx    = 0; self.__nty   = 0
-    self.__px     = 0; self.__py    = 0
+    self.__nrmax, self.__dtmax, self.__eps  = 3, 5e-05, 0.0
+    self.__ntx, self.__nty = 0, 0
+    self.__px,  self.__py  = 0, 0
     # Extended imaging parameters
-    self.__nhx  = 0; self.__ohx = 0.0
-    self.__nhy  = 0; self.__ohy = 0.0
+    self.__nhx, self.__ohx  = 0, 0.0
+    self.__nhy, self.__ohy  = 0, 0.0
     self.__sym  = True
-    self.__rnhx = None; self.__rnhy = None
+    self.__rnhx, self.__rnhy = None, None
     # Verbosity and threading
     self.__nthrds = 1
-    self.__wverb  = False; self.__everb = False
+    self.__wverb,self.__everb  = False, False
 
   def set_image_pars(self,nrmax=3,dtmax=5e-05,eps=0.0,
                      ntx=0,nty=0,px=0,py=0,
@@ -142,14 +142,14 @@ class imagechunkr:
       sverb  - verbosity flag for shot progress bar [False]
       wverb  - verbosity flag for frequency progress bar [False]
     """
-    self.__nrmax  = nrmax; self.__dtmax = dtmax; self.__eps = eps
-    self.__ntx    = ntx; self.__nty   = nty
-    self.__px     = px; self.__py     = py
+    self.__nrmax, self.__dtmax, self.__eps  = nrmax, dtmax, eps
+    self.__ntx, self.__nty = ntx, nty
+    self.__px,  self.__py  = px, py
     # Extended imaging parameters
-    self.__nhx = nhx; self.__nhy = nhy; self.__sym = sym
+    self.__nhx, self.__nhy, self.__sym = nhx, nhy, sym
     # Verbosity and threads
     self.__nthrds = nthrds
-    self.__wverb  = wverb; self.__sverb = sverb
+    self.__wverb,self.__sverb = wverb, sverb
 
   def get_img_shape(self):
     """ Returns the shape of the output image """
@@ -157,9 +157,9 @@ class imagechunkr:
       return [self.__nz,self.__ny,self.__nx]
     else:
       if(self.__sym):
-        self.__rnhx = 2*self.__nhx+1; self.__rnhy = 2*self.__nhy+1
+        self.__rnhx, self.__rnhy = 2*self.__nhx+1, 2*self.__nhy+1
       else:
-        self.__rnhx = self.__nhx+1; self.__rnhy = self.__nhy+1
+        self.__rnhx, self.__rnhy = self.__nhx+1, self.__nhy+1
       return [self.__rnhy,self.__rnhx,self.__nz,self.__ny,self.__nx]
 
   def get_offx_axis(self):
@@ -199,7 +199,7 @@ class imagechunkr:
       rxchnk  = self.__recx [begr:endr]
       datchnk = self.__dfftd[begr:endr,:]
       # Update positions
-      begs = ends; begr = endr
+      begs,begr = ends, endr
       ## Constructor arguments
       cdict = {}
       # Parameters for constructor

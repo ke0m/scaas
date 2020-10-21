@@ -80,7 +80,7 @@ class modelchunkr:
     self.__nexp = len(nrec)
 
     # Create the input frequency domain source and get original frequency axis
-    self.__nt = wav.shape[0]; self.__dt = dt; self.__t0 = t0
+    self.__nt, self.__dt, self.__t0 = wav.shape[0], dt, t0
     self.__nwo,self.__ow,self.__dw,wfft = fft1(wav,dt,minf=minf,maxf=maxf)
     self.__wfftd = wfft[::jf]
     self.__nwc = self.__wfftd.shape[0] # Get the number of frequencies to compute
@@ -101,11 +101,11 @@ class modelchunkr:
       self.__vel = vel
 
     # Default modeling parameters
-    self.__nrmax  = 3; self.__dtmax = 5e-05; self.__eps = 0.0
-    self.__ntx    = 0; self.__nty   = 0
-    self.__px     = 0; self.__py    = 0
+    self.__nrmax, self.__dtmax, self.__eps  = 3, 5e-05, 0.0
+    self.__ntx, self.__nty = 0, 0
+    self.__px,  self.__py  = 0, 0
     self.__nthrds = 1
-    self.__wverb  = False; self.__sverb = False
+    self.__wverb, self.__sverb  = False, False
 
   def set_model_pars(self,nrmax=3,dtmax=5e-05,eps=0.0,
                      ntx=0,nty=0,px=0,py=0,
@@ -125,11 +125,11 @@ class modelchunkr:
       sverb  - verbosity flag for shot progress bar [False]
       wverb  - verbosity flag for frequency progress bar [False]
     """
-    self.__nrmax  = nrmax; self.__dtmax = dtmax; self.__eps = eps
-    self.__ntx    = ntx; self.__nty   = nty
-    self.__px     = px; self.__py     = py
+    self.__nrmax, self.__dtmax, self.__eps  = nrmax, dtmax, eps
+    self.__ntx, self.__nty = ntx, nty
+    self.__px,  self.__py  = px , py
     self.__nthrds = nthrds
-    self.__wverb  = wverb; self.__sverb = sverb
+    self.__wverb, self.__sverb  = wverb, sverb
 
   def get_freq_axis(self):
     """
@@ -164,7 +164,7 @@ class modelchunkr:
       rychnk  = self.__recy[begr:endr]
       rxchnk  = self.__recx[begr:endr]
       # Update positions
-      begs = ends; begr = endr
+      begs,begr = ends,endr
       ## Constructor arguments
       cdict = {}
       # Parameters for constructor

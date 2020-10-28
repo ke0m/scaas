@@ -16,7 +16,7 @@ class hessnchunkr:
                ref,velmod,velmig,modwav,dt,t0,minf,maxf,
                nrec,srcx=None,srcy=None,recx=None,recy=None,
                ox=0.0,oy=0.0,oz=0.0,dvx=None,ovx=0.0,dvy=None,ovy=0.0,
-               migwav=None,jf=1):
+               migwav=None,jf=1,verb=True):
     """
     Creates a generator from inputs necessary
     for computing the Hessian
@@ -48,6 +48,7 @@ class hessnchunkr:
       ovy    - y origin of velocity model
       migwav - wavelet for migration
       jf     - subsampling of frequency axis
+      verb   - prints chunking and frequency information [True]
     """
     # Number of chunks to create (length of generator)
     self.__nchnks = nchnks
@@ -95,10 +96,14 @@ class hessnchunkr:
     _,_,_,wfft = fft1(migwav,dt,minf=minf,maxf=maxf)
     self.__migwfftd = wfft[::jf]
 
+    if(verb): print("Frequency axis: nw=%d ow=%f dw=%f"%(self.__nwc,self.__ow,self.__dwc))
+
     # Interpolate the velocity if needed
     if(velmod.shape != ref.shape or velmig.shape != ref.shape):
-      if(dvx is None or dvy is None):
+      if(dvx is None and dvy is None):
         raise Exception("If vel shape != ref shape, must provide dvx or dvy")
+      if(dvy is None and self.__ny == 1): dvy = 1.0
+      if(dvx is None and self.__nx == 1): dvx = 1.0
 
       self.__velmod = interp_vel(self.__nz,
                                  self.__ny,self.__oy,self.__dy,
@@ -109,7 +114,6 @@ class hessnchunkr:
                                  self.__ny,self.__oy,self.__dy,
                                  self.__nx,self.__ox,self.__dx,
                                  velmig,dvx,dvy,ovx,ovy)
-
     else:
       self.__velmod = velmod
       self.__velmig = velmig
@@ -239,11 +243,11 @@ class hessnchunkr:
       idict['nthrds'] = self.__nthrds
       idict['sverb']  = self.__sverb;  idict['wverb'] = self.__wverb
       # Extended imaging parameters
-      idict['nhx'] = self.__nhx;       idict['nhy'] = self.__nhy;     idict['sym'] = self.__sym
+      idict['nhx'] = self.__nhx;       idict['nhy']   = self.__nhy;     idict['sym'] = self.__sym
       # Frequency domain axis
-      idict['dwc']  = self.__dwc;      idict['owc']   = self.__ow
+      idict['dwc'] = self.__dwc;       idict['owc']   = self.__ow
       # Imaging inputs
-      idict['wav'] = self.__migwfftd;  idict['vel'] = self.__velmig
+      idict['wav'] = self.__migwfftd;  idict['vel']   = self.__velmig
       yield [cdict,mdict,idict,ichnk]
       ichnk += 1
 

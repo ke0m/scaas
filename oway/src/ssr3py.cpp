@@ -1,7 +1,7 @@
 /**
  * Python interface to ssr3.cpp
  * @author: Joseph Jennings
- * @version: 2020.09.01
+ * @version: 2020.11.04
  */
 
 #include <pybind11/pybind11.h>
@@ -197,6 +197,48 @@ PYBIND11_MODULE(ssr3,m) {
                 sr3d.ssr3ssf_migonewzo(iw, dat.mutable_data(), img.mutable_data(), ithrd);
              },
              py::arg("iw"), py::arg("dat"), py::arg("img"), py::arg("ithrd")
+         )
+     .def("fwfallwzo",[](ssr3 &sr3d,
+             py::array_t<std::complex<float>, py::array::c_style> dat,
+             py::array_t<std::complex<float>, py::array::c_style> wfl,
+             bool verb
+             )
+             {
+                sr3d.ssr3ssf_fwfallwzo(dat.mutable_data(), wfl.mutable_data(), verb);
+             },
+             py::arg("dat"), py::arg("wfl"), py::arg("verb")
+         )
+     .def("fwfonewzo",[](ssr3 &sr3d,
+             int iw,
+             py::array_t<std::complex<float>, py::array::c_style> dat,
+             py::array_t<std::complex<float>, py::array::c_style> wfl,
+             int ithrd
+             )
+             {
+                sr3d.ssr3ssf_fwfonewzo(iw, dat.mutable_data(), wfl.mutable_data(), ithrd);
+             },
+             py::arg("iw"), py::arg("dat"), py::arg("wfl"), py::arg("ithrd")
+         )
+     .def("awfallwzo",[](ssr3 &sr3d,
+             py::array_t<std::complex<float>, py::array::c_style> dat,
+             py::array_t<std::complex<float>, py::array::c_style> wfl,
+             bool verb
+             )
+             {
+                sr3d.ssr3ssf_awfallwzo(dat.mutable_data(), wfl.mutable_data(), verb);
+             },
+             py::arg("dat"), py::arg("wfl"), py::arg("verb")
+         )
+     .def("awfonewzo",[](ssr3 &sr3d,
+             int iw,
+             py::array_t<std::complex<float>, py::array::c_style> dat,
+             py::array_t<std::complex<float>, py::array::c_style> wfl,
+             int ithrd
+             )
+             {
+                sr3d.ssr3ssf_awfonewzo(iw, dat.mutable_data(), wfl.mutable_data(), ithrd);
+             },
+             py::arg("iw"), py::arg("dat"), py::arg("wfl"), py::arg("ithd")
          );
       m.def("interp_slow",[] (int nz,
               int nvy, float ovy, float dvy,

@@ -52,6 +52,11 @@ class ssr3{
     /* Migrate zero offset */
     void ssr3ssf_migallwzo(std::complex<float> *dat, float *img, bool verb);
     void ssr3ssf_migonewzo(int iw, std::complex<float> *dat, float *img, int ithrd);
+    /* Wavefield zero offset */
+    void ssr3ssf_fwfallwzo(std::complex<float> *dat, std::complex<float> *wfl, bool verb);
+    void ssr3ssf_fwfonewzo(int iw, std::complex<float> *dat, std::complex<float> *wfl, int ithrd);
+    void ssr3ssf_awfallwzo(std::complex<float> *dat, std::complex<float> *wfl, bool verb);
+    void ssr3ssf_awfonewzo(int iw, std::complex<float> *dat, std::complex<float> *wfl, int ithrd);
     void ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std::complex<float> *slccur, std::complex<float> *slcnex, int ithrd);
     void ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std::complex<float> *slc, int ithrd);
     void build_refs(int nz, int nrmax, int ns, float dsmax, float *slo, int *nr, float *sloref);

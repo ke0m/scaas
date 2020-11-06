@@ -239,6 +239,32 @@ PYBIND11_MODULE(ssr3,m) {
                 sr3d.ssr3ssf_awfonewzo(iw, dat.mutable_data(), wfl.mutable_data(), ithrd);
              },
              py::arg("iw"), py::arg("dat"), py::arg("wfl"), py::arg("ithd")
+         )
+     .def("fwemvaallw", [] (ssr3 &sr3d,
+              py::array_t<std::complex<float>, py::array::c_style> src,
+              py::array_t<std::complex<float>, py::array::c_style> rec,
+              py::array_t<std::complex<float>, py::array::c_style> dslo,
+              py::array_t<std::complex<float>, py::array::c_style> dimg,
+              bool verb
+              )
+              {
+                sr3d.ssr3ssf_fwemvaallw(src.mutable_data(), rec.mutable_data(),
+                                        dslo.mutable_data(), dimg.mutable_data(), verb);
+              },
+              py::arg("src"), py::arg("rec"), py::arg("dslo"), py::arg("dimg"), py::arg("verb")
+         )
+     .def("awemvaallw", [] (ssr3 &sr3d,
+              py::array_t<std::complex<float>, py::array::c_style> src,
+              py::array_t<std::complex<float>, py::array::c_style> rec,
+              py::array_t<std::complex<float>, py::array::c_style> dslo,
+              py::array_t<std::complex<float>, py::array::c_style> dimg,
+              bool verb
+              )
+              {
+                sr3d.ssr3ssf_awemvaallw(src.mutable_data(), rec.mutable_data(),
+                                        dslo.mutable_data(), dimg.mutable_data(), verb);
+              },
+              py::arg("src"), py::arg("rec"), py::arg("dslo"), py::arg("dimg"), py::arg("verb")
          );
       m.def("interp_slow",[] (int nz,
               int nvy, float ovy, float dvy,

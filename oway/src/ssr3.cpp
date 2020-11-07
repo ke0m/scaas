@@ -619,15 +619,6 @@ void ssr3::ssr3ssf_fwemvaallw(std::complex<float> *src, std::complex<float> *rec
     fprintf(stderr,"Must run set_slows before modeling or migration\n");
   }
 
-  /* Allocate wavefields */
-  std::complex<float> *swfld = new std::complex<float>[_nw*_nz*_ny*_nx]();
-  std::complex<float> *rwfld = new std::complex<float>[_nw*_nz*_ny*_nx]();
-
-  /* Compute source and receiver wavefields */
-  //TODO: put this inside of the onew functions
-  ssr3ssf_fwfallwzo(src, swfld, verb);
-  ssr3ssf_awfallwzo(rec, rwfld, verb);
-
   /* Set up printing if verbosity is desired */
   int *widx = new int[_nthrds]();
   int csize = (int)_nw/_nthrds;
@@ -642,46 +633,49 @@ void ssr3::ssr3ssf_fwemvaallw(std::complex<float> *src, std::complex<float> *rec
     if(firstiter && verb) widx[wthd] = iw;
     if(verb) printprogress_omp("nw:",iw-widx[wthd],csize,wthd);
     /* Compute image perturbation for current frequency */
-    ssr3ssf_fwemvaonew(iw, swfld + iw*_nz*_nx*_ny, rwfld + iw*_nz*_nx*_ny, dslo, dimg, wthd);
+    ssr3ssf_fwemvaonew(iw, src + iw*_ny*_nx, rec + iw*_ny*_nx, dslo, dimg, wthd);
     firstiter = false;
   }
   if(verb) printf("\n");
 
   /* Free memory */
   delete[] widx;
-  delete[] swfld; delete[] rwfld;
 }
 
 void ssr3::ssr3ssf_fwemvaonew(int iw, std::complex<float> *wsslc, std::complex<float> *wrslc,
                               std::complex<float> *dslo, std::complex<float> *dimg, int ithrd) {
-  /* Allocate scattered wavefield slices */
+  /* Wavefield slices */
   std::complex<float> *dws = new std::complex<float>[_ny*_nx]();
   std::complex<float> *dwr = new std::complex<float>[_ny*_nx]();
-  //TODO: try to remove pws and pwr
-  std::complex<float> *pws = new std::complex<float>[_ny*_nx]();
-  std::complex<float> *pwr = new std::complex<float>[_ny*_nx]();
+  /* Wavefields */
+  std::complex<float> *swfld = new std::complex<float>[_nz*_ny*_nx]();
+  std::complex<float> *rwfld = new std::complex<float>[_nz*_ny*_nx]();
 
   /* Source and receiver frequencies */
   std::complex<float> ws(_eps*_dw,+(_ow + iw*_dw)); // Causal
   std::complex<float> wr(_eps*_dw,-(_ow + iw*_dw)); // Anti-causal
 
-  //TODO: First compute the wavefield for one frequency for all depths
+   /* Scattering frequencies */
+   std::complex<float> iwdzs(0., -2 * std::imag(ws) * _dz);
+   std::complex<float> iwdzr(0., -2 * std::imag(wr) * _dz);
+
+  /* Compute the wavefields for one frequency for all depths */
+  ssr3ssf_fwfonewzo(iw, wsslc, swfld, ithrd);
+  ssr3ssf_awfonewzo(iw, wrslc, rwfld, ithrd);
 
   /* Loop over depth */
   for(int iz = 0; iz < _nz-1; ++iz) {
 
-    //TODO: Combine these functions with the loop below
-    /* Forward scattering */
-    ssr3ssf_fwdscat(ws, wsslc + iz*_nx*_ny, pws, dslo + iz*_nx*_ny);
-    ssr3ssf_fwdscat(wr, wrslc + iz*_nx*_ny, pwr, dslo + iz*_nx*_ny);
-
-    /* Compute the image perturbation */
     for(int iy = 0; iy < _ny; ++iy) {
       for(int ix = 0; ix < _nx; ++ix) {
-        dws[iy*_nx + ix] += pws[iy*_nx + ix];
-        dwr[iy*_nx + ix] += pwr[iy*_nx + ix];
-        dimg[iz*_ny*_nx + iy*_nx + ix] += std::conj(wsslc[iz*_ny*_nx + iy*_nx + ix]) * dwr[iy*_nx + ix]
-                                          + std::conj(dws[iy*_nx + ix]) * wrslc[iz*_ny*_nx + iy*_nx + ix];
+        /* Forward scattering */
+        std::complex<float> pws = dslo[iz*_ny*_nx + iy*_nx + ix] * iwdzs * swfld[iz*_nx*_ny + iy*_nx + ix];
+        std::complex<float> pwr = dslo[iz*_ny*_nx + iy*_nx + ix] * iwdzr * rwfld[iz*_nx*_ny + iy*_nx + ix];
+        dws[iy*_nx + ix] += pws;
+        dwr[iy*_nx + ix] += pwr;
+        /* Compute the image perturbation */
+        dimg[iz*_ny*_nx + iy*_nx + ix] += std::conj(swfld[iz*_ny*_nx + iy*_nx + ix]) * dwr[iy*_nx + ix]
+                                          + std::conj(dws[iy*_nx + ix]) * rwfld[iz*_ny*_nx + iy*_nx + ix];
       }
     }
 
@@ -693,14 +687,14 @@ void ssr3::ssr3ssf_fwemvaonew(int iw, std::complex<float> *wsslc, std::complex<f
 
   }
 
+  delete[] swfld; delete[] rwfld;
   delete[] dws; delete[] dwr;
-  delete[] pws; delete[] pwr;
 }
 
 void ssr3::ssr3ssf_fwdscat(std::complex<float> w, std::complex<float> *bwslc, std::complex<float> *pwslc,
                          std::complex<float>* dslo) {
 
-  std::complex<float> iwdz = std::complex<float>(0, -2 * std::imag(w) * _dz);
+  std::complex<float> iwdz(0, -2 * std::imag(w) * _dz);
 
   for(int iy = 0; iy < _ny; ++iy) {
     for(int ix = 0; ix < _nx; ++ix) {
@@ -716,15 +710,6 @@ void ssr3::ssr3ssf_awemvaallw(std::complex<float> *src, std::complex<float> *rec
     fprintf(stderr,"Must run set_slows before modeling or migration\n");
   }
 
-  /* Allocate wavefields */
-  std::complex<float> *swfld = new std::complex<float>[_nw*_nz*_ny*_nx]();
-  std::complex<float> *rwfld = new std::complex<float>[_nw*_nz*_ny*_nx]();
-
-  /* Compute source and receiver wavefields */
-  //TODO: put this inside of the onew function
-  ssr3ssf_fwfallwzo(src, swfld, verb);
-  ssr3ssf_awfallwzo(rec, rwfld, verb);
-
   /* Set up printing if verbosity is desired */
   int *widx = new int[_nthrds]();
   int csize = (int)_nw/_nthrds;
@@ -739,29 +724,35 @@ void ssr3::ssr3ssf_awemvaallw(std::complex<float> *src, std::complex<float> *rec
      if(firstiter && verb) widx[wthd] = iw;
      if(verb) printprogress_omp("nw:",iw-widx[wthd],csize,wthd);
      /* Compute image perturbation for current frequency */
-     ssr3ssf_awemvaonew(iw, swfld + iw*_nz*_nx*_ny, rwfld + iw*_nz*_nx*_ny, dslo, dimg, wthd);
+     ssr3ssf_awemvaonew(iw, src + iw*_ny*_nx, rec + iw*_ny*_nx, dslo, dimg, wthd);
      firstiter = false;
    }
    if(verb) printf("\n");
 
    /* Free memory */
    delete[] widx;
-   delete[] swfld; delete[] rwfld;
 }
 
 void ssr3::ssr3ssf_awemvaonew(int iw, std::complex<float> *wsslc, std::complex<float> *wrslc,
                               std::complex<float> *dslo, std::complex<float> *dimg, int ithrd) {
-  /* Allocate scattered wavefield slices */
+  /* Wavefield slices */
    std::complex<float> *dws = new std::complex<float>[_ny*_nx]();
    std::complex<float> *dwr = new std::complex<float>[_ny*_nx]();
-   std::complex<float> *pss = new std::complex<float>[_ny*_nx]();
-   std::complex<float> *psr = new std::complex<float>[_ny*_nx]();
+   /* Wavefields */
+   std::complex<float> *swfld = new std::complex<float>[_nz*_ny*_nx]();
+   std::complex<float> *rwfld = new std::complex<float>[_nz*_ny*_nx]();
 
    /* Source and receiver frequencies */
    std::complex<float> ws(_eps*_dw,-(_ow + iw*_dw)); // Anti-causal
    std::complex<float> wr(_eps*_dw,+(_ow + iw*_dw)); // Causal
 
-   //TODO: first compute the wavefield for one frequency for all depths
+   /* Scattering frequencies */
+   std::complex<float> iwdzs(0., -2 * std::imag(ws) * _dz);
+   std::complex<float> iwdzr(0., -2 * std::imag(wr) * _dz);
+
+   /* Compute the wavefields for one frequency for all depths */
+   ssr3ssf_fwfonewzo(iw, wsslc, swfld, ithrd);
+   ssr3ssf_awfonewzo(iw, wrslc, rwfld, ithrd);
 
    /* Loop over depth */
    for(int iz = _nz-1; iz > 0; --iz) {
@@ -773,26 +764,21 @@ void ssr3::ssr3ssf_awemvaonew(int iw, std::complex<float> *wsslc, std::complex<f
 
      for(int iy = 0; iy < _ny; ++iy) {
        for(int ix = 0; ix < _nx; ++ix) {
-         dws[iy*_nx + ix] += wrslc[iz*_ny*_nx + iy*_nx + ix] * std::conj(dimg[iz*_ny*_nx + iy*_nx + ix]);
-         dwr[iy*_nx + ix] += wsslc[iz*_ny*_nx + iy*_nx + ix] * dimg[iz*_ny*_nx + iy*_nx + ix];
-       }
-     }
-
-     //TODO: Combine these functions with the loop below
-     ssr3ssf_adjscat(ws, wsslc+iz*_ny*_nx, dws, pss);
-     ssr3ssf_adjscat(wr, wrslc+iz*_ny*_nx, dwr, psr);
-
-     for(int iy = 0; iy < _ny; ++iy) {
-       for(int ix = 0; ix < _nx; ++ix) {
-         dslo[iz*_ny*_nx + iy*_nx + ix] += pss[iy*_nx + ix] + psr[iy*_nx + ix];
+         /* Update scattered wavefields */
+         dws[iy*_nx + ix] += rwfld[iz*_ny*_nx + iy*_nx + ix] * std::conj(dimg[iz*_ny*_nx + iy*_nx + ix]);
+         dwr[iy*_nx + ix] += swfld[iz*_ny*_nx + iy*_nx + ix] * dimg[iz*_ny*_nx + iy*_nx + ix];
+         /* Compute slowness perturbation */
+         std::complex<float> pss = dws[iy*_nx + ix] * iwdzs * std::conj(swfld[iz*_ny*_nx + iy*_nx + ix]);
+         std::complex<float> psr = dwr[iy*_nx + ix] * iwdzr * std::conj(rwfld[iz*_ny*_nx + iy*_nx + ix]);
+         dslo[iz*_ny*_nx + iy*_nx + ix] += pss + psr;
        }
      }
 
    }
 
    /* Free memory */
+   delete[] swfld; delete[] rwfld;
    delete[] dws; delete[] dwr;
-   delete[] pss; delete[] psr;
 }
 
 void ssr3::ssr3ssf_adjscat(std::complex<float> w, std::complex<float> *bwslc, std::complex<float> *pwslc,

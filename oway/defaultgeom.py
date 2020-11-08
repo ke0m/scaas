@@ -305,6 +305,18 @@ class defaultgeom:
       raise Exception("Cannot return x subsurface offset axis without running extended imaging")
     return self.__rnhx, self.__ohx, self.__dhx
 
+  def fwemva(self,dslo,dat,dt,minf,maxf,vel,jf=1,nrmax=3,eps=0.0,dtmax=5e-05,wav=None,
+             ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=False):
+    """
+    Applies the forward WEMVA operator
+
+    Parameters:
+      dslo - the input slowness perturbation
+      dat  - the input data
+      dt   - temporal sampling interval
+    """
+    pass
+
   def fft1(self,sig,dt,minf,maxf):
     """
     Computes the FFT along the fast axis. Input

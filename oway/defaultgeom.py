@@ -169,7 +169,7 @@ class defaultgeom:
 
     # Loop over sources
     k = 0
-    for icrd in progressbar(self.__scoords,"nexp:"):
+    for icrd in progressbar(self.__scoords,"nexp:",verb=sverb):
       # Get the source coordinates
       sy = icrd[0]; sx = icrd[1]
       # Create the source for this shot
@@ -276,7 +276,7 @@ class defaultgeom:
 
     # Loop over sources
     k = 0
-    for icrd in progressbar(self.__scoords,"nexp:"):
+    for icrd in progressbar(self.__scoords,"nexp:",verb=sverb):
       # Get the source coordinates
       sy = icrd[0]; sx = icrd[1]
       # Create the source for this shot
@@ -410,7 +410,7 @@ class defaultgeom:
       angs = off2angkzx(img,self.__ohx,self.__dhx,self.__dz,na=na,amax=amax,transp=itransp,cverb=verb)
       if(transp):
         # [naz,na,nz,ny,nx] -> [ny,nx,naz,na,nz]
-        angst = np.ascontiguousarray(np.transpose(angs,(3,4,0,1,2))) 
+        angst = np.ascontiguousarray(np.transpose(angs,(3,4,0,1,2)))
       else:
         angst = angs
       return angst

@@ -7,8 +7,8 @@ and distributed evenly across the surface
 """
 import numpy as np
 from oway.ssr3 import ssr3, interp_slow
-from scaas.off2ang import off2angssk, off2angkzx
-from genutils.ptyprint import progressbar
+from scaas.off2ang import off2angssk
+from utils.ptyprint import progressbar
 import matplotlib.pyplot as plt
 
 class defaultgeom:
@@ -305,6 +305,18 @@ class defaultgeom:
       raise Exception("Cannot return x subsurface offset axis without running extended imaging")
     return self.__rnhx, self.__ohx, self.__dhx
 
+  def fwemva(self,dslo,dat,dt,minf,maxf,vel,jf=1,nrmax=3,eps=0.0,dtmax=5e-05,wav=None,
+             ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=False):
+    """
+    Applies the forward WEMVA operator
+
+    Parameters:
+      dslo - the input slowness perturbation
+      dat  - the input data
+      dt   - temporal sampling interval
+    """
+    pass
+
   def fft1(self,sig,dt,minf,maxf):
     """
     Computes the FFT along the fast axis. Input
@@ -383,18 +395,16 @@ class defaultgeom:
 
     return n
 
-  def to_angle(self,img,mode='kzx',amax=None,na=None,nthrds=4,transp=False,
-               eps=1.0,oro=None,dro=None,verb=False):
+  def to_angle(self,img,amax=70,na=281,nthrds=4,transp=False,oro=None,dro=None,verb=False):
     """
     Converts the subsurface offset gathers to opening angle gathers
 
     Parameters
       img    - Image extended over subsurface offsets [nhy,nhx,nz,ny,nx]
-      mode   - mode of computing angle gathers [kzx/ssk]
-      amax   - Maximum angle over which to compute angle gathers [60/70]
-      na     - Number of angles on the angle axis [nhx/281]
+      amax   - Maximum angle over which to compute angle gathers [70]
+      na     - Number of angles on the angle axis [281]
       nthrds - Number of OpenMP threads to use (parallelize over image point axis) [4]
-      transp - Transpose the output to have shape [nx,na,nz]
+      transp - Transpose the output to have shape [na,nx,nz]
       verb   - Verbosity flag [False]
 
     Returns the angle gathers [nro,nx,na,nz]
@@ -424,8 +434,6 @@ class defaultgeom:
       self.__na = na; self.__da = avals[1] - avals[0]; self.__oa = avals[0]
       return off2angssk(imgin,self.__ohx,self.__dhx,self.__dz,na=na,amax=amax,nta=601,ota=-3,dta=0.01,
                       nthrds=nthrds,transp=transp,oro=oro,dro=dro,verb=verb)
-    else:
-      raise Exception("Mode %s not recognized. Available modes are 'kzx' or 'ssk'"%(mode))
 
   def get_ang_axis(self):
     """ Returns the opening angle extension axis """

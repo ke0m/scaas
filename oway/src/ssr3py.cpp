@@ -1,7 +1,7 @@
 /**
  * Python interface to ssr3.cpp
  * @author: Joseph Jennings
- * @version: 2020.09.01
+ * @version: 2020.11.04
  */
 
 #include <pybind11/pybind11.h>
@@ -197,6 +197,74 @@ PYBIND11_MODULE(ssr3,m) {
                 sr3d.ssr3ssf_migonewzo(iw, dat.mutable_data(), img.mutable_data(), ithrd);
              },
              py::arg("iw"), py::arg("dat"), py::arg("img"), py::arg("ithrd")
+         )
+     .def("fwfallwzo",[](ssr3 &sr3d,
+             py::array_t<std::complex<float>, py::array::c_style> dat,
+             py::array_t<std::complex<float>, py::array::c_style> wfl,
+             bool verb
+             )
+             {
+                sr3d.ssr3ssf_fwfallwzo(dat.mutable_data(), wfl.mutable_data(), verb);
+             },
+             py::arg("dat"), py::arg("wfl"), py::arg("verb")
+         )
+     .def("fwfonewzo",[](ssr3 &sr3d,
+             int iw,
+             py::array_t<std::complex<float>, py::array::c_style> dat,
+             py::array_t<std::complex<float>, py::array::c_style> wfl,
+             int ithrd
+             )
+             {
+                sr3d.ssr3ssf_fwfonewzo(iw, dat.mutable_data(), wfl.mutable_data(), ithrd);
+             },
+             py::arg("iw"), py::arg("dat"), py::arg("wfl"), py::arg("ithrd")
+         )
+     .def("awfallwzo",[](ssr3 &sr3d,
+             py::array_t<std::complex<float>, py::array::c_style> dat,
+             py::array_t<std::complex<float>, py::array::c_style> wfl,
+             bool verb
+             )
+             {
+                sr3d.ssr3ssf_awfallwzo(dat.mutable_data(), wfl.mutable_data(), verb);
+             },
+             py::arg("dat"), py::arg("wfl"), py::arg("verb")
+         )
+     .def("awfonewzo",[](ssr3 &sr3d,
+             int iw,
+             py::array_t<std::complex<float>, py::array::c_style> dat,
+             py::array_t<std::complex<float>, py::array::c_style> wfl,
+             int ithrd
+             )
+             {
+                sr3d.ssr3ssf_awfonewzo(iw, dat.mutable_data(), wfl.mutable_data(), ithrd);
+             },
+             py::arg("iw"), py::arg("dat"), py::arg("wfl"), py::arg("ithd")
+         )
+     .def("fwemvaallw", [] (ssr3 &sr3d,
+              py::array_t<std::complex<float>, py::array::c_style> src,
+              py::array_t<std::complex<float>, py::array::c_style> rec,
+              py::array_t<std::complex<float>, py::array::c_style> dslo,
+              py::array_t<std::complex<float>, py::array::c_style> dimg,
+              bool verb
+              )
+              {
+                sr3d.ssr3ssf_fwemvaallw(src.mutable_data(), rec.mutable_data(),
+                                        dslo.mutable_data(), dimg.mutable_data(), verb);
+              },
+              py::arg("src"), py::arg("rec"), py::arg("dslo"), py::arg("dimg"), py::arg("verb")
+         )
+     .def("awemvaallw", [] (ssr3 &sr3d,
+              py::array_t<std::complex<float>, py::array::c_style> src,
+              py::array_t<std::complex<float>, py::array::c_style> rec,
+              py::array_t<std::complex<float>, py::array::c_style> dslo,
+              py::array_t<std::complex<float>, py::array::c_style> dimg,
+              bool verb
+              )
+              {
+                sr3d.ssr3ssf_awemvaallw(src.mutable_data(), rec.mutable_data(),
+                                        dslo.mutable_data(), dimg.mutable_data(), verb);
+              },
+              py::arg("src"), py::arg("rec"), py::arg("dslo"), py::arg("dimg"), py::arg("verb")
          );
       m.def("interp_slow",[] (int nz,
               int nvy, float ovy, float dvy,

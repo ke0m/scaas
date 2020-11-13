@@ -546,6 +546,7 @@ class defaultgeom:
   def to_angle(self,img,amax=70,na=281,nthrds=4,transp=False,oro=None,dro=None,verb=False):
     """
     Converts the subsurface offset gathers to opening angle gathers
+
     Parameters
       img    - Image extended over subsurface offsets [nhy,nhx,nz,ny,nx]
       amax   - Maximum angle over which to compute angle gathers [70]
@@ -553,6 +554,7 @@ class defaultgeom:
       nthrds - Number of OpenMP threads to use (parallelize over image point axis) [4]
       transp - Transpose the output to have shape [na,nx,nz]
       verb   - Verbosity flag [False]
+
     Returns the angle gathers [nro,nx,na,nz]
     """
     if(mode == 'kzx'):

@@ -3,7 +3,7 @@ Default geometry for synthetics
 Sources and receivers on the surface
 and distributed evenly across the surface
 @author: Joseph Jennings
-@version: 2020.08.09
+@version: 2020.11.12
 """
 import numpy as np
 from oway.ssr3 import ssr3, interp_slow

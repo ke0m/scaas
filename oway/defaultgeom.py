@@ -169,7 +169,7 @@ class defaultgeom:
 
     # Loop over sources
     k = 0
-    for icrd in progressbar(self.__scoords,"nexp:"):
+    for icrd in progressbar(self.__scoords,"nexp:",verb=sverb):
       # Get the source coordinates
       sy = icrd[0]; sx = icrd[1]
       # Create the source for this shot
@@ -276,7 +276,7 @@ class defaultgeom:
 
     # Loop over sources
     k = 0
-    for icrd in progressbar(self.__scoords,"nexp:"):
+    for icrd in progressbar(self.__scoords,"nexp:",verb=sverb):
       # Get the source coordinates
       sy = icrd[0]; sx = icrd[1]
       # Create the source for this shot
@@ -546,7 +546,6 @@ class defaultgeom:
   def to_angle(self,img,amax=70,na=281,nthrds=4,transp=False,oro=None,dro=None,verb=False):
     """
     Converts the subsurface offset gathers to opening angle gathers
-
     Parameters
       img    - Image extended over subsurface offsets [nhy,nhx,nz,ny,nx]
       amax   - Maximum angle over which to compute angle gathers [70]
@@ -554,15 +553,32 @@ class defaultgeom:
       nthrds - Number of OpenMP threads to use (parallelize over image point axis) [4]
       transp - Transpose the output to have shape [na,nx,nz]
       verb   - Verbosity flag [False]
-
     Returns the angle gathers [nro,nx,na,nz]
     """
-    # Assume ny = 1
-    imgin = img[0,:,:,0,:]
-    amin = -amax; avals = np.linspace(amin,amax,na)
-    # Compute angle axis
-    self.__na = na; self.__da = avals[1] - avals[0]; self.__oa = avals[0]
-    return off2angssk(imgin,self.__ohx,self.__dhx,self.__dz,na=na,amax=amax,nta=601,ota=-3,dta=0.01,
+    if(mode == 'kzx'):
+      if(amax is None): amax = 60
+      if(na is None): na = self.__rnhx
+      # Handle the case of residual migration input
+      itransp = False
+      if(len(img.shape) == 4): itransp = True
+      # Compute angle axis
+      self.__na = na; self.__oa = -amax; self.__da = 2*amax/na
+      angs = off2angkzx(img,self.__ohx,self.__dhx,self.__dz,na=na,amax=amax,transp=itransp,cverb=verb)
+      if(transp):
+        # [naz,na,nz,ny,nx] -> [ny,nx,naz,na,nz]
+        angst = np.ascontiguousarray(np.transpose(angs,(3,4,0,1,2)))
+      else:
+        angst = angs
+      return angst
+    elif(mode == 'ssk'):
+      if(amax is None): amax = 70
+      if(na is None): na = 281
+      # Assume ny = 1
+      imgin = img[0,:,:,0,:]
+      amin = -amax; avals = np.linspace(amin,amax,na)
+      # Compute angle axis
+      self.__na = na; self.__da = avals[1] - avals[0]; self.__oa = avals[0]
+      return off2angssk(imgin,self.__ohx,self.__dhx,self.__dz,na=na,amax=amax,nta=601,ota=-3,dta=0.01,
                       nthrds=nthrds,transp=transp,oro=oro,dro=dro,verb=verb)
 
   def get_ang_axis(self):

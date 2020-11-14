@@ -310,6 +310,188 @@ class coordgeom:
       raise Exception("Cannot return x subsurface offset axis without running extended imaging")
     return self.__rnhx, self.__ohx, self.__dhx
 
+  def fwemva(self,dslo,dat,dt,minf,maxf,vel,jf=1,nrmax=3,eps=0.,dtmax=5e-05,wav=None,
+                 ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=False):
+    """
+    3D Forward WEMVA operator
+
+    Parameters:
+      dat     - input shot profile data [ntr,nt]
+      dt      - temporal sampling of input data
+      minf    - minimum frequency to image in the data [Hz]
+      maxf    - maximum frequency to image in the data [Hz]
+      vel     - input migration velocity model [nz,ny,nx]
+      jf      - frequency decimation factor [1]
+      nrmax   - maximum number of reference velocities [3]
+      eps     - stability parameter [0.]
+      dtmax   - maximum time error [5e-05]
+      wav     - input wavelet [None,assumes an impulse at zero lag]
+      ntx     - size of taper in x direction [0]
+      nty     - size of taper in y direction [0]
+      px      - amount of padding in x direction (samples) [0]
+      py      - amount of padding in y direction (samples) [0]
+      nthrds  - number of OpenMP threads for frequency parallelization [1]
+      sverb   - verbosity flag for shot progress bar [True]
+      wverb   - verbosity flag for frequency progress bar [False]
+
+    Returns:
+      a linearized image perturbation (forward wemva applied to slowness) [nz,ny,nx]
+    """
+    # Make sure data are same size as coordinates
+    if(dat.shape[0] != self.__ntr):
+      raise Exception("Data must have same number of traces passed to constructor")
+
+    # Get temporal axis
+    nt = dat.shape[-1]
+
+    # Create frequency domain source
+    if(wav is None):
+      wav    = np.zeros(nt,dtype='float32')
+      wav[0] = 1.0
+    self.__nwo,self.__ow,self.__dw,wfft = fft1(wav,dt,minf=minf,maxf=maxf)
+    wfftd = wfft[::jf]
+    self.__nwc = wfftd.shape[0] # Get the number of frequencies for imaging
+    self.__dwc = self.__dw*jf
+
+    if(sverb or wverb): print("Frequency axis: nw=%d ow=%f dw=%f"%(self.__nwc,self.__ow,self.__dwc))
+
+    # Create frequency domain data
+    _,_,_,dfft = fft1(dat,dt,minf=minf,maxf=maxf)
+    dfftd = dfft[:,::jf]
+    # Allocate the data for one shot
+    datw = np.zeros([self.__ny,self.__nx,self.__nwc],dtype='complex64')
+    # Allocate the source for one shot
+    sou = np.zeros([self.__nwc,self.__ny,self.__nx],dtype='complex64')
+
+    # Single square root object
+    ssf = ssr3(self.__nx ,self.__ny,self.__nz ,     # Spatial Sizes
+               self.__dx ,self.__dy,self.__dz ,     # Spatial Samplings
+               self.__nwc,self.__ow,self.__dwc,eps, # Frequency axis
+               ntx,nty,px,py,                       # Taper and padding
+               dtmax,nrmax,nthrds)                  # Reference velocities and threads
+
+    # Compute slowness and reference slownesses
+    slo = 1/vel
+    ssf.set_slows(slo)
+
+    # Allocate temporary partial image
+    dimgtmp = np.zeros([self.__nz,self.__ny,self.__nx],dtype='complex64')
+    odimg   = np.zeros([self.__nz,self.__ny,self.__nx],dtype='complex64')
+
+    # Loop over sources
+    ntr = 0
+    for iexp in progressbar(range(self.__nexp),"nexp:",verb=sverb):
+      # Get the source coordinates
+      sy = self.__srcys[iexp]; sx = self.__srcxs[iexp]
+      isy = int((sy-self.__oy)/self.__dy+0.5); isx = int((sx-self.__ox)/self.__dx+0.5)
+      # Create the source wavefield for this shot
+      sou[:] = 0.0
+      sou[:,isy,isx]  = wfftd[:]
+      # Inject the data for this shot
+      datw[:] = 0.0
+      ssf.inject_data(self.__nrec[iexp],self.__recys[ntr:],self.__recxs[ntr:],self.__oy,self.__ox,dfftd[ntr:,:],datw)
+      datwt = np.ascontiguousarray(np.transpose(datw,(2,0,1))) # [ny,nx,nwc] -> [nwc,ny,nx]
+      # Initialize temporary image
+      dimgtmp[:] = 0.0
+      # Forward WEMVA
+      ssf.fwemvaallw(sou,datwt,dslo,dimgtmp,verb=wverb)
+      odimg += dimgtmp
+      # Increase number of traces
+      ntr += self.__nrec[iexp]
+
+    return np.real(odimg)
+
+  def awemva(self,dimg,dat,dt,minf,maxf,vel,jf=1,nrmax=3,eps=0.,dtmax=5e-05,wav=None,
+                 ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=False):
+    """
+    3D Adjoint WEMVA operator
+
+    Parameters:
+      dat     - input shot profile data [ntr,nt]
+      dt      - temporal sampling of input data
+      minf    - minimum frequency to image in the data [Hz]
+      maxf    - maximum frequency to image in the data [Hz]
+      vel     - input migration velocity model [nz,ny,nx]
+      jf      - frequency decimation factor [1]
+      nrmax   - maximum number of reference velocities [3]
+      eps     - stability parameter [0.]
+      dtmax   - maximum time error [5e-05]
+      wav     - input wavelet [None,assumes an impulse at zero lag]
+      ntx     - size of taper in x direction [0]
+      nty     - size of taper in y direction [0]
+      px      - amount of padding in x direction (samples) [0]
+      py      - amount of padding in y direction (samples) [0]
+      nthrds  - number of OpenMP threads for frequency parallelization [1]
+      sverb   - verbosity flag for shot progress bar [True]
+      wverb   - verbosity flag for frequency progress bar [False]
+
+    Returns:
+      a slowness perturbation (adjoint wemva applied to image perturbation) [nz,ny,nx]
+    """
+    # Make sure data are same size as coordinates
+    if(dat.shape[0] != self.__ntr):
+      raise Exception("Data must have same number of traces passed to constructor")
+
+    # Get temporal axis
+    nt = dat.shape[-1]
+
+    # Create frequency domain source
+    if(wav is None):
+      wav    = np.zeros(nt,dtype='float32')
+      wav[0] = 1.0
+    self.__nwo,self.__ow,self.__dw,wfft = fft1(wav,dt,minf=minf,maxf=maxf)
+    wfftd = wfft[::jf]
+    self.__nwc = wfftd.shape[0] # Get the number of frequencies for imaging
+    self.__dwc = self.__dw*jf
+
+    if(sverb or wverb): print("Frequency axis: nw=%d ow=%f dw=%f"%(self.__nwc,self.__ow,self.__dwc))
+
+    # Create frequency domain data
+    _,_,_,dfft = fft1(dat,dt,minf=minf,maxf=maxf)
+    dfftd = dfft[:,::jf]
+    # Allocate the data for one shot
+    datw = np.zeros([self.__ny,self.__nx,self.__nwc],dtype='complex64')
+    # Allocate the source for one shot
+    sou = np.zeros([self.__nwc,self.__ny,self.__nx],dtype='complex64')
+
+    # Single square root object
+    ssf = ssr3(self.__nx ,self.__ny,self.__nz ,     # Spatial Sizes
+               self.__dx ,self.__dy,self.__dz ,     # Spatial Samplings
+               self.__nwc,self.__ow,self.__dwc,eps, # Frequency axis
+               ntx,nty,px,py,                       # Taper and padding
+               dtmax,nrmax,nthrds)                  # Reference velocities and threads
+
+    # Compute slowness and reference slownesses
+    slo = 1/vel
+    ssf.set_slows(slo)
+
+    # Allocate temporary partial image
+    dslotmp = np.zeros([self.__nz,self.__ny,self.__nx],dtype='complex64')
+    odslo   = np.zeros([self.__nz,self.__ny,self.__nx],dtype='complex64')
+
+    # Loop over sources
+    ntr = 0
+    for iexp in progressbar(range(self.__nexp),"nexp:",verb=sverb):
+      # Get the source coordinates
+      sy = self.__srcys[iexp]; sx = self.__srcxs[iexp]
+      isy = int((sy-self.__oy)/self.__dy+0.5); isx = int((sx-self.__ox)/self.__dx+0.5)
+      # Create the source wavefield for this shot
+      sou[:] = 0.0
+      sou[:,isy,isx]  = wfftd[:]
+      # Inject the data for this shot
+      datw[:] = 0.0
+      ssf.inject_data(self.__nrec[iexp],self.__recys[ntr:],self.__recxs[ntr:],self.__oy,self.__ox,dfftd[ntr:,:],datw)
+      datwt = np.ascontiguousarray(np.transpose(datw,(2,0,1))) # [ny,nx,nwc] -> [nwc,ny,nx]
+      # Initialize temporary image
+      dslotmp[:] = 0.0
+      # Adjoint WEMVA
+      ssf.awemvaallw(sou,datwt,dslotmp,dimg,verb=wverb)
+      odslo += dslotmp
+      # Increase number of traces
+      ntr += self.__nrec[iexp]
+
+    return np.real(odslo)
+
   def to_angle(self,img,mode='kzx',amax=None,na=None,nthrds=4,transp=False,
                eps=1.0,oro=None,dro=None,verb=False):
     """

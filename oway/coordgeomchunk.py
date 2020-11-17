@@ -110,9 +110,9 @@ class coordgeomchunk:
       a coordinate geom object
     """
     # Spatial axes
-    self.__nx = nx; self.__ox = ox; self.__dx = dx
-    self.__ny = ny; self.__oy = oy; self.__dy = dy
-    self.__nz = nz; self.__oz = oz; self.__dz = dz
+    self.__nx, self.__ox, self.__dx = nx, ox, dx
+    self.__ny, self.__oy, self.__dy = ny, oy, dy
+    self.__nz, self.__oz, self.__dz = nz, oz, dz
     ## Source gometry
     # Check if either is none
     if(srcx is None and srcy is None):

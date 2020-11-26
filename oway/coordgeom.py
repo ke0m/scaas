@@ -6,7 +6,7 @@ and receiver coordinates
 """
 import numpy as np
 from oway.ssr3 import ssr3, interp_slow
-from oway.utils import fft1, ifft1, make_sht_cube
+from oway.utils import fft1, ifft1, next_fast_size, make_sht_cube
 from scaas.off2ang import off2angssk,off2angkzx
 from genutils.ptyprint import progressbar
 import matplotlib.pyplot as plt
@@ -77,7 +77,7 @@ class coordgeom:
       raise Exception("Each trace must have same number of x and y coordinates")
     self.__recxs = recxs.astype('float32'); self.__recys = recys.astype('float32')
     # Number of receivers per shot
-    if(nrec.dtype != 'int'):
+    if(nrec.dtype != 'int32'):
       raise Exception("nrec (number of receivers) must be integer type array")
     self.__nrec = nrec
     # Number of traces
@@ -169,9 +169,6 @@ class coordgeom:
       # Downward continuation
       datw[:] = 0.0
       ssf.modallw(ref,sou,datw,wverb)
-      #plt.figure()
-      #plt.imshow(np.real(datw[:,0,:]),cmap='gray',interpolation='sinc',aspect='auto')
-      #plt.show()
       # Restrict to receiver locations
       datwt = np.ascontiguousarray(np.transpose(datw,(1,2,0)))  # [nwc,ny,nx] -> [ny,nx,nwc]
       ssf.restrict_data(self.__nrec[iexp],self.__recys[ntr:],self.__recxs[ntr:],self.__oy,self.__ox,datwt,recw[ntr:,:])
@@ -188,8 +185,7 @@ class coordgeom:
                  ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=False):
     """
     3D migration of shot profile data via the one-way wave equation (single-square
-    root split-step fourier method). Input data are assumed to follow
-    the default geometry (sources and receivers on a regular grid)
+    root split-step fourier method).
 
     Parameters:
       dat     - input shot profile data [ntr,nt]
@@ -273,6 +269,7 @@ class coordgeom:
       # Allocate memory necessary for extension
       ssf.set_ext(nhy,nhx,sym)
 
+    from genutils.movie import viewcube3d
     # Loop over sources
     ntr = 0
     for iexp in progressbar(range(self.__nexp),"nexp:",verb=sverb):
@@ -286,6 +283,8 @@ class coordgeom:
       datw[:] = 0.0
       ssf.inject_data(self.__nrec[iexp],self.__recys[ntr:],self.__recxs[ntr:],self.__oy,self.__ox,dfftd[ntr:,:],datw)
       datwt = np.ascontiguousarray(np.transpose(datw,(2,0,1))) # [ny,nx,nwc] -> [nwc,ny,nx]
+      print(datwt.shape,imgtmp.shape)
+      #viewcube3d(np.real(datwt),cmap='gray')
       # Initialize temporary image
       imgtmp[:] = 0.0
       if(nhx == 0 and nhy == 0):
@@ -555,7 +554,7 @@ class coordgeom:
     Returns:
       Nothing. Just a verbose output of the frequency axis
     """
-    nt = 2*self.next_fast_size(int((n1+1)/2))
+    nt = 2*next_fast_size(int((n1+1)/2))
     if(nt%2): nt += 1
     nw = int(nt/2+1)
     dw = 1/(nt*dt)
@@ -563,4 +562,51 @@ class coordgeom:
     begw = int(minf/dw); endw = int(maxf/dw)
     nwc = (endw-begw)/jf
     print("Test frequency axis: nw=%d ow=%d dw=%f"%(nwc,minf,dw*jf))
+
+  def plot_acq(self,mod=None,srcs=True,recs=False,show=True,**kwargs):
+    """
+    Plots the acquisition on the velocity model
+
+    Parameters:
+      mod  - input velocity model [nz,ny,nx] [None]
+      show - display the model [None]
+    """
+    if(mod is None):
+      mod = np.zeros([self.__nz,self.__ny,self.__nx],dtype='float32')
+    vmin,vmax = np.min(mod),np.max(mod)
+    if(self.__ny == 1):
+      # 2D acquisition
+      fig = plt.figure(figsize=(kwargs.get('wbox',14),kwargs.get('hbox',7)))
+      ax = fig.gca()
+      # Plot model
+      im = ax.imshow(mod[:,0,:],extent=[self.__ox,self.__ox+self.__nx*self.__dx,self.__oz+self.__nz*self.__dz,self.__oz],
+                     vmin=kwargs.get('vmin',vmin),vmax=kwargs.get('vmax',vmax),
+                     cmap=kwargs.get('cmap','jet'))
+      ax.set_xlabel('X (km)',fontsize=kwargs.get('labelsize',14))
+      ax.set_ylabel('Z (km)',fontsize=kwargs.get('labelsize',14))
+      ax.set_title(kwargs.get('title',''),fontsize=kwargs.get('labelsize',14))
+      ax.tick_params(labelsize=kwargs.get('labelsize',14))
+      if(srcs):
+        ax.scatter(self.__srcxs,marker='*',color='tab:red')
+      if(recs):
+        ax.scatter(self.__recxs,marker='v',color='tab:green')
+      if(show): plt.show()
+    else:
+      # 3D acquisition
+      fig = plt.figure(figsize=(kwargs.get('wbox',14),kwargs.get('hbox',7)))
+      ax = fig.gca()
+      # Plot depth slice
+      im = ax.imshow(np.flipud(mod[kwargs.get('iz',self.__nz//2)].T),
+                     extent=[self.__ox,self.__ox+self.__nx*self.__dx,self.__oy,self.__oy+self.__ny*self.__dy],
+                     vmin=kwargs.get('vmin',vmin),vmax=kwargs.get('vmax',vmax),
+                     cmap=kwargs.get('cmap','jet'))
+      ax.set_xlabel('X (km)',fontsize=kwargs.get('labelsize',14))
+      ax.set_ylabel('Z (km)',fontsize=kwargs.get('labelsize',14))
+      ax.set_title(kwargs.get('title',''),fontsize=kwargs.get('labelsize',14))
+      ax.tick_params(labelsize=kwargs.get('labelsize',14))
+      if(srcs):
+        ax.scatter(self.__srcxs,self.__srcys,marker='*',color='tab:red')
+      if(recs):
+        ax.scatter(self.__recxs,self.__recys,marker='v',color='tab:green')
+      if(show): plt.show()
 

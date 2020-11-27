@@ -878,7 +878,7 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
   /* FFT (w-x-y) -> (w-kx-ky) */
   memset(_wxks[ithrd],0,sizeof(std::complex<float>)*(_bx*_by));
   for(int iy = 0; iy < _ny; ++iy) {
-    memcpy(&_wxks[ithrd][iy*_bx],&wx[iy*_nx],sizeof(std::complex<float>)*_nx*_ny);
+    memcpy(&_wxks[ithrd][iy*_bx],&wx[iy*_nx],sizeof(std::complex<float>)*_nx);
   }
   fftwf_execute(_fplans[ithrd]);
 

@@ -269,7 +269,6 @@ class coordgeom:
       # Allocate memory necessary for extension
       ssf.set_ext(nhy,nhx,sym)
 
-    from genutils.movie import viewcube3d
     # Loop over sources
     ntr = 0
     for iexp in progressbar(range(self.__nexp),"nexp:",verb=sverb):
@@ -283,8 +282,6 @@ class coordgeom:
       datw[:] = 0.0
       ssf.inject_data(self.__nrec[iexp],self.__recys[ntr:],self.__recxs[ntr:],self.__oy,self.__ox,dfftd[ntr:,:],datw)
       datwt = np.ascontiguousarray(np.transpose(datw,(2,0,1))) # [ny,nx,nwc] -> [nwc,ny,nx]
-      print(datwt.shape,imgtmp.shape)
-      #viewcube3d(np.real(datwt),cmap='gray')
       # Initialize temporary image
       imgtmp[:] = 0.0
       if(nhx == 0 and nhy == 0):

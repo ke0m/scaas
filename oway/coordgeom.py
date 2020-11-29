@@ -39,7 +39,7 @@ class coordgeom:
       a coordinate geom object
     """
     # Spatial axes
-    self.__nx, self.__ox, self.__dy = nx, ox, dx
+    self.__nx, self.__ox, self.__dx = nx, ox, dx
     self.__ny, self.__oy, self.__dy = ny, oy, dy
     self.__nz, self.__oz, self.__dz = nz, oz, dz
     ## Source gometry

@@ -66,6 +66,8 @@ class imagechunkr:
       self.__srcx = np.zeros(len(self.__srcy),dtype='int')
     if(self.__srcy is None):
       self.__srcy = np.zeros(len(self.__srcx),dtype='int')
+    if(len(self.__srcx) != len(self.__srcy)):
+      raise Exception("Number of srcx coordinates must == number of srcy coordinates")
 
     # Check receiver coordinates
     self.__recx,self.__recy,self.__nrec = recx,recy,nrec

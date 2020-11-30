@@ -593,7 +593,7 @@ class coordgeom:
       fig = plt.figure(figsize=(kwargs.get('wbox',14),kwargs.get('hbox',7)))
       ax = fig.gca()
       # Plot depth slice
-      im = ax.imshow(np.flipud(mod[kwargs.get('iz',self.__nz//2)].T),
+      im = ax.imshow(np.flipud(mod[kwargs.get('iz',self.__nz//2)]),
                      extent=[self.__ox,self.__ox+self.__nx*self.__dx,self.__oy,self.__oy+self.__ny*self.__dy],
                      vmin=kwargs.get('vmin',vmin),vmax=kwargs.get('vmax',vmax),
                      cmap=kwargs.get('cmap','jet'))

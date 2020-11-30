@@ -77,9 +77,13 @@ class imagechunkr:
       self.__recx = np.zeros(len(self.__recy),dtype='int')
     if(recy is None):
       self.__recy = np.zeros(len(self.__recx),dtype='int')
+    if(len(self.__recx) != len(self.__recy)):
+      raise Exception("Number of recx coordinates must == number of recy coordinates")
 
     # Get number of experiments
     self.__nexp = len(nrec)
+    if(len(self.__nexp) != len(self.__srcx)):
+      raise Exception("Number of nrecs must equal number of srcx/y coordinates")
 
     # Create frequency domain source
     self.__nt,self.__dt = dat.shape[-1],dt

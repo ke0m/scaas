@@ -41,11 +41,14 @@ class ssr3{
     void ssr3ssf_migonew(int iw, std::complex<float> *dat, std::complex<float> *wav, float *img, int ithrd);
     void ssr3ssf_migallw(std::complex<float> *dat, std::complex<float> *wav, float *img, bool verb);
     /* Extended imaging */
-    void set_ext(int nhy, int nhx, bool sym);
+    void set_ext(int nhy, int nhx, bool sym, bool alloc);
     void del_ext();
     void ssr3ssf_migoffonew(int iw, std::complex<float> *dat, std::complex<float> *wav,
                             int bly, int ely, int blx, int elx, float *img, int ithrd);
     void ssr3ssf_migoffallw(std::complex<float> *dat, std::complex<float> *wav, float *img, bool verb);
+    void ssr3ssf_migoffonewbig(int iw, std::complex<float> *dat, std::complex<float> *wav,
+                            int bly, int ely, int blx, int elx, float *img, int ithrd);
+    void ssr3ssf_migoffallwbig(std::complex<float> *dat, std::complex<float> *wav, float *img, bool verb);
     /* Model zero offset */
     void ssr3ssf_modallwzo(float *img, std::complex<float> *dat, bool verb);
     void ssr3ssf_modonewzo(int iw, float *img, std::complex<float> *dat, int ithrd);

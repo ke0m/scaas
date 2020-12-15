@@ -354,7 +354,8 @@ class coordgeomchunk:
         imgtmp = np.zeros([self.__rnhy,self.__rnhx,self.__nz,self.__ny,self.__nx],dtype='float32')
         oimg   = np.zeros([self.__rnhy,self.__rnhx,self.__nz,self.__ny,self.__nx],dtype='float32')
       # Allocate memory necessary for extension
-      ssf.set_ext(nhy,nhx,sym)
+      #ssf.set_ext(nhy,nhx,sym,True)
+      ssf.set_ext(nhy,nhx,sym,False)
 
     # Loop over sources
     ntr = 0
@@ -376,14 +377,15 @@ class coordgeomchunk:
         ssf.migallw(datwt,sou,imgtmp,wverb)
       else:
         # Extended imaging
-        ssf.migoffallw(datwt,sou,imgtmp,wverb)
+        #ssf.migoffallw(datwt,sou,imgtmp,wverb)
+        ssf.migoffallwbig(datwt,sou,imgtmp,wverb)
       oimg += imgtmp
       # Increase number of traces
       ntr += self.__nrec[iexp]
 
     # Free memory for extension
-    if(nhx != 0 or nhy != 0):
-      ssf.del_ext()
+    #if(nhx != 0 or nhy != 0):
+    #  ssf.del_ext()
 
     return oimg
 

@@ -1,7 +1,6 @@
 #include <math.h>
 #include <cstring>
 #include <omp.h>
-#include "kiss_fft.h"
 #include "ssr3.h"
 #include "progressbar.h"
 
@@ -9,7 +8,7 @@ ssr3::ssr3(int nx,   int ny,   int nz,
     float dx, float dy, float dz,
     int nw,   float ow, float dw, float eps,
     int ntx, int nty, int px, int py,
-    float dtmax, int nrmax) {
+    float dtmax, int nrmax, int nthrds) {
   /* Dimensions */
   _nx  = nx;  _ny  = ny;  _nz = nz; _nw = nw;
   _ntx = ntx; _nty = nty; _px = px; _py = py; _nrmax = nrmax;
@@ -27,13 +26,32 @@ ssr3::ssr3(int nx,   int ny,   int nz,
   build_taper(ntx,nty,_tapx,_tapy);
   /* Build spatial frequencies */
   build_karray(_dx,_dy,_bx,_by,_kk);
-  /* Forward and inverse FFTs */
-  _fwd1 = kiss_fft_alloc(_bx,0,NULL,NULL);
-  _inv1 = kiss_fft_alloc(_bx,1,NULL,NULL);
-  _fwd2 = kiss_fft_alloc(_by,0,NULL,NULL);
-  _inv2 = kiss_fft_alloc(_by,1,NULL,NULL);
-  /* Save a pointer to slowness */
-  _slo = NULL;
+  /* Create FFTW plans */
+  _nthrds = nthrds;
+  _fplans = new fftwf_plan[nthrds]();
+  _iplans = new fftwf_plan[nthrds]();
+  _wxks = new std::complex<float>*[_nthrds]();
+  _wkks = new std::complex<float>*[_nthrds]();
+  _wxxs = new std::complex<float>*[_nthrds]();
+  for(int ithrd = 0; ithrd < _nthrds; ++ithrd) {
+    _wxks[ithrd] = new std::complex<float>[_by*_bx]();
+    _wkks[ithrd] = new std::complex<float>[_by*_bx]();
+    _wxxs[ithrd] = new std::complex<float>[_by*_bx]();
+    _fplans[ithrd] = fftwf_plan_dft_2d(_by, _bx,
+        reinterpret_cast<fftwf_complex*>(_wxks[ithrd]),
+        reinterpret_cast<fftwf_complex*>(_wkks [ithrd]),
+        FFTW_FORWARD,FFTW_MEASURE);
+    _iplans[ithrd] = fftwf_plan_dft_2d(_by, _bx,
+        reinterpret_cast<fftwf_complex*>(_wxks[ithrd]),
+        reinterpret_cast<fftwf_complex*>(_wxxs[ithrd]),
+        FFTW_BACKWARD,FFTW_MEASURE);
+  }
+  /* Extended imaging parameters (default is zero lag) */
+  _rnhy = 1; _rnhx = 1;
+  _bly  = 0; _ely  = 0;
+  _blx  = 0; _elx  = 0;
+  /* Initialize pointers */
+  _slo = NULL; _imgar = NULL;
 }
 
 void ssr3::set_slows(float *slo) {
@@ -43,7 +61,7 @@ void ssr3::set_slows(float *slo) {
 
   /* Compute number of reference slownesses with depth */
   for(int iz = 0; iz < _nz; ++iz) {
-    _nr[iz] = nrefs(_nrmax, _dsmax, _nx*_ny, slo + iz*_nx*_ny, _sloref + _nrmax*iz);
+    _nr[iz] = nrefs(_nrmax, _dsmax, _nx*_ny, _slo + iz*_nx*_ny, _sloref + _nrmax*iz);
   }
 
   /* Build reference slownesses */
@@ -52,9 +70,39 @@ void ssr3::set_slows(float *slo) {
       _sloref[iz*_nrmax + ir] = 0.5*(_sloref[iz*_nrmax + ir] + _sloref[(iz+1)*_nrmax + ir]);
     }
   }
+
 }
 
-void ssr3::ssr3ssf_modallw(float *ref, std::complex<float> *wav, std::complex<float> *dat, int nthrds, bool verb) {
+void ssr3::inject_src(int nsrc, float *srcy, float *srcx, float oy, float ox,
+    std::complex<float> *wav, std::complex<float> *sou) {
+
+  /* Loop over receivers */
+  for(int is = 0; is < nsrc; ++is) {
+    int isy = (srcy[is]-oy)/_dy + 0.5;
+    int isx = (srcx[is]-ox)/_dx + 0.5;
+    if(isy >= 0 && isy < _ny && isx >= 0 && isx < _nx) {
+      memcpy(&sou[isy*_nw*_nx + isx*_nw],&wav[is*_nw],sizeof(std::complex<float>)*_nw);
+    }
+  }
+}
+
+void ssr3::inject_srct(int nsrc, float *srcy, float *srcx, float oy, float ox,
+    std::complex<float> *wav, std::complex<float> *sou) {
+
+  /* Loop over sources */
+  for(int is = 0; is < nsrc; ++is) {
+    int isy = (srcy[is]-oy)/_dy + 0.5;
+    int isx = (srcx[is]-ox)/_dx + 0.5;
+    if(isy >= 0 && isy < _ny && isx >= 0 && isx < _nx) {
+      for(int iw = 0; iw < _nw; ++iw) {
+        sou[iw*_nx*_ny + isy*_nx + isx] = wav[is*_nw + iw];
+      }
+    }
+  }
+
+}
+
+void ssr3::ssr3ssf_modallw(float *ref, std::complex<float> *wav, std::complex<float> *dat, bool verb) {
 
   /* Check if built reference velocities */
   if(_slo == NULL) {
@@ -62,18 +110,20 @@ void ssr3::ssr3ssf_modallw(float *ref, std::complex<float> *wav, std::complex<fl
   }
 
   /* Set up printing if verbosity is desired */
-   int *widx = new int[nthrds]();
-   int csize = (int)_nw/nthrds;
-   bool firstiter = true;
+  int *widx = new int[_nthrds]();
+  int csize = (int)_nw/_nthrds;
+  bool firstiter = true;
 
   /* Loop over frequency */
-  omp_set_num_threads(nthrds);
+  omp_set_num_threads(_nthrds);
 #pragma omp parallel for default(shared)
   for(int iw = 0; iw < _nw; ++iw) {
-    if(firstiter && verb) widx[omp_get_thread_num()] = iw;
-    if(verb) printprogress_omp("nw:",iw-widx[omp_get_thread_num()],csize,omp_get_thread_num());
+    /* Verbosity */
+    int wthd = omp_get_thread_num();
+    if(firstiter && verb) widx[wthd] = iw;
+    if(verb) printprogress_omp("nw:",iw-widx[wthd],csize,wthd);
     /* Get wavelet and model data for current frequency */
-    ssr3ssf_modonew(iw, ref, wav + iw*_nx*_ny, dat + iw*_nx*_ny);
+    ssr3ssf_modonew(iw, ref, wav + iw*_nx*_ny, dat + iw*_nx*_ny, wthd);
     firstiter = false;
   }
   if(verb) printf("\n");
@@ -81,7 +131,7 @@ void ssr3::ssr3ssf_modallw(float *ref, std::complex<float> *wav, std::complex<fl
   delete[] widx;
 }
 
-void ssr3::ssr3ssf_modonew(int iw, float *ref, std::complex<float> *wav, std::complex<float> *dat) {
+void ssr3::ssr3ssf_modonew(int iw, float *ref, std::complex<float> *wav, std::complex<float> *dat, int ithrd) {
 
   /* Allocate two temporary arrays */
   std::complex<float> *sslc = new std::complex<float>[_ny*_nx*_nz](); // (z,y,x)
@@ -96,7 +146,7 @@ void ssr3::ssr3ssf_modonew(int iw, float *ref, std::complex<float> *wav, std::co
   /* Source loop over depth */
   for(int iz = 0; iz < _nz-1; ++iz) {
     /* Depth extrapolation */
-    ssr3ssf(w, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, sslc + (iz)*_nx*_ny, sslc + (iz+1)*_nx*_ny);
+    ssr3ssf(w, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, sslc + (iz)*_nx*_ny, sslc + (iz+1)*_nx*_ny, ithrd);
   }
 
   /* Receiver loop over depth */
@@ -111,7 +161,7 @@ void ssr3::ssr3ssf_modonew(int iw, float *ref, std::complex<float> *wav, std::co
     }
 
     /* Depth extrapolation */
-    ssr3ssf(w, iz, _slo+(iz)*_nx*_ny, _slo+(iz-1)*_nx*_ny, rslc);
+    ssr3ssf(w, iz, _slo+(iz)*_nx*_ny, _slo+(iz-1)*_nx*_ny, rslc, ithrd);
   }
 
   /* Taper the receiver wavefield */
@@ -122,46 +172,84 @@ void ssr3::ssr3ssf_modonew(int iw, float *ref, std::complex<float> *wav, std::co
 }
 
 void ssr3::restrict_data(int nrec, float *recy, float *recx, float oy, float ox,
-                         std::complex<float> *dat, std::complex<float> *rec) {
+    std::complex<float> *dat, std::complex<float> *rec) {
+
   /* Loop over receivers */
   for(int ir = 0; ir < nrec; ++ir) {
     int iry = (recy[ir]-oy)/_dy + 0.5;
     int irx = (recx[ir]-ox)/_dx + 0.5;
-    memcpy(&rec[ir*_nw],&dat[iry*_nw*_nx + irx*_nw],sizeof(std::complex<float>)*_nw);
+    if(iry >= 0 && iry < _ny && irx >=0 && irx < _nx) {
+      memcpy(&rec[ir*_nw],&dat[iry*_nw*_nx + irx*_nw],sizeof(std::complex<float>)*_nw);
+    }
+  }
+
+}
+
+void ssr3::restrict_datat(int nrec, float *recy, float *recx, float oy, float ox,
+    std::complex<float> *dat, std::complex<float> *rec) {
+  /* Loop over receivers */
+  for(int ir = 0; ir < nrec; ++ir) {
+    int iry = (recy[ir]-oy)/_dy + 0.5;
+    int irx = (recx[ir]-ox)/_dx + 0.5;
+    if(iry >= 0 && iry < _ny && irx >=0 && irx < _nx) {
+      for(int iw = 0; iw < _nw; ++iw) {
+        rec[ir*_nw + iw] = dat[iw*_nx*_ny + iry*_nx + irx];
+      }
+    }
   }
 
 }
 
 void ssr3::inject_data(int nrec, float *recy, float *recx, float oy, float ox,
-                              std::complex<float> *rec, std::complex<float> *dat) {
+    std::complex<float> *rec, std::complex<float> *dat) {
+
   /* Loop over receivers */
   for(int ir = 0; ir < nrec; ++ir) {
     int iry = (recy[ir]-oy)/_dy + 0.5;
     int irx = (recx[ir]-ox)/_dx + 0.5;
-    memcpy(&dat[iry*_nw*_nx + irx*_nw],&rec[ir*_nw],sizeof(std::complex<float>)*_nw);
+    if(iry >= 0 && iry < _ny && irx >= 0 && irx < _nx) {
+      memcpy(&dat[iry*_nw*_nx + irx*_nw],&rec[ir*_nw],sizeof(std::complex<float>)*_nw);
+    }
   }
 }
 
-void ssr3::ssr3ssf_migallw(std::complex<float> *dat, std::complex<float> *wav, float *img, int nthrds, bool verb) {
+void ssr3::inject_datat(int nrec, float *recy, float *recx, float oy, float ox,
+    std::complex<float> *rec, std::complex<float> *dat) {
+
+  /* Loop over receivers */
+  for(int ir = 0; ir < nrec; ++ir) {
+    int iry = (recy[ir]-oy)/_dy + 0.5;
+    int irx = (recx[ir]-ox)/_dx + 0.5;
+    if(iry >= 0 && iry < _ny && irx >= 0 && irx < _nx) {
+      for(int iw = 0; iw < _nw; ++iw) {
+        dat[iw*_nx*_ny + iry*_nx + irx] = rec[ir*_nw + iw];
+      }
+    }
+  }
+
+}
+
+void ssr3::ssr3ssf_migallw(std::complex<float> *dat, std::complex<float> *wav, float *img, bool verb) {
   /* Check if built reference velocities */
   if(_slo == NULL) {
     fprintf(stderr,"Must run set_slows before modeling or migration\n");
   }
 
   /* Set up printing if verbosity is desired */
-  int *widx = new int[nthrds]();
-  int csize = (int)_nw/nthrds;
+  int *widx = new int[_nthrds]();
+  int csize = (int)_nw/_nthrds;
   bool firstiter = true;
 
   /* Loop over frequency */
-     omp_set_num_threads(nthrds);
+  omp_set_num_threads(_nthrds);
 #pragma omp parallel for default(shared)
   for(int iw = 0; iw < _nw; ++iw) {
     /* Verbosity */
-    if(firstiter && verb) widx[omp_get_thread_num()] = iw;
-    if(verb) printprogress_omp("nw:",iw-widx[omp_get_thread_num()],csize,omp_get_thread_num());
+    int wthd = omp_get_thread_num();
+    if(firstiter && verb) widx[wthd] = iw;
+    if(verb) printprogress_omp("nw:",iw-widx[wthd],csize,wthd);
     /* Migrate data for current frequency */
-    ssr3ssf_migonew(iw, dat + iw*_nx*_ny, wav + iw*_nx*_ny, img);
+    ssr3ssf_migonew(iw, dat + iw*_nx*_ny, wav + iw*_nx*_ny, img, wthd);
     firstiter = false;
   }
   if(verb) printf("\n");
@@ -169,7 +257,7 @@ void ssr3::ssr3ssf_migallw(std::complex<float> *dat, std::complex<float> *wav, f
   delete[] widx;
 }
 
-void ssr3::ssr3ssf_migonew(int iw, std::complex<float> *dat, std::complex<float> *wav, float *img) {
+void ssr3::ssr3ssf_migonew(int iw, std::complex<float> *dat, std::complex<float> *wav, float *img, int ithrd) {
 
   /* Temporary arrays (depth slices) */
   std::complex<float> *sslc = new std::complex<float>[_ny*_nx]();
@@ -185,8 +273,8 @@ void ssr3::ssr3ssf_migonew(int iw, std::complex<float> *dat, std::complex<float>
   /* Loop over all depths (note goes up to nz-1) */
   for(int iz = 0; iz < _nz-1; ++iz) {
     /* Depth extrapolation of source and receiver wavefields */
-    ssr3ssf(ws, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, sslc);
-    ssr3ssf(wr, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, rslc);
+    ssr3ssf(ws, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, sslc, ithrd);
+    ssr3ssf(wr, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, rslc, ithrd);
     /* Imaging condition */
     for(int iy = 0; iy < _ny; ++iy) {
       for(int ix = 0; ix < _nx; ++ix) {
@@ -198,46 +286,89 @@ void ssr3::ssr3ssf_migonew(int iw, std::complex<float> *dat, std::complex<float>
   delete[] sslc; delete[] rslc;
 }
 
-void ssr3::ssr3ssf_migoffallw(std::complex<float> *dat, std::complex<float> *wav, int nhy, int nhx, bool sym, float *img,
-                              int nthrds, bool verb) {
+void ssr3::set_ext(int nhy, int nhx, bool sym) {
+  /* Only call if imgar is NULL */
+  if(_imgar == NULL) {
+    /* Compute the sizes and bounds for the lags in the imaging condition */
+    if(sym) {
+      // Total size
+      _rnhy = 2*nhy + 1; _rnhx = 2*nhx + 1;
+      // Bounds
+      _blx = -nhx; _elx = nhx;
+      _bly = -nhy; _ely = nhy;
+    } else {
+      // Total size
+      _rnhy = nhy + 1; _rnhx = nhx + 1;
+      // Bounds
+      _blx = 0; _elx = nhx;
+      _bly = 0; _ely = nhy;
+    }
+
+    /* Allocate image array */
+    _imgar = new float*[_nthrds]();
+    for(int ithrd  = 0; ithrd < _nthrds; ++ithrd) {
+      _imgar[ithrd] = new float[_rnhy*_rnhx*_nz*_ny*_nx]();
+    }
+  } else {
+    fprintf(stderr,"Not setting extension. imgar has been allocated.\n");
+  }
+}
+
+void ssr3::del_ext() {
+  if(_imgar != NULL) {
+    for(int ithrd = 0; ithrd < _nthrds; ++ithrd) delete[] _imgar[ithrd];
+    delete[] _imgar;
+  } else {
+    fprintf(stderr,"Not deleting extension. imgar has not been allocated.\n");
+  }
+}
+
+void ssr3::ssr3ssf_migoffallw(std::complex<float> *dat, std::complex<float> *wav, float *img, bool verb) {
   /* Check if built reference velocities */
   if(_slo == NULL) {
     fprintf(stderr,"Must run set_slows before modeling or migration\n");
   }
 
-  /* Compute the bounds for the lags in the imaging condition */
-  int blx, elx, bly, ely;
-  if(sym) {
-    blx = -nhx; elx = nhx;
-    bly = -nhy; ely = nhy;
-  } else {
-    blx = 0; elx = nhx;
-    bly = 0; ely = nhy;
+  /* Check if array has been allocated */
+  if(_imgar == NULL) {
+    fprintf(stderr,"Must run set_ext before extended imaging\n");
   }
 
+  /* Initialize image array */
+  for(int ithrd = 0; ithrd < _nthrds; ++ithrd)
+    memset(_imgar[ithrd],0,sizeof(float)*_rnhy*_rnhx*_nz*_ny*_nx);
+
   /* Set up printing if verbosity is desired */
-  int *widx = new int[nthrds]();
-  int csize = (int)_nw/nthrds;
+  int *widx = new int[_nthrds]();
+  int csize = (int)_nw/_nthrds;
   bool firstiter = true;
 
   /* Loop over frequency */
-  omp_set_num_threads(nthrds);
+  omp_set_num_threads(_nthrds);
 #pragma omp parallel for default(shared)
   for(int iw = 0; iw < _nw; ++iw) {
     /* Verbosity */
-    if(firstiter && verb) widx[omp_get_thread_num()] = iw;
-    if(verb) printprogress_omp("nw:",iw-widx[omp_get_thread_num()],csize,omp_get_thread_num());
+    int wthd = omp_get_thread_num();
+    if(firstiter && verb) widx[wthd] = iw;
+    if(verb) printprogress_omp("nw:",iw-widx[wthd],csize,wthd);
     /* Migrate data for current frequency */
-    ssr3ssf_migoffonew(iw, dat + iw*_nx*_ny, wav + iw*_nx*_ny, bly, ely, blx, elx, img);
+    ssr3ssf_migoffonew(iw, dat + iw*_nx*_ny, wav + iw*_nx*_ny, _bly, _ely, _blx, _elx, _imgar[wthd], wthd);
     firstiter = false;
+  }
+  /* Sum all images */
+  for(int ithrd = 0; ithrd < _nthrds; ++ithrd) {
+    for(int k = 0; k < _rnhy*_rnhx*_nz*_ny*_nx; ++k){
+      img[k] += _imgar[ithrd][k];
+    }
   }
   if(verb) printf("\n");
 
+  /* Free memory */
   delete[] widx;
 }
 
 void ssr3::ssr3ssf_migoffonew(int iw, std::complex<float> *dat, std::complex<float>*wav,
-                              int bly, int ely, int blx, int elx, float *img) {
+    int bly, int ely, int blx, int elx, float *img, int ithrd) {
   /* Temporary arrays (depth slices) */
   std::complex<float> *sslc = new std::complex<float>[_ny*_nx]();
   std::complex<float> *rslc = new std::complex<float>[_ny*_nx]();
@@ -258,10 +389,9 @@ void ssr3::ssr3ssf_migoffonew(int iw, std::complex<float> *dat, std::complex<flo
   /* Loop over all depths */
   for(int iz = 0; iz < _nz-1; ++iz) {
     /* Depth extrapolation of source and receiver wavefields */
-    ssr3ssf(ws, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, sslc);
-    ssr3ssf(wr, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, rslc);
+    ssr3ssf(ws, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, sslc, ithrd);
+    ssr3ssf(wr, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, rslc, ithrd);
     /* Loops over lags */
-#pragma omp critical
     for(int ily = bly; ily <= ely; ++ily) {
       for(int ilx = blx; ilx <= elx; ++ilx) {
         /* Imaging condition (should do this on ISPC) */
@@ -269,7 +399,7 @@ void ssr3::ssr3ssf_migoffonew(int iw, std::complex<float> *dat, std::complex<flo
           for(int ix = begx; ix < endx; ++ix) {
             int imgidx = iz*_nx*_ny + iy*_nx + ix;
             img[(ily+shfy)*_nx*_ny*_nz*nhx + (ilx+shfx)*_nx*_ny*_nz + imgidx]  +=
-                                 std::real(std::conj(sslc[(iy-ily)*_nx + (ix-ilx)])*rslc[(iy+ily)*_nx + (ix+ilx)]);
+                std::real(std::conj(sslc[(iy-ily)*_nx + (ix-ilx)])*rslc[(iy+ily)*_nx + (ix+ilx)]);
           } // x
         } // y
       } // lx
@@ -279,11 +409,393 @@ void ssr3::ssr3ssf_migoffonew(int iw, std::complex<float> *dat, std::complex<flo
   delete[] sslc; delete[] rslc;
 }
 
-void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std::complex<float> *wxin, std::complex<float> *wxot) {
+void ssr3::ssr3ssf_modallwzo(float *img, std::complex<float> *dat, bool verb) {
+  /* Check if built reference velocities */
+  if(_slo == NULL) {
+    fprintf(stderr,"Must run set_slows before modeling or migration\n");
+  }
+
+  /* Set up printing if verbosity is desired */
+  int *widx = new int[_nthrds]();
+  int csize = (int)_nw/_nthrds;
+  bool firstiter = true;
+
+  /* Loop over frequency */
+  omp_set_num_threads(_nthrds);
+#pragma omp parallel for default(shared)
+  for(int iw = 0; iw < _nw; ++iw) {
+    /* Verbosity */
+    int wthd = omp_get_thread_num();
+    if(firstiter && verb) widx[wthd] = iw;
+    if(verb) printprogress_omp("nw:",iw-widx[wthd],csize,wthd);
+    /* Get wavelet and model data for current frequency */
+    ssr3ssf_modonewzo(iw, img, dat + iw*_nx*_ny, wthd);
+    firstiter = false;
+  }
+  if(verb) printf("\n");
+
+  delete[] widx;
+}
+
+void ssr3::ssr3ssf_modonewzo(int iw, float *img, std::complex<float> *dat, int ithrd) {
+
+  /* Current frequency */
+  std::complex<float> w(_eps*_dw,+(_ow + iw*_dw)); // Causal
+
+  /* Loop over depth */
+  for(int iz = _nz-1; iz > 0; --iz) {
+    /* Boundary (imaging) condition */
+    for(int iy = 0; iy < _ny; ++iy) {
+      for(int ix = 0; ix < _nx; ++ix) {
+        dat[iy*_nx + ix] += std::complex<float>(img[iz*_ny*_nx + iy*_nx + ix]);
+      }
+    }
+    /* Upward continuation */
+    ssr3ssf(w, iz, _slo+(iz)*_nx*_ny, _slo+(iz-1)*_nx*_ny, dat, ithrd);
+  }
+  /* Data=Image at z=0 */
+  for(int iy = 0; iy < _ny; ++iy) {
+    for(int ix = 0; ix < _nx; ++ix) {
+      dat[iy*_nx + ix] += std::complex<float>(img[_ny*_nx + iy*_nx + ix],0.0);
+    }
+  }
+
+  /* Apply taper to output */
+  apply_taper(dat);
+}
+
+
+void ssr3::ssr3ssf_migallwzo(std::complex<float> *dat, float *img, bool verb) {
+
+  /* Check if built reference velocities */
+  if(_slo == NULL) {
+    fprintf(stderr,"Must run set_slows before modeling or migration\n");
+  }
+
+  /* Set up printing if verbosity is desired */
+  int *widx = new int[_nthrds]();
+  int csize = (int)_nw/_nthrds;
+  bool firstiter = true;
+
+  /* Loop over frequency */
+  omp_set_num_threads(_nthrds);
+#pragma omp parallel for default(shared)
+  for(int iw = 0; iw < _nw; ++iw) {
+    /* Verbosity */
+    int wthd = omp_get_thread_num();
+    if(firstiter && verb) widx[wthd] = iw;
+    if(verb) printprogress_omp("nw:",iw-widx[wthd],csize,wthd);
+    /* Migrate data for current frequency */
+    ssr3ssf_migonewzo(iw, dat + iw*_nx*_ny, img, wthd);
+    firstiter = false;
+  }
+  if(verb) printf("\n");
+
+  delete[] widx;
+}
+
+void ssr3::ssr3ssf_migonewzo(int iw, std::complex<float> *dat, float *img, int ithrd) {
+  /* Temporary array (depth slice) */
+  std::complex<float> *slc = new std::complex<float>[_ny*_nx]();
+
+  /* Current frequency */
+  std::complex<float> w(_eps*_dw,-(_ow + iw*_dw)); // Anti-causal
+
+  /* Apply taper to data */
+  apply_taper(dat, slc);
+
+  /* Image at z=0 is just wavefield (data) (just loop and add) */
+  for(int iy = 0; iy < _ny; ++iy) {
+    for(int ix = 0; ix < _nx; ++ix) {
+      img[iy*_nx + ix] += std::real(slc[iy*_nx + ix]);
+    }
+  }
+
+  /* Loop over depth */
+  for(int iz = 0; iz < _nz-1; ++iz) {
+    /* Downward continue the data */
+    ssr3ssf(w, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, slc, ithrd);
+    /* Imaging condition */
+    for(int iy = 0; iy < _ny; ++iy) {
+      for(int ix = 0; ix < _nx; ++ix) {
+        img[(iz+1)*_nx*_ny + iy*_nx + ix] += std::real(slc[iy*_nx + ix]);
+      }
+    }
+  }
+
+  /* Free memory */
+  delete[] slc;
+}
+
+void ssr3::ssr3ssf_fwfallwzo(std::complex<float> *dat, std::complex<float> *wfl, bool verb) {
+  /* Check if built reference velocities */
+  if(_slo == NULL) {
+    fprintf(stderr,"Must run set_slows before modeling or migration\n");
+  }
+
+  /* Set up printing if verbosity is desired */
+  int *widx = new int[_nthrds]();
+  int csize = (int)_nw/_nthrds;
+  bool firstiter = true;
+
+  /* Loop over frequency */
+  omp_set_num_threads(_nthrds);
+#pragma omp parallel for default(shared)
+  for(int iw = 0; iw < _nw; ++iw) {
+    /* Verbosity */
+    int wthd = omp_get_thread_num();
+    if(firstiter && verb) widx[wthd] = iw;
+    if(verb) printprogress_omp("nw:",iw-widx[wthd],csize,wthd);
+    /* Compute wavefield for current frequency */
+    ssr3ssf_fwfonewzo(iw, dat + iw*_nx*_ny, wfl + iw*_nz*_nx*_ny, wthd);
+    firstiter = false;
+  }
+  if(verb) printf("\n");
+
+  delete[] widx;
+}
+
+void ssr3::ssr3ssf_fwfonewzo(int iw, std::complex<float> *dat, std::complex<float> *wfl, int ithrd) {
+  /* Current frequency */
+  std::complex<float> w(_eps*_dw,+(_ow + iw*_dw)); // Causal
+
+  /* Apply taper */
+  apply_taper(dat,wfl);
+
+  /* Loop over depth */
+  for(int iz = 0; iz < _nz-1; ++iz) {
+    /* Extrapolation */
+    ssr3ssf(w, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, wfl + (iz)*_nx*_ny, wfl + (iz+1)*_nx*_ny, ithrd);
+  }
+}
+
+void ssr3::ssr3ssf_awfallwzo(std::complex<float> *dat, std::complex<float> *wfl, bool verb) {
+  /* Check if built reference velocities */
+  if(_slo == NULL) {
+    fprintf(stderr,"Must run set_slows before modeling or migration\n");
+  }
+
+  /* Set up printing if verbosity is desired */
+  int *widx = new int[_nthrds]();
+  int csize = (int)_nw/_nthrds;
+  bool firstiter = true;
+
+  /* Loop over frequency */
+  omp_set_num_threads(_nthrds);
+#pragma omp parallel for default(shared)
+  for(int iw = 0; iw < _nw; ++iw) {
+    /* Verbosity */
+    int wthd = omp_get_thread_num();
+    if(firstiter && verb) widx[wthd] = iw;
+    if(verb) printprogress_omp("nw:",iw-widx[wthd],csize,wthd);
+    /* Compute wavefield for current frequency */
+    ssr3ssf_awfonewzo(iw, dat + iw*_nx*_ny, wfl + iw*_nz*_nx*_ny, wthd);
+    firstiter = false;
+  }
+  if(verb) printf("\n");
+
+  delete[] widx;
+}
+
+void ssr3::ssr3ssf_awfonewzo(int iw, std::complex<float> *dat, std::complex<float> *wfl, int ithrd) {
+
+  /* Current frequency */
+  std::complex<float> w(_eps*_dw,-(_ow + iw*_dw)); // Anti-causal
+
+  /* Apply taper */
+  apply_taper(dat,wfl);
+
+  /* Loop over depth */
+  for(int iz = 0; iz < _nz-1; ++iz) {
+    /* Extrapolation */
+    ssr3ssf(w, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, wfl + (iz)*_nx*_ny, wfl + (iz+1)*_nx*_ny, ithrd);
+  }
+}
+
+void ssr3::ssr3ssf_fwemvaallw(std::complex<float> *src, std::complex<float> *rec,
+    std::complex<float> *dslo, std::complex<float>* dimg, bool verb) {
+  /* Check if built reference velocities */
+  if(_slo == NULL) {
+    fprintf(stderr,"Must run set_slows before modeling or migration\n");
+  }
+
+  /* Set up printing if verbosity is desired */
+  int *widx = new int[_nthrds]();
+  int csize = (int)_nw/_nthrds;
+  bool firstiter = true;
+
+  /* Loop over frequency */
+  omp_set_num_threads(_nthrds);
+#pragma omp parallel for default(shared)
+  for(int iw = 0; iw < _nw; ++iw) {
+    /* Verbosity */
+    int wthd = omp_get_thread_num();
+    if(firstiter && verb) widx[wthd] = iw;
+    if(verb) printprogress_omp("nw:",iw-widx[wthd],csize,wthd);
+    /* Compute image perturbation for current frequency */
+    ssr3ssf_fwemvaonew(iw, src + iw*_ny*_nx, rec + iw*_ny*_nx, dslo, dimg, wthd);
+    firstiter = false;
+  }
+  if(verb) printf("\n");
+
+  /* Free memory */
+  delete[] widx;
+}
+
+void ssr3::ssr3ssf_fwemvaonew(int iw, std::complex<float> *wsslc, std::complex<float> *wrslc,
+                              std::complex<float> *dslo, std::complex<float> *dimg, int ithrd) {
+  /* Wavefield slices */
+  std::complex<float> *dws = new std::complex<float>[_ny*_nx]();
+  std::complex<float> *dwr = new std::complex<float>[_ny*_nx]();
+  /* Wavefields */
+  std::complex<float> *swfld = new std::complex<float>[_nz*_ny*_nx]();
+  std::complex<float> *rwfld = new std::complex<float>[_nz*_ny*_nx]();
+
+  /* Source and receiver frequencies */
+  std::complex<float> ws(_eps*_dw,+(_ow + iw*_dw)); // Causal
+  std::complex<float> wr(_eps*_dw,-(_ow + iw*_dw)); // Anti-causal
+
+   /* Scattering frequencies */
+   std::complex<float> iwdzs(0., -2 * std::imag(ws) * _dz);
+   std::complex<float> iwdzr(0., -2 * std::imag(wr) * _dz);
+
+  /* Compute the wavefields for one frequency for all depths */
+  ssr3ssf_fwfonewzo(iw, wsslc, swfld, ithrd);
+  ssr3ssf_awfonewzo(iw, wrslc, rwfld, ithrd);
+
+  /* Loop over depth */
+  for(int iz = 0; iz < _nz-1; ++iz) {
+
+    for(int iy = 0; iy < _ny; ++iy) {
+      for(int ix = 0; ix < _nx; ++ix) {
+        /* Forward scattering */
+        std::complex<float> pws = dslo[iz*_ny*_nx + iy*_nx + ix] * iwdzs * swfld[iz*_nx*_ny + iy*_nx + ix];
+        std::complex<float> pwr = dslo[iz*_ny*_nx + iy*_nx + ix] * iwdzr * rwfld[iz*_nx*_ny + iy*_nx + ix];
+        dws[iy*_nx + ix] += pws;
+        dwr[iy*_nx + ix] += pwr;
+        /* Compute the image perturbation */
+        dimg[iz*_ny*_nx + iy*_nx + ix] += std::conj(swfld[iz*_ny*_nx + iy*_nx + ix]) * dwr[iy*_nx + ix]
+                                          + std::conj(dws[iy*_nx + ix]) * rwfld[iz*_ny*_nx + iy*_nx + ix];
+      }
+    }
+
+    /* Extrapolation */
+    if(iz < _nz-1) {
+      ssr3ssf(ws,iz,_slo+(iz)*_nx*_ny,_slo+(iz+1)*_nx*_ny,dws,ithrd);
+      ssr3ssf(wr,iz,_slo+(iz)*_nx*_ny,_slo+(iz+1)*_nx*_ny,dwr,ithrd);
+    }
+
+  }
+
+  delete[] swfld; delete[] rwfld;
+  delete[] dws; delete[] dwr;
+}
+
+void ssr3::ssr3ssf_fwdscat(std::complex<float> w, std::complex<float> *bwslc, std::complex<float> *pwslc,
+                         std::complex<float>* dslo) {
+
+  std::complex<float> iwdz(0, -2 * std::imag(w) * _dz);
+
+  for(int iy = 0; iy < _ny; ++iy) {
+    for(int ix = 0; ix < _nx; ++ix) {
+      pwslc[iy*_nx + ix] = dslo[iy*_nx + ix] * iwdz * bwslc[iy*_nx + ix];
+    }
+  }
+}
+
+void ssr3::ssr3ssf_awemvaallw(std::complex<float> *src, std::complex<float> *rec,
+                              std::complex<float> *dslo, std::complex<float> *dimg, bool verb) {
+  /* Check if built reference velocities */
+  if(_slo == NULL) {
+    fprintf(stderr,"Must run set_slows before modeling or migration\n");
+  }
+
+  /* Set up printing if verbosity is desired */
+  int *widx = new int[_nthrds]();
+  int csize = (int)_nw/_nthrds;
+  bool firstiter = true;
+
+  /* Loop over frequency */
+   omp_set_num_threads(_nthrds);
+ #pragma omp parallel for default(shared)
+   for(int iw = 0; iw < _nw; ++iw) {
+     /* Verbosity */
+     int wthd = omp_get_thread_num();
+     if(firstiter && verb) widx[wthd] = iw;
+     if(verb) printprogress_omp("nw:",iw-widx[wthd],csize,wthd);
+     /* Compute image perturbation for current frequency */
+     ssr3ssf_awemvaonew(iw, src + iw*_ny*_nx, rec + iw*_ny*_nx, dslo, dimg, wthd);
+     firstiter = false;
+   }
+   if(verb) printf("\n");
+
+   /* Free memory */
+   delete[] widx;
+}
+
+void ssr3::ssr3ssf_awemvaonew(int iw, std::complex<float> *wsslc, std::complex<float> *wrslc,
+                              std::complex<float> *dslo, std::complex<float> *dimg, int ithrd) {
+  /* Wavefield slices */
+   std::complex<float> *dws = new std::complex<float>[_ny*_nx]();
+   std::complex<float> *dwr = new std::complex<float>[_ny*_nx]();
+   /* Wavefields */
+   std::complex<float> *swfld = new std::complex<float>[_nz*_ny*_nx]();
+   std::complex<float> *rwfld = new std::complex<float>[_nz*_ny*_nx]();
+
+   /* Source and receiver frequencies */
+   std::complex<float> ws(_eps*_dw,-(_ow + iw*_dw)); // Anti-causal
+   std::complex<float> wr(_eps*_dw,+(_ow + iw*_dw)); // Causal
+
+   /* Scattering frequencies */
+   std::complex<float> iwdzs(0., -2 * std::imag(ws) * _dz);
+   std::complex<float> iwdzr(0., -2 * std::imag(wr) * _dz);
+
+   /* Compute the wavefields for one frequency for all depths */
+   ssr3ssf_fwfonewzo(iw, wsslc, swfld, ithrd);
+   ssr3ssf_awfonewzo(iw, wrslc, rwfld, ithrd);
+
+   /* Loop over depth */
+   for(int iz = _nz-1; iz > 0; --iz) {
+     /* Extrapolation */
+     if(iz < _nz-1) {
+       ssr3ssf(ws,iz,_slo+(iz)*_nx*_ny,_slo+(iz-1)*_nx*_ny,dws,ithrd);
+       ssr3ssf(wr,iz,_slo+(iz)*_nx*_ny,_slo+(iz-1)*_nx*_ny,dwr,ithrd);
+     }
+
+     for(int iy = 0; iy < _ny; ++iy) {
+       for(int ix = 0; ix < _nx; ++ix) {
+         /* Update scattered wavefields */
+         dws[iy*_nx + ix] += rwfld[iz*_ny*_nx + iy*_nx + ix] * std::conj(dimg[iz*_ny*_nx + iy*_nx + ix]);
+         dwr[iy*_nx + ix] += swfld[iz*_ny*_nx + iy*_nx + ix] * dimg[iz*_ny*_nx + iy*_nx + ix];
+         /* Compute slowness perturbation */
+         std::complex<float> pss = dws[iy*_nx + ix] * iwdzs * std::conj(swfld[iz*_ny*_nx + iy*_nx + ix]);
+         std::complex<float> psr = dwr[iy*_nx + ix] * iwdzr * std::conj(rwfld[iz*_ny*_nx + iy*_nx + ix]);
+         dslo[iz*_ny*_nx + iy*_nx + ix] += pss + psr;
+       }
+     }
+
+   }
+
+   /* Free memory */
+   delete[] swfld; delete[] rwfld;
+   delete[] dws; delete[] dwr;
+}
+
+void ssr3::ssr3ssf_adjscat(std::complex<float> w, std::complex<float> *bwslc, std::complex<float> *pwslc,
+                           std::complex<float> *dslo) {
+
+  std::complex<float> iwdz(0., -2 * std::imag(w) * _dz);
+
+  for(int iy = 0; iy < _ny; ++iy) {
+    for(int ix = 0; ix < _nx; ++ix) {
+      dslo[iy*_nx + ix] = pwslc[iy*_nx + ix] * iwdz * std::conj(bwslc[iy*_nx + ix]);
+    }
+  }
+}
+
+void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std::complex<float> *wxin, std::complex<float> *wxot, int ithrd) {
 
   /* Temporary arrays */
-  std::complex<float> *pk  = new std::complex<float>[_bx*_by]();
-  std::complex<float> *wk  = new std::complex<float>[_bx*_by]();
   float *wt = new float[_nx*_ny]();
 
   std::complex<float> w2 = w*w;
@@ -293,12 +805,16 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
     for(int ix = 0; ix < _nx; ++ix) {
       float s = 0.5 * scur[iy*_nx + ix];
       wxot[iy*_nx + ix] = wxin[iy*_nx+ix]*exp(-w*s*_dz);
+      wxot[iy*_nx + ix] *= 1/sqrtf(_by*_bx); // FFT scaling
     }
   }
 
   /* FFT (w-x-y) -> (w-kx-ky) */
-  memcpy(pk,wxot,sizeof(std::complex<float>)*_nx*_ny);
-  fft2(false,(kiss_fft_cpx*)pk);
+  memset(_wxks[ithrd],0,sizeof(std::complex<float>)*(_bx*_by));
+  for(int iy = 0; iy < _ny; ++iy) {
+    memcpy(&_wxks[ithrd][iy*_bx],&wxot[iy*_nx],sizeof(std::complex<float>)*_nx);
+  }
+  fftwf_execute(_fplans[ithrd]);
 
   memset(wxot,0,sizeof(std::complex<float>)*(_nx*_ny));
 
@@ -310,19 +826,19 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
     for(int iky = 0; iky < _by; ++iky) {
       for(int ikx = 0; ikx < _bx; ++ikx) {
         std::complex<float> cc = sqrt(w2*_sloref[iz*_nrmax + ir] + _kk[iky*_bx + ikx]);
-        wk[iky*_bx + ikx] = pk[iky*_bx + ikx] * exp((co-cc)*_dz);
+        _wxks[ithrd][iky*_bx + ikx] = _wkks[ithrd][iky*_bx + ikx] * exp((co-cc)*_dz);
       }
     }
 
     /* Inverse FFT (w-kx-ky) -> (w-x-y) */
-    fft2(true,(kiss_fft_cpx*)wk);
+    fftwf_execute(_iplans[ithrd]);
 
     /* Interpolate (accumulate) */
     for(int iy = 0; iy < _ny; ++iy) {
       for(int ix = 0; ix < _nx; ++ix) {
         float d = fabsf(scur[iy*_nx + ix]*scur[iy*_nx + ix] - _sloref[iz*_nrmax + ir]);
         d = _dsmax2/(d*d + _dsmax2);
-        wxot[iy*_nx + ix] += wk[iy*_bx + ix]*d;
+        wxot[iy*_nx + ix] += _wxxs[ithrd][iy*_bx + ix]*d/sqrtf(_by*_bx);
         wt  [iy*_nx + ix] += d;
       }
     }
@@ -340,14 +856,12 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
   apply_taper(wxot);
 
   /* Free memory */
-  delete[] pk; delete[] wk; delete[] wt;
-
+  delete[] wt;
 }
-void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std::complex<float> *wx) {
+
+void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std::complex<float> *wx, int ithrd) {
 
   /* Temporary arrays */
-  std::complex<float> *pk  = new std::complex<float>[_bx*_by]();
-  std::complex<float> *wk  = new std::complex<float>[_bx*_by]();
   float *wt = new float[_nx*_ny]();
 
   std::complex<float> w2 = w*w;
@@ -357,12 +871,16 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
     for(int ix = 0; ix < _nx; ++ix) {
       float s = 0.5 * scur[iy*_nx + ix];
       wx[iy*_nx + ix] *= exp(-w*s*_dz);
+      wx[iy*_nx + ix] *= 1/sqrtf(_by*_bx); // FFT scaling
     }
   }
 
   /* FFT (w-x-y) -> (w-kx-ky) */
-  memcpy(pk,wx,sizeof(std::complex<float>)*_nx*_ny);
-  fft2(false,(kiss_fft_cpx*)pk);
+  memset(_wxks[ithrd],0,sizeof(std::complex<float>)*(_bx*_by));
+  for(int iy = 0; iy < _ny; ++iy) {
+    memcpy(&_wxks[ithrd][iy*_bx],&wx[iy*_nx],sizeof(std::complex<float>)*_nx);
+  }
+  fftwf_execute(_fplans[ithrd]);
 
   memset(wx,0,sizeof(std::complex<float>)*(_nx*_ny));
 
@@ -374,19 +892,19 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
     for(int iky = 0; iky < _by; ++iky) {
       for(int ikx = 0; ikx < _bx; ++ikx) {
         std::complex<float> cc = sqrt(w2*_sloref[iz*_nrmax + ir] + _kk[iky*_bx + ikx]);
-        wk[iky*_bx + ikx] = pk[iky*_bx + ikx] * exp((co-cc)*_dz);
+        _wxks[ithrd][iky*_bx + ikx] = _wkks[ithrd][iky*_bx + ikx] * exp((co-cc)*_dz);
       }
     }
 
     /* Inverse FFT (w-kx-ky) -> (w-x-y) */
-    fft2(true,(kiss_fft_cpx*)wk);
+    fftwf_execute(_iplans[ithrd]);
 
     /* Interpolate (accumulate) */
     for(int iy = 0; iy < _ny; ++iy) {
       for(int ix = 0; ix < _nx; ++ix) {
         float d = fabsf(scur[iy*_nx + ix]*scur[iy*_nx + ix] - _sloref[iz*_nrmax + ir]);
         d = _dsmax2/(d*d + _dsmax2);
-        wx[iy*_nx + ix] += wk[iy*_bx + ix]*d;
+        wx[iy*_nx + ix] += _wxxs[ithrd][iy*_bx + ix]*d/sqrtf(_by*_bx);
         wt[iy*_nx + ix] += d;
       }
     }
@@ -404,7 +922,7 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
   apply_taper(wx);
 
   /* Free memory */
-  delete[] pk; delete[] wk; delete[] wt;
+  delete[] wt;
 
 }
 
@@ -513,64 +1031,6 @@ void ssr3::build_karray(float dx, float dy, int bx, int by, float *kk) {
   }
 }
 
-void ssr3::fft2(bool inv, kiss_fft_cpx *pp) {
-
-  kiss_fft_cpx *ctrace = new kiss_fft_cpx[_by];
-
-  if(inv) {
-    /* IFT 1 */
-    for(int iy = 0; iy < _by; ++iy) {
-      kiss_fft(_inv1, pp + _bx*iy, pp + _bx*iy);
-    }
-
-    /* IFT 2 */
-    for(int ix = 0; ix < _bx; ++ix) {
-      kiss_fft_stride(_inv2, pp+ix, ctrace, _bx);
-      for(int iy = 0; iy < _by; ++iy) {
-        pp[iy*_bx + ix] = ctrace[iy];
-      }
-    }
-
-    /* Scaling */
-    for(int iy = 0; iy < _by; ++iy) {
-      for(int ix = 0; ix < _bx; ++ix) {
-        pp[iy*_bx + ix] = cmul(pp[iy*_bx + ix],1/(sqrtf(_bx*_by)));
-      }
-    }
-
-  } else {
-
-    /* Scaling */
-    for(int iy = 0; iy < _by; ++iy) {
-      for(int ix = 0; ix < _bx; ++ix) {
-        pp[iy*_bx + ix] = cmul(pp[iy*_bx + ix],1/sqrtf(_bx*_by));
-      }
-    }
-
-    /* FFT 2 */
-    for(int ix = 0; ix < _bx; ++ix) {
-      kiss_fft_stride(_fwd2,pp + ix, ctrace, _bx);
-      for(int iy = 0; iy < _by; ++iy) {
-        pp[iy*_bx + ix] = ctrace[iy];
-      }
-    }
-
-    /* FFT 1 */
-    for(int iy = 0; iy < _ny; ++iy) {
-      kiss_fft(_fwd1, pp + iy*_bx, pp + iy*_bx);
-    }
-  }
-
-  delete[] ctrace;
-}
-
-kiss_fft_cpx ssr3::cmul(kiss_fft_cpx a, float b) {
-
-  a.r *= b;
-  a.i *= b;
-  return a;
-}
-
 float ssr3::quantile(int q, int n, float *a) {
   float *low = a; float *hi  = a+n-1; float *k=a+q;
   while (low<hi) {
@@ -590,3 +1050,23 @@ float ssr3::quantile(int q, int n, float *a) {
   }
   return (*k);
 }
+
+void interp_slow(int nz, int nvy, float ovy, float dvy, int nvx, float ovx, float dvx,
+    int ny, float oy, float dy, int nx, float ox, float dx,
+    float *sloin, float *sloot) {
+
+  for(int iz = 0; iz < nz; ++iz) {
+    for(int iy = 0; iy < ny; ++iy) {
+      float y = oy + iy*dy;
+      int icy = (y - ovy)/dvy + 0.5;
+      icy = (icy < 0 ) ? 0 : ( ( icy > nvy-1) ? nvy-1 : icy );
+      for(int ix = 0; ix < nx; ++ix) {
+        float x = ox + ix*dx;
+        int icx = (x - ovx)/dvx + 0.5;
+        icx = (icx < 0 ) ? 0 : ( ( icx > nvx-1) ? nvx-1 : icx );
+        sloot[iz*ny*nx + iy*nx + ix] = sloin[iz*nvy*nvx + icy*nvx + icx];
+      }
+    }
+  }
+}
+

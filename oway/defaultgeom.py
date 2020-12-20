@@ -3,11 +3,12 @@ Default geometry for synthetics
 Sources and receivers on the surface
 and distributed evenly across the surface
 @author: Joseph Jennings
-@version: 2020.07.07
+@version: 2020.11.12
 """
 import numpy as np
-from oway.ssr3 import ssr3
-from utils.ptyprint import progressbar
+from oway.ssr3 import ssr3, interp_slow
+from scaas.off2ang import off2angssk
+from genutils.ptyprint import progressbar
 import matplotlib.pyplot as plt
 
 class defaultgeom:
@@ -63,12 +64,54 @@ class defaultgeom:
     # Frequency axis
     self.__nwo = None; self.__ow = None; self.__dw = None;
 
+    # Subsurface offsets
+    self.__rnhx = None; self.__ohx = None; self.__dhx = None
+    self.__rnhy = None; self.__ohy = None; self.__dhy = None
+
+    # Angle
+    self.__na = None; self.__oa = None; self.__da = None
+
   def get_freq_axis(self):
     """ Returns the frequency axis """
     return self.__nwc,self.__ow,self.__dw
 
-  def model_data(self,wav,dt,t0,minf,maxf,vel,ref,jf=1,nrmax=3,eps=0.01,dtmax=5e-05,time=True,
-                 ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=False):
+  def interp_vel(self,velin,dvx,dvy,ovx=0.0,ovy=0.0):
+    """
+    Lateral nearest-neighbor interpolation of velocity. Use
+    this when imaging grid is different than velocity
+    grid. Assumes the same depth axis for imaging
+    and slowness grid
+
+    Parameters:
+      velin - the input velocity field [nz,nvy,nvx]
+      dvy   - the y sampling of the slowness field
+      dvx   - the x sampling of the slowness field
+      ovy   - the y origin of the slowness field [0.0]
+      ovx   - the x origin of the slowness field [0.0]
+
+    Returns:
+      the interpolated velocity field now same size
+      as output imaging grid [nz,ny,nx]
+    """
+    # Get dimensions
+    [nz,nvy,nvx] = velin.shape
+    if(nz != self.__nz):
+      raise Exception("Slowness depth axis must be same as output image")
+
+    # Output slowness
+    velot = np.zeros([nz,self.__ny,self.__nx],dtype='float32')
+
+    interp_slow(self.__nz,                     # Depth saples
+                nvy,ovy,dvy,                   # Slowness y axis
+                nvx,ovx,dvx,                   # Slowness x axis
+                self.__ny,self.__oy,self.__dy, # Image y axis
+                self.__nx,self.__ox,self.__dx, # Image x axis
+                velin,velot)                   # Inputs and outputs
+
+    return velot
+
+  def model_data(self,wav,dt,t0,minf,maxf,vel,ref,jf=1,nrmax=3,eps=0.,dtmax=5e-05,time=True,
+                 ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=False) -> np.ndarray:
     """
     3D modeling of single scattered (Born) data with the one-way
     wave equation (single square root (SSR), split-step Fourier method).
@@ -83,7 +126,7 @@ class defaultgeom:
       ref    - input reflectivity model [nz,ny,nx]
       jf     - frequency decimation factor [1]
       nrmax  - maximum number of reference velocities [3]
-      eps    - stability parameter [0.01]
+      eps    - stability parameter [0.]
       dtmax  - maximum time error [5e-05]
       time   - return the data back in the time domain [True]
       ntx    - size of taper in x direction (samples) [0]
@@ -112,7 +155,7 @@ class defaultgeom:
                self.__dx ,self.__dy,self.__dz ,     # Spatial Samplings
                self.__nwc,self.__ow,self.__dwc,eps, # Frequency axis
                ntx,nty,px,py,                       # Taper and padding
-               dtmax,nrmax)                         # Reference velocities
+               dtmax,nrmax,nthrds)                  # Reference velocities
 
     # Compute slowness and reference slownesses
     slo = 1/vel
@@ -126,14 +169,14 @@ class defaultgeom:
 
     # Loop over sources
     k = 0
-    for icrd in progressbar(self.__scoords,"nexp:"):
+    for icrd in progressbar(self.__scoords,"nexp:",verb=sverb):
       # Get the source coordinates
       sy = icrd[0]; sx = icrd[1]
       # Create the source for this shot
       sou[:] = 0.0
       sou[:,sy,sx]  = wfftd[:]
       # Downward continuation
-      ssf.modallw(ref,sou,datw[k],nthrds,wverb)
+      ssf.modallw(ref,sou,datw[k],wverb)
       k += 1
 
     # Reshape output data
@@ -146,8 +189,8 @@ class defaultgeom:
     else:
       return datwr
 
-  def image_data(self,dat,dt,minf,maxf,vel,jf=1,nhx=0,nhy=0,sym=True,nrmax=3,eps=0.01,dtmax=5e-05,wav=None,
-                 ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=False):
+  def image_data(self,dat,dt,minf,maxf,vel,jf=1,nhx=0,nhy=0,sym=True,nrmax=3,eps=0.0,dtmax=5e-05,wav=None,
+                 ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=False) -> np.ndarray:
     """
     3D migration of shot profile data via the one-way wave equation (single-square
     root split-step fourier method). Input data are assumed to follow
@@ -164,7 +207,7 @@ class defaultgeom:
       nhy    - number of subsurface offsets in y to compute [0]
       sym    - symmetrize the subsurface offsets [True]
       nrmax  - maximum number of reference velocities [3]
-      eps    - stability parameter [0.01]
+      eps    - stability parameter [0.]
       dtmax  - maximum time error [5e-05]
       wav    - input wavelet [None,assumes an impulse at zero lag]
       ntx    - size of taper in x direction [0]
@@ -203,7 +246,7 @@ class defaultgeom:
                self.__dx ,self.__dy,self.__dz ,     # Spatial Samplings
                self.__nwc,self.__ow,self.__dwc,eps, # Frequency axis
                ntx,nty,px,py,                       # Taper and padding
-               dtmax,nrmax)                         # Reference velocities
+               dtmax,nrmax,nthrds)                  # Reference velocities
 
     # Compute slowness and reference slownesses
     slo = 1/vel
@@ -214,16 +257,26 @@ class defaultgeom:
       imgar = np.zeros([self.__nexp,self.__nz,self.__ny,self.__nx],dtype='float32')
     else:
       if(sym):
-        imgar = np.zeros([self.__nexp,2*nhy+1,2*nhx+1,self.__nz,self.__ny,self.__nx],dtype='float32')
+        # Create axes
+        self.__rnhx = 2*nhx+1; self.__ohx = -nhx*self.__dx; self.__dhx = self.__dx
+        self.__rnhy = 2*nhy+1; self.__ohy = -nhy*self.__dy; self.__dhy = self.__dy
+        # Allocate image array
+        imgar = np.zeros([self.__nexp,self.__rnhy,self.__rnhx,self.__nz,self.__ny,self.__nx],dtype='float32')
       else:
-        imgar = np.zeros([self.__nexp,nhy+1,nhx+1,self.__nz,self.__ny,self.__nx],dtype='float32')
+        # Create axes
+        self.__rnhx = nhx+1; self.__ohx = 0; self.__dhx = self.__dx
+        self.__rnhy = nhy+1; self.__ohy = 0; self.__dhy = self.__dy
+        # Allocate image array
+        imgar = np.zeros([self.__nexp,self.__rnhy,self.__rnhx,self.__nz,self.__ny,self.__nx],dtype='float32')
+      # Allocate memory necessary for extension
+      ssf.set_ext(nhy,nhx,sym)
 
     # Allocate the source for one shot
     sou = np.zeros([self.__nwc,self.__ny,self.__nx],dtype='complex64')
 
     # Loop over sources
     k = 0
-    for icrd in progressbar(self.__scoords,"nexp:"):
+    for icrd in progressbar(self.__scoords,"nexp:",verb=sverb):
       # Get the source coordinates
       sy = icrd[0]; sx = icrd[1]
       # Create the source for this shot
@@ -231,16 +284,186 @@ class defaultgeom:
       sou[:,sy,sx]  = wfftd[:]
       if(nhx == 0 and nhy == 0):
         # Conventional imaging
-        ssf.migallw(datw[k],sou,imgar[k],nthrds,wverb)
+        ssf.migallw(datw[k],sou,imgar[k],wverb)
       else:
         # Extended imaging
-        ssf.migoffallw(datw[k],sou,nhy,nhx,sym,imgar[k],nthrds,wverb)
+        ssf.migoffallw(datw[k],sou,imgar[k],wverb)
       k += 1
 
     # Sum over all partial images
     img = np.sum(imgar,axis=0)
 
+    # Free memory for extension
+    if(nhx != 0 or nhy != 0):
+      ssf.del_ext()
+
     return img
+
+  def get_off_axis(self):
+    """ Returns the x subsurface offset extension axis """
+    if(self.__rnhx is None):
+      raise Exception("Cannot return x subsurface offset axis without running extended imaging")
+    return self.__rnhx, self.__ohx, self.__dhx
+
+  def fwemva(self,dslo,dat,dt,minf,maxf,vel,jf=1,nrmax=3,eps=0.0,dtmax=5e-05,wav=None,
+             ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=False) -> np.ndarray:
+    """
+    Applies the forward WEMVA operator
+
+    Parameters:
+      dslo   - the input slowness perturbation
+      dat    - the input data
+      dt     - temporal sampling interval
+      minf   - minimum frequency to image in the data [Hz]
+      maxf   - maximim frequency to image in the data [Hz]
+      vel    - input migration velocity model [nz,ny,nx]
+      jf     - frequency decimation factor [1]
+      nrmax  - maximum number of reference velocities [3]
+      eps    - stability parameter [0.]
+      dtmax  - maximum time error [5e-05]
+      wav    - input wavelet [None,assumes an impulse at zero lag]
+      ntx    - size of taper in x direction [0]
+      nty    - size of taper in y direction [0]
+      px     - amount of padding in x direction (samples) [0]
+      py     - amount of padding in y direction (samples) [0]
+      nthrds - number of OpenMP threads for parallelizing over frequency [1]
+      sverb  - verbosity flag for shot progress bar [True]
+      wverb  - verbosity flag for frequency progress bar [False]
+
+    Returns:
+      a linearized image perturbation (forward wemva applied to slowness) [nz,ny,nx]
+    """
+    # Get temporal axis
+    nt = dat.shape[-1]
+
+    # Create frequency domain source
+    if(wav is None):
+      wav    = np.zeros(nt,dtype='float32')
+      wav[0] = 1.0
+    self.__nwo,self.__ow,self.__dw,wfft = self.fft1(wav,dt,minf=minf,maxf=maxf)
+    wfftd = wfft[::jf]
+    self.__nwc = wfftd.shape[0] # Get the number of frequencies for imaging
+    self.__dwc = self.__dw*jf
+
+    if(sverb or wverb): print("Frequency axis: nw=%d ow=%f dw=%f"%(self.__nwc,self.__ow,self.__dwc))
+
+    # Create frequency domain data
+    _,_,_,dfft = self.fft1(dat,dt,minf=minf,maxf=maxf)
+    dfftd = dfft[:,::jf]
+    datt = np.transpose(dfftd,(0,1,4,2,3)) # [nsy,nsx,ny,nx,nwc] -> [nsy,nsx,nwc,ny,nx]
+    datw = np.ascontiguousarray(datt.reshape([self.__nexp,self.__nwc,self.__ny,self.__nx]))
+
+    # Single square root object
+    ssf = ssr3(self.__nx ,self.__ny,self.__nz ,     # Spatial Sizes
+               self.__dx ,self.__dy,self.__dz ,     # Spatial Samplings
+               self.__nwc,self.__ow,self.__dwc,eps, # Frequency axis
+               ntx,nty,px,py,                       # Taper and padding
+               dtmax,nrmax,nthrds)                  # Reference velocities
+
+    # Compute slowness and reference slownesses
+    slo = 1/vel
+    ssf.set_slows(slo)
+
+    dimgar = np.zeros([self.__nexp,self.__nz,self.__ny,self.__nx],dtype='complex64')
+
+    # Allocate the source for one shot
+    sou = np.zeros([self.__nwc,self.__ny,self.__nx],dtype='complex64')
+
+    # Loop over sources
+    k = 0
+    for icrd in progressbar(self.__scoords,"nexp:",verb=sverb):
+      # Get the source coordinates
+      sy = icrd[0]; sx = icrd[1]
+      # Create the source for this shot
+      sou[:] = 0.0
+      sou[:,sy,sx]  = wfftd[:]
+      ssf.fwemvaallw(sou,datw[k],dslo,dimgar[k],verb=wverb)
+      k += 1
+
+    # Sum over all partial images
+    dimg = np.sum(dimgar,axis=0)
+
+    return np.real(dimg)
+
+  def awemva(self,dimg,dat,dt,minf,maxf,vel,jf=1,nrmax=3,eps=0.0,dtmax=5e-05,wav=None,
+             ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=False) -> np.ndarray:
+    """
+    Applies the forward WEMVA operator
+
+    Parameters:
+      dimg   - the input image perturbation
+      dat    - the input data
+      dt     - temporal sampling interval
+      minf   - minimum frequency to image in the data [Hz]
+      maxf   - maximim frequency to image in the data [Hz]
+      vel    - input migration velocity model [nz,ny,nx]
+      jf     - frequency decimation factor [1]
+      nrmax  - maximum number of reference velocities [3]
+      eps    - stability parameter [0.]
+      dtmax  - maximum time error [5e-05]
+      wav    - input wavelet [None,assumes an impulse at zero lag]
+      ntx    - size of taper in x direction [0]
+      nty    - size of taper in y direction [0]
+      px     - amount of padding in x direction (samples) [0]
+      py     - amount of padding in y direction (samples) [0]
+      nthrds - number of OpenMP threads for parallelizing over frequency [1]
+      sverb  - verbosity flag for shot progress bar [True]
+      wverb  - verbosity flag for frequency progress bar [False]
+
+    Returns:
+      a slowness perturbation (adjoint wemva applied to image) [nz,ny,nx]
+    """
+    # Get temporal axis
+    nt = dat.shape[-1]
+
+    # Create frequency domain source
+    if(wav is None):
+      wav    = np.zeros(nt,dtype='float32')
+      wav[0] = 1.0
+    self.__nwo,self.__ow,self.__dw,wfft = self.fft1(wav,dt,minf=minf,maxf=maxf)
+    wfftd = wfft[::jf]
+    self.__nwc = wfftd.shape[0] # Get the number of frequencies for imaging
+    self.__dwc = self.__dw*jf
+
+    if(sverb or wverb): print("Frequency axis: nw=%d ow=%f dw=%f"%(self.__nwc,self.__ow,self.__dwc))
+
+    # Create frequency domain data
+    _,_,_,dfft = self.fft1(dat,dt,minf=minf,maxf=maxf)
+    dfftd = dfft[:,::jf]
+    datt = np.transpose(dfftd,(0,1,4,2,3)) # [nsy,nsx,ny,nx,nwc] -> [nsy,nsx,nwc,ny,nx]
+    datw = np.ascontiguousarray(datt.reshape([self.__nexp,self.__nwc,self.__ny,self.__nx]))
+
+    # Single square root object
+    ssf = ssr3(self.__nx ,self.__ny,self.__nz ,     # Spatial Sizes
+               self.__dx ,self.__dy,self.__dz ,     # Spatial Samplings
+               self.__nwc,self.__ow,self.__dwc,eps, # Frequency axis
+               ntx,nty,px,py,                       # Taper and padding
+               dtmax,nrmax,nthrds)                  # Reference velocities
+
+    # Compute slowness and reference slownesses
+    slo = 1/vel
+    ssf.set_slows(slo)
+
+    dsloar = np.zeros([self.__nexp,self.__nz,self.__ny,self.__nx],dtype='complex64')
+
+    # Allocate the source for one shot
+    sou = np.zeros([self.__nwc,self.__ny,self.__nx],dtype='complex64')
+
+    # Loop over sources
+    k = 0
+    for icrd in progressbar(self.__scoords,"nexp:",verb=sverb):
+      # Get the source coordinates
+      sy = icrd[0]; sx = icrd[1]
+      # Create the source for this shot
+      sou[:] = 0.0
+      sou[:,sy,sx]  = wfftd[:]
+      ssf.awemvaallw(sou,datw[k],dsloar[k],dimg,verb=wverb)
+      k += 1
+
+    # Sum over all partial images
+    dslo = np.sum(dsloar,axis=0)
+
+    return np.real(dslo)
 
   def fft1(self,sig,dt,minf,maxf):
     """
@@ -319,4 +542,106 @@ class defaultgeom:
       n += 1
 
     return n
+
+  def to_angle(self,img,amax=70,na=281,nthrds=4,transp=False,oro=None,dro=None,verb=False):
+    """
+    Converts the subsurface offset gathers to opening angle gathers
+
+    Parameters
+      img    - Image extended over subsurface offsets [nhy,nhx,nz,ny,nx]
+      amax   - Maximum angle over which to compute angle gathers [70]
+      na     - Number of angles on the angle axis [281]
+      nthrds - Number of OpenMP threads to use (parallelize over image point axis) [4]
+      transp - Transpose the output to have shape [na,nx,nz]
+      verb   - Verbosity flag [False]
+
+    Returns the angle gathers [nro,nx,na,nz]
+    """
+    if(mode == 'kzx'):
+      if(amax is None): amax = 60
+      if(na is None): na = self.__rnhx
+      # Handle the case of residual migration input
+      itransp = False
+      if(len(img.shape) == 4): itransp = True
+      # Compute angle axis
+      self.__na = na; self.__oa = -amax; self.__da = 2*amax/na
+      angs = off2angkzx(img,self.__ohx,self.__dhx,self.__dz,na=na,amax=amax,transp=itransp,cverb=verb)
+      if(transp):
+        # [naz,na,nz,ny,nx] -> [ny,nx,naz,na,nz]
+        angst = np.ascontiguousarray(np.transpose(angs,(3,4,0,1,2)))
+      else:
+        angst = angs
+      return angst
+    elif(mode == 'ssk'):
+      if(amax is None): amax = 70
+      if(na is None): na = 281
+      # Assume ny = 1
+      imgin = img[0,:,:,0,:]
+      amin = -amax; avals = np.linspace(amin,amax,na)
+      # Compute angle axis
+      self.__na = na; self.__da = avals[1] - avals[0]; self.__oa = avals[0]
+      return off2angssk(imgin,self.__ohx,self.__dhx,self.__dz,na=na,amax=amax,nta=601,ota=-3,dta=0.01,
+                      nthrds=nthrds,transp=transp,oro=oro,dro=dro,verb=verb)
+
+  def get_ang_axis(self):
+    """ Returns the opening angle extension axis """
+    return self.__na, self.__oa, self.__da
+
+  def test_freq_axis(self,n1,dt,minf,maxf,jf=1):
+    """
+    For testing different frequency axes based on
+    the input wavelet time axis
+
+    Parameters:
+      n1   - length of wavelet
+      dt   - temporal sampling of wavelet
+      minf - minimum frequency to propagate
+      maxf - maximum frequency to propagate
+      jf   - frequency decimation factor [1]
+
+    Returns:
+      Nothing. Just a verbose output of the frequency axis
+    """
+    nt = 2*self.next_fast_size(int((n1+1)/2))
+    if(nt%2): nt += 1
+    nw = int(nt/2+1)
+    dw = 1/(nt*dt)
+    # Min and max frequencies
+    begw = int(minf/dw); endw = int(maxf/dw)
+    nwc = (endw-begw)/jf
+    print("Test frequency axis: nw=%d ow=%d dw=%f"%(nwc,minf,dw*jf))
+
+  def get_scoords(self):
+    """ Returns the source injection coordinates """
+    return self.__scoords
+
+  def plot_acq(self,mod=None,show=True,**kwargs):
+    """ Plots the acquisition on the slowness model """
+    # Plot the slowness model
+    if(mod is None):
+      mod = np.zeros([self.__nz,self.__ny,self.__nx],dtype='float32') + 2.5
+    vmin = np.min(mod); vmax = np.max(mod)
+    if(self.__ny == 1):
+      # 2D acquisition
+      fig = plt.figure(figsize=(kwargs.get('wbox',14),kwargs.get('hbox',7)))
+      ax = fig.gca()
+      # Plot model
+      im = ax.imshow(mod[:,0,:],extent=[0,self.__nx,self.__nz,0],vmin=kwargs.get('vmin',vmin),vmax=kwargs.get('vmax',vmax),
+                     cmap=kwargs.get('cmap','jet'))
+      ax.set_xlabel(kwargs.get('xlabel','X (gridpoints)'),fontsize=kwargs.get('labelsize',14))
+      ax.set_ylabel(kwargs.get('ylabel','Z (gridpoints)'),fontsize=kwargs.get('labelsize',14))
+      ax.set_title(kwargs.get('title',''),fontsize=kwargs.get('labelsize',14))
+      ax.tick_params(labelsize=kwargs.get('labelsize',14))
+      # Make receiver coords
+      zplt = 5
+      recx = np.linspace(0,self.__nx-1,self.__nx)
+      rzros = np.zeros(self.__nx) + zplt
+      # Make source coords
+      scoordsn = np.asarray(self.__scoords)[:,1]
+      szros    = np.zeros(len(scoordsn)) + zplt
+      # Plot geometry
+      #plt.scatter(recx,rzros,c='tab:green',marker='v')
+      plt.scatter(scoordsn,szros,c='yellow',marker='*')
+      if(show):
+        plt.show()
 

@@ -8,7 +8,7 @@ import numpy as np
 from opt.linopt.opr8tr import operator
 from opt.linopt.combops import colop
 from opt.optqc import optqc
-from utils.ptyprint import create_inttag
+from genutils.ptyprint import create_inttag
 
 def cd(op,dat,mod0,regop=None,rdat=None,grdop=None,shpop=None,eps=None,niter=None,toler=None,
        optqc=None,objs=None,mods=None,grds=None,ress=None,verb=True):
@@ -124,15 +124,14 @@ def run_niter(op,dat,mod,niter,grdop,objs,mods,grds,ress,optqc,verb):
     # Reevaluate objective function and output
     f1 = (0.5)*gdot(res,res)
     if(f1 >= f0):
-      print("Objective function did not reduce, terminating solver")
+      if(verb): print("Objective function did not reduce, terminating solver")
       break
     # Save results to provided lists
     save_results(mod,mods,tap,grds,res,ress,f1,objs)
     # Save to SEPlib file or image if desired
     if(optqc is not None):
       optqc.output(f1,mod,tap,res)
-    if(verb):
-      print("iter=%s objf=%.6f gnrm=%.6f"%(create_inttag(iiter+1,niter),f1,np.linalg.norm(tap)))
+    if(verb): print("iter=%s objf=%.6f gnrm=%.6f"%(create_inttag(iiter+1,niter),f1,np.linalg.norm(tap)))
 
 def run_toler(op,dat,mod,toler,grdop,mods,objs,grds,ress,optqc,verb):
   """ Runs conjugate direction solver until a tolerance is reached """
@@ -184,7 +183,7 @@ def run_toler(op,dat,mod,toler,grdop,mods,objs,grds,ress,optqc,verb):
     # Reevaluate objective function and output
     f1 = (0.5)*gdot(res,res)
     if(f1 >= f0):
-      print("Objective function did not reduce, terminating solver")
+      if(verb): print("Objective function did not reduce, terminating solver")
       break
     # Save results to provided lists
     save_results(mod,mods,tap,grds,res,ress,f1,objs)

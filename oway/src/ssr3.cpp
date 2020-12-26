@@ -812,7 +812,7 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
   /* FFT (w-x-y) -> (w-kx-ky) */
   memset(_wxks[ithrd],0,sizeof(std::complex<float>)*(_bx*_by));
   for(int iy = 0; iy < _ny; ++iy) {
-    memcpy(&_wxks[ithrd][iy*_bx],&wxot[iy*_nx],sizeof(std::complex<float>)*_nx*_ny);
+    memcpy(&_wxks[ithrd][iy*_bx],&wxot[iy*_nx],sizeof(std::complex<float>)*_nx);
   }
   fftwf_execute(_fplans[ithrd]);
 
@@ -878,7 +878,7 @@ void ssr3::ssr3ssf(std::complex<float> w, int iz, float *scur, float *snex, std:
   /* FFT (w-x-y) -> (w-kx-ky) */
   memset(_wxks[ithrd],0,sizeof(std::complex<float>)*(_bx*_by));
   for(int iy = 0; iy < _ny; ++iy) {
-    memcpy(&_wxks[ithrd][iy*_bx],&wx[iy*_nx],sizeof(std::complex<float>)*_nx*_ny);
+    memcpy(&_wxks[ithrd][iy*_bx],&wx[iy*_nx],sizeof(std::complex<float>)*_nx);
   }
   fftwf_execute(_fplans[ithrd]);
 
@@ -1031,11 +1031,6 @@ void ssr3::build_karray(float dx, float dy, int bx, int by, float *kk) {
   }
 }
 
-/**
- * @param q: input integer
- * @param n: total number of slownesses
- * @param a: slowness array
- */
 float ssr3::quantile(int q, int n, float *a) {
   float *low = a; float *hi  = a+n-1; float *k=a+q;
   while (low<hi) {

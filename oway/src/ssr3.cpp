@@ -1031,6 +1031,11 @@ void ssr3::build_karray(float dx, float dy, int bx, int by, float *kk) {
   }
 }
 
+/**
+ * @param q: input integer
+ * @param n: total number of slownesses
+ * @param a: slowness array
+ */
 float ssr3::quantile(int q, int n, float *a) {
   float *low = a; float *hi  = a+n-1; float *k=a+q;
   while (low<hi) {

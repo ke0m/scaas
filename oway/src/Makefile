@@ -1,4 +1,4 @@
-NPPATH=${CONDA_PREFIX}/lib/python3.5/site-packages/numpy/core
+NPPATH=${CONDA_PREFIX}/lib/python3.7/site-packages/numpy/core
 
 %.o: %.cpp
 	g++ -O3 -fPIC -ffast-math -fopenmp -march=native -mtune=native -shared -Wall -I. -c -fPIC -o $@ $<
@@ -36,4 +36,18 @@ mutter: mute.o
 costapkern: costaper.o
 	g++ -O3 -fPIC -ffast-math -fopenmp -std=c++1y -shared -Wall `${CONDA_PREFIX}/bin/python3 -m pybind11 --includes` \
 		-g costaper.o costaperpy.cpp -o ../costapkern`${CONDA_PREFIX}/bin/python3-config --extension-suffix`
+
+testoway2d.x: profile/testoway2d.cpp ssr3.o
+	g++ -O3 -fPIC -ffast-math -fopenmp -march=native -mtune=native -std=c++1y -Wall \
+		ssr3.o $< -o $@ -lfftw3f
+
+testoway2d_bench.x: profile/testoway2d_bench.cpp ssr3.o
+	g++ -O3 -fopenmp -march=native -mtune=native -std=c++1y -Wall -I/opt/benchmark/include \
+		-L/opt/benchmark/build/src ssr3.o $< -o $@ -lfftw3f -lbenchmark -lbenchmark_main -lpthread
+
+testoway2d_plot.x: profile/testoway2d_plot.cpp ssr3.o
+	g++ -O3 -fPIC -ffast-math -fopenmp -march=native -mtune=native -std=c++1y -Wall \
+		-I${CONDA_PREFIX}/include/python3.5m \
+		-I${NPPATH}/include -Wl,-rpath=${CONDA_PREFIX}/lib -L${CONDA_PREFIX}/lib ssr3.o \
+		$< -o $@ -lfftw3f -lpython3.5m
 

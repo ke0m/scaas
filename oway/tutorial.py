@@ -40,8 +40,10 @@ class ssr3tut:
     self.__slo = None
 
     # Reference velocities
-    self.__nr = np.zeros(nz,dype='int32')
-    self.__nrmax = nrmax
+    self.__nr     = np.zeros(nz,dype='int32')
+    self.__nrmax  = nrmax
+    self.__dsmax  = dtmax/dz
+    self.__sloref = np.zeros([nz,nrmax],dtype='float32')
 
   def set_slows(self, slo):
     """
@@ -59,10 +61,12 @@ class ssr3tut:
 
     # Compute reference slowness with depth
     for iz in range(nz):
-      self.__nr[iz] = nrefs(self.__nrmax, self.__dsmax, self.__nx*self.__ny, slo[iz], sloref[iz])
+      self.__nr[iz] = nrefs(self.__nrmax, self.__dsmax, self.__nx*self.__ny, 
+                            slo[iz], self.__sloref[iz])
 
     # Build reference slownesses
-    #for iz in range(nz):
+    for iz in range(nz-1):
+      self.__sloref[iz] = 0.5*(self.__sloref[iz] + self.__sloref[iz+1])
 
 
   def build_taper(self,ntx,nty) -> numpy.ndarray:
@@ -119,9 +123,35 @@ class ssr3tut:
 
     return kk
   
-  def nrefs(self,nrmax):
-    pass
-  
-  def quantile(self):
-    pass
+  def nrefs(self,nrmax, dsmax, slo, sloref):
+    """
+    Computes the number of reference velocities at each depth
+
+    Parameters:
+      nrmax  - maximum number of reference velocities
+      dsmax  - maximum change in slowness with depth?
+      ns     - number of slowness per depth
+      slo    - input slowness array
+      sloref - number of reference slownesses with depth
+
+    Returns the number of reference slowness with depth.
+    Also updates slowref
+    """
+    ns      = np.prod(slo.shape)
+    slo2    = np.zeros(ns,dtype='float32')
+    slo2[:] = slo.flatten()[:]
+
+  def quantile(self, q, slo):
+    """
+
+    Parameters:
+      q    - index ?
+      slow - input slowness array
+    quantile(ns-1,ns,slo)
+    quantile(0,ns,slo)
+    """
+    ns = slo.shape[0]
+    low = slo
+    hi  = slo[:n-1]
+    k   = slo[:q]
 

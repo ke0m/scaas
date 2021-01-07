@@ -51,3 +51,5 @@ testoway2d_plot.x: profile/testoway2d_plot.cpp ssr3.o
 		-I${NPPATH}/include -Wl,-rpath=${CONDA_PREFIX}/lib -L${CONDA_PREFIX}/lib ssr3.o \
 		$< -o $@ -lfftw3f -lpython3.5m
 
+quantile_test.x: profile/quantile_test.cpp
+	g++ -O3 $< -o $@

@@ -4,6 +4,8 @@ Functions for a one-way wave equation tutorial
 @author: Joseph Jennings
 @version: 2020.10.13
 """
+import numpy as np
+from genutils.ptyprint import progressbar
 
 class ssr3tut:
 
@@ -68,6 +70,25 @@ class ssr3tut:
     for iz in range(nz-1):
       self.__sloref[iz] = 0.5*(self.__sloref[iz] + self.__sloref[iz+1])
 
+  def mod_allw(self, ref, wav, verb=False):
+    """
+    Linearized modeling of all frequencies using a SSR SSF operator 
+
+    Parameters:
+      ref  - the reflectivity model [nz,ny,nx]
+      wav  - the input wavelet (FT'ed in time) [nw,ny,nx]
+      verb - verbosity flag [False]
+    """
+    if(self.__slo is None): 
+      raise Exception("Must run set_slows before modeling or migration")
+
+    for iw in progressbar(range(self.__nw),"nw:",verb=verb):
+      dat[iw] = self.ssr3ssf_modonew(iw, ref, wav[iw])
+
+  def mod_onew(self, iw, ref, wav):
+    """
+    """
+    pass
 
   def build_taper(self,ntx,nty) -> numpy.ndarray:
     """
@@ -123,7 +144,7 @@ class ssr3tut:
 
     return kk
   
-  def nrefs(self,nrmax, dsmax, slo, sloref):
+  def nrefs(self, nrmax, dsmax, slo, sloref):
     """
     Computes the number of reference velocities at each depth
 
@@ -140,18 +161,45 @@ class ssr3tut:
     ns      = np.prod(slo.shape)
     slo2    = np.zeros(ns,dtype='float32')
     slo2[:] = slo.flatten()[:]
+    smax = self.quantile(ns-1,slo2)
+    smin = self.quantile(0   ,slo2)
+    nrmax = nrmax if nrmax < 1 + (smax-smin)/ds else 1+(smax-smin)/ds
 
-  def quantile(self, q, slo):
+    jr,s2 = 0,0.0
+    for ir in range(nrmax):
+      qr = (ir + 1.0)/nrmax - 0.5 * 1/nrmax
+      s = quantile(qr*ns,slo2)
+      if(ir == 0 or np.abs(s-s2) > ds):
+        sloref[jr] = s*s
+        s2 = s
+        jr += 1
+
+    return jr
+
+  def quantile(self, q, a):
     """
 
     Parameters:
-      q    - index ?
-      slow - input slowness array
-    quantile(ns-1,ns,slo)
-    quantile(0,ns,slo)
+      q - position of interest in the array
+      a - input slowness array
+
+    Returns
     """
-    ns = slo.shape[0]
-    low = slo
-    hi  = slo[:n-1]
-    k   = slo[:q]
+    n = a.shape[0]
+    lo,hi,k = 0,n-1,q
+    while(lo < hi):
+      ak = a[k]
+      i,j = lo,hi
+      while(True):
+        while(a[i] < ak): i += 1
+        while(a[j] > ak): j -= 1
+        if(i <= j):
+          buf  = a[i]
+          a[i] = a[j]
+          a[j] = buf
+          i += 1; j -= 1
+        if(i > j): break
+      if(j < k): low = i
+      if(k < i): hi  = j
+    return a[k]
 

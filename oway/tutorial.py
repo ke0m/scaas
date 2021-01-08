@@ -2,7 +2,7 @@
 Functions for a one-way wave equation tutorial
 
 @author: Joseph Jennings
-@version: 2020.10.13
+@version: 2021.01.07
 """
 import numpy as np
 from genutils.ptyprint import progressbar
@@ -34,7 +34,7 @@ class ssr3tut:
     self.__bx = nx + px
     self.__by = ny + py
     # Build the taper
-    self.__tapx,self.__tapy = self.build_taper(ntx,nty)
+    self.__tap = self.build_taper(ntx,nty)
     # Build spatial frequencies
     self.__kk = build_karray(dx,dy,bx,by)
 
@@ -46,6 +46,10 @@ class ssr3tut:
     self.__nrmax  = nrmax
     self.__dsmax  = dtmax/dz
     self.__sloref = np.zeros([nz,nrmax],dtype='float32')
+    
+    # Wavefield slices
+    self.__sslc = None
+    self.__rslc = None
 
   def set_slows(self, slo):
     """
@@ -78,6 +82,9 @@ class ssr3tut:
       ref  - the reflectivity model [nz,ny,nx]
       wav  - the input wavelet (FT'ed in time) [nw,ny,nx]
       verb - verbosity flag [False]
+
+    Returns:
+      Data modeled for all frequencies
     """
     if(self.__slo is None): 
       raise Exception("Must run set_slows before modeling or migration")
@@ -87,10 +94,77 @@ class ssr3tut:
 
   def mod_onew(self, iw, ref, wav):
     """
-    """
-    pass
+    Linearized modeling of one frequency using a SSR SSF operator
 
-  def build_taper(self,ntx,nty) -> numpy.ndarray:
+    Parameters
+      iw  - the frequency index
+      ref - reflectivity model [nz,ny,nx]
+      wav - frequency slice of the wavelet
+
+    Returns:
+      Data extrapolated in depth for one frequency
+    """
+    w = self.__ow + iw*self.__dwj
+
+    sslc = self.__tap*wav
+
+    # Source loop over depth
+    for iz in range(self.__nz-1):
+      # Depth extrapolation
+     self.__sslc[iz+1] = self.ssf(w,iz,self.__slo[iz],self.__slo[iz+1],self.__sslc[iz])
+
+    # Receiver loop over depth
+    for iz in range(self.__nz-1,0,-1):
+      # Scattering with reflectivity
+      self.__sslc[iz] *= ref[iz]
+      self.__rslc += self.__slc[iz]
+
+      # Depth extrapolation
+      self.__rslc = self.ssf(w,iz,self.__slo[iz],self.__slo[iz-1],self.__rslc)
+
+    return self.__tap*self.__rslc
+
+  def ssf(self, w, iz, scur, snex, wxin):
+    """
+    Extended Split-step Fourier operator for depth extrapolation
+
+    Parameters:
+      w    - the frequency (complex)
+      iz   - depth index
+      scur - slowness slice at current depth (iz, [ny,nx])
+      snex - slowness slice at next depth (iz+1, [ny,nx])
+      wxin - wavefield (w-x) at current depth
+
+    Returns:
+      the wavefield extrapolated at the next depth
+    """
+    wxot = np.zeros(wxin.shape,dtype='complex64')
+
+    wxot  = wxin * np.exp(-w*s*0.5*self.__dz)
+    wxot *= 1/np.sqrt(self.__bx*self.__bx)
+
+    self.wxk[:self.__ny,:self.__ny] = wxot[:,:]
+    self.__wkk = np.fft.fft2(wxk)
+    wxot[:] = 0.0
+
+    for ir in range(self.__nr[iz]):
+      co = np.sqrt(w*w * self.__sloref[iz,ir])
+      cc = np.sqrt(w*w * self.__sloref[iz,ir] + self.__kk)
+      wxk = self.__wkk * np.exp((co-cc)*self.__dz)
+
+      self.__wxx = np.fft.ifft2(wxk)
+
+      d = np.abs(scur*scur - self.__sloref[iz,ir])
+      wxot += self.__wxxs * d/np.sqrt(self.__by*self.__bx)
+      self.__wt += d
+
+    wxot /= wt
+    wxot *= np.exp(-w*snex*0.5*self.__dz)
+
+    return self.__taper*wxot
+
+  #TODO: change this function so we return a 2D taper function
+  def build_taper(self,ntx,nty) -> np.ndarray:
     """
     Builds a 2D tapering function
   
@@ -101,19 +175,36 @@ class ssr3tut:
     Returns the taper function along x and the taper
     function along y
     """
+    # Output taper
+    tapout = np.ones([self.__ny,self.__nx],dtype='float32')
+
+    # Taper along x
     tapx = np.zeros(ntx)
     if(ntx > 0):
       tapx = np.asarray([np.sin(0.5*np.pi*it/ntx) for it in range(ntx)],dtype='float32')
       tapx = (tapx+1)/2
 
+    for it in range(ntx):
+      gain = tapx[it]
+      for iy in range(self.__ny):
+        tapout[iy,it] *= gain
+        tapout[iy,self.__nx-it-1] *= gain
+
+    # Taper along y
     tapy = np.zeros(nty)
     if(nty > 0):
       tapy = np.asarray([np.sin(0.5*np.pi*it/nty) for it in range(nty)],dtype='float32')
       tapy = (tapy+1)/2
 
-    return tapx,tapy
+    for it in range(nty):
+      gain = tapy[it]
+      for ix in range(self.__nx):
+        tapout[it,ix]      *= gain
+        tapout[self.__ny-it-1,ix] *= gain
 
-  def build_karray(self,dx,dy,bx,by) -> numpy.ndarray:
+    return tapout
+
+  def build_karray(self,dx,dy,bx,by) -> np.ndarray:
     """
     Builds the wavenumber array that is used in the
     single square root operator

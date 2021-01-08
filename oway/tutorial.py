@@ -6,6 +6,7 @@ Functions for a one-way wave equation tutorial
 """
 import numpy as np
 from genutils.ptyprint import progressbar
+import matplotlib.pyplot as plt
 
 class ssr3tut:
 
@@ -35,14 +36,16 @@ class ssr3tut:
     self.__by = ny + py
     # Build the taper
     self.__tap = self.build_taper(ntx,nty)
+    plt.plot(self.__tap[0]); plt.show()
     # Build spatial frequencies
-    self.__kk = build_karray(dx,dy,bx,by)
+    self.__kk = self.build_karray(self.__dx,self.__dy,self.__bx,self.__by)
+    plt.plot(self.__kk[0]); plt.show()
 
     # Slowness array
     self.__slo = None
 
     # Reference velocities
-    self.__nr     = np.zeros(nz,dype='int32')
+    self.__nr     = np.zeros(nz,dtype='int32')
     self.__nrmax  = nrmax
     self.__dsmax  = dtmax/dz
     self.__sloref = np.zeros([nz,nrmax],dtype='float32')
@@ -199,7 +202,7 @@ class ssr3tut:
     for it in range(nty):
       gain = tapy[it]
       for ix in range(self.__nx):
-        tapout[it,ix]      *= gain
+        tapout[it,ix] *= gain
         tapout[self.__ny-it-1,ix] *= gain
 
     return tapout
@@ -228,6 +231,7 @@ class ssr3tut:
     # Populate the array
     for iy in range(by):
       jy = iy+by/2 if iy < by/2 else iy-by/2
+      ky = oky + jy*dky
       for ix in range(bx):
         jx = ix+bx/2 if ix < bx/2 else ix-bx/2
         kx = okx + jx + dkx
@@ -269,7 +273,6 @@ class ssr3tut:
 
   def quantile(self, q, a):
     """
-
     Parameters:
       q - position of interest in the array
       a - input slowness array

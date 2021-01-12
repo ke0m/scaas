@@ -1,4 +1,4 @@
-NPPATH=${CONDA_PREFIX}/lib/python3.7/site-packages/numpy/core
+NPPATH=${CONDA_PREFIX}/lib/python3.5/site-packages/numpy/core
 
 %.o: %.cpp
 	g++ -O3 -fPIC -ffast-math -fopenmp -march=native -mtune=native -shared -Wall -I. -c -fPIC -o $@ $<
@@ -53,3 +53,16 @@ testoway2d_plot.x: profile/testoway2d_plot.cpp ssr3.o
 
 quantile_test.x: profile/quantile_test.cpp
 	g++ -O3 $< -o $@
+
+testssf2d_plot.x: profile/testssf2d_plot.cpp ssr3.o
+	g++ -O3 -fPIC -ffast-math -fopenmp -march=native -mtune=native -std=c++1y -Wall \
+		-I${CONDA_PREFIX}/include/python3.5m \
+		-I${NPPATH}/include -Wl,-rpath=${CONDA_PREFIX}/lib -L${CONDA_PREFIX}/lib ssr3.o \
+		$< -o $@ -lfftw3f -lpython3.5m
+
+cmplx_sqrt.x: profile/cmplx_sqrt.cpp
+	g++ -O3 -fPIC -ffast-math -fopenmp -march=native -mtune=native -std=c++1y -Wall \
+		-I${CONDA_PREFIX}/include/python3.5m \
+		-I${NPPATH}/include -Wl,-rpath=${CONDA_PREFIX}/lib -L${CONDA_PREFIX}/lib \
+		$< -o $@ -lfftw3f -lpython3.5m
+

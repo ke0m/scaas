@@ -110,9 +110,9 @@ class coordgeomchunk:
       a coordinate geom object
     """
     # Spatial axes
-    self.__nx, self.__ox, self.__dx = nx, ox, dx
-    self.__ny, self.__oy, self.__dy = ny, oy, dy
-    self.__nz, self.__oz, self.__dz = nz, oz, dz
+    self.__nx = nx; self.__ox = ox; self.__dx = dx
+    self.__ny = ny; self.__oy = oy; self.__dy = dy
+    self.__nz = nz; self.__oz = oz; self.__dz = dz
     ## Source gometry
     # Check if either is none
     if(srcx is None and srcy is None):
@@ -354,7 +354,8 @@ class coordgeomchunk:
         imgtmp = np.zeros([self.__rnhy,self.__rnhx,self.__nz,self.__ny,self.__nx],dtype='float32')
         oimg   = np.zeros([self.__rnhy,self.__rnhx,self.__nz,self.__ny,self.__nx],dtype='float32')
       # Allocate memory necessary for extension
-      ssf.set_ext(nhy,nhx,sym)
+      ssf.set_ext(nhy,nhx,sym,True)
+      #ssf.set_ext(nhy,nhx,sym,False)
 
     # Loop over sources
     ntr = 0
@@ -377,6 +378,7 @@ class coordgeomchunk:
       else:
         # Extended imaging
         ssf.migoffallw(datwt,sou,imgtmp,wverb)
+        #ssf.migoffallwbig(datwt,sou,imgtmp,wverb)
       oimg += imgtmp
       # Increase number of traces
       ntr += self.__nrec[iexp]

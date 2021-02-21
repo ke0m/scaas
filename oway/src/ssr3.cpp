@@ -286,7 +286,7 @@ void ssr3::ssr3ssf_migonew(int iw, std::complex<float> *dat, std::complex<float>
   delete[] sslc; delete[] rslc;
 }
 
-void ssr3::set_ext(int nhy, int nhx, bool sym) {
+void ssr3::set_ext(int nhy, int nhx, bool sym, bool alloc) {
   /* Only call if imgar is NULL */
   if(_imgar == NULL) {
     /* Compute the sizes and bounds for the lags in the imaging condition */
@@ -305,10 +305,12 @@ void ssr3::set_ext(int nhy, int nhx, bool sym) {
     }
 
     /* Allocate image array */
-    _imgar = new float*[_nthrds]();
-    for(int ithrd  = 0; ithrd < _nthrds; ++ithrd) {
-      _imgar[ithrd] = new float[_rnhy*_rnhx*_nz*_ny*_nx]();
-    }
+		if(alloc) {
+			_imgar = new float*[_nthrds]();
+			for(int ithrd  = 0; ithrd < _nthrds; ++ithrd) {
+				_imgar[ithrd] = new float[_rnhy*_rnhx*_nz*_ny*_nx]();
+			}
+		}
   } else {
     fprintf(stderr,"Not setting extension. imgar has been allocated.\n");
   }
@@ -400,6 +402,85 @@ void ssr3::ssr3ssf_migoffonew(int iw, std::complex<float> *dat, std::complex<flo
             int imgidx = iz*_nx*_ny + iy*_nx + ix;
             img[(ily+shfy)*_nx*_ny*_nz*nhx + (ilx+shfx)*_nx*_ny*_nz + imgidx]  +=
                 std::real(std::conj(sslc[(iy-ily)*_nx + (ix-ilx)])*rslc[(iy+ily)*_nx + (ix+ilx)]);
+          } // x
+        } // y
+      } // lx
+    } // ly
+  } // z
+  /* Free memory */
+  delete[] sslc; delete[] rslc;
+}
+
+void ssr3::ssr3ssf_migoffallwbig(std::complex<float> *dat, std::complex<float> *wav, float *img, bool verb) {
+  /* Check if built reference velocities */
+  if(_slo == NULL) {
+    fprintf(stderr,"Must run set_slows before modeling or migration\n");
+  }
+
+  /* Set up printing if verbosity is desired */
+  int *widx = new int[_nthrds]();
+  int csize = (int)_nw/_nthrds;
+  bool firstiter = true;
+
+  /* Loop over frequency */
+  omp_set_num_threads(_nthrds);
+#pragma omp parallel for default(shared)
+  for(int iw = 0; iw < _nw; ++iw) {
+    /* Verbosity */
+    int wthd = omp_get_thread_num();
+    if(firstiter && verb) widx[wthd] = iw;
+    if(verb) printprogress_omp("nw:",iw-widx[wthd],csize,wthd);
+    /* Migrate data for current frequency */
+    ssr3ssf_migoffonewbig(iw, dat + iw*_nx*_ny, wav + iw*_nx*_ny, _bly, _ely, _blx, _elx, img, wthd);
+    firstiter = false;
+  }
+  if(verb) printf("\n");
+
+  /* Free memory */
+  delete[] widx;
+}
+
+void ssr3::ssr3ssf_migoffonewbig(int iw, std::complex<float> *dat, std::complex<float>*wav,
+    int bly, int ely, int blx, int elx, float *img, int ithrd) {
+  /* Temporary arrays (depth slices) */
+  std::complex<float> *sslc = new std::complex<float>[_ny*_nx]();
+  std::complex<float> *rslc = new std::complex<float>[_ny*_nx]();
+
+  /* Current frequency */
+  std::complex<float> ws(_eps*_dw,+(_ow + iw*_dw)); // Causal
+  std::complex<float> wr(_eps*_dw,-(_ow + iw*_dw)); // Anti-causal
+
+	/* Convert ns to longs */
+	long long lnx = static_cast<long long>(_nx); 
+	long long lny = static_cast<long long>(_ny); 
+	long long lnz = static_cast<long long>(_nz);
+
+  /* Sizes and shifts */
+	long long ellx = static_cast<long long>(elx); long long bllx = static_cast<long long>(blx);
+	long long elly = static_cast<long long>(ely); long long blly = static_cast<long long>(bly);
+  long long begx = ellx; long long endx = lnx - begx;
+  long long begy = elly; long long endy = lny - begy;
+  long long nhx  = ellx - bllx;
+  long long shfx = abs(bllx); long long shfy = abs(blly);
+
+  apply_taper(wav, sslc);
+  apply_taper(dat, rslc);
+
+  /* Loop over all depths */
+  for(int iz = 0; iz < _nz-1; ++iz) {
+    /* Depth extrapolation of source and receiver wavefields */
+    ssr3ssf(ws, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, sslc, ithrd);
+    ssr3ssf(wr, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, rslc, ithrd);
+    /* Loops over lags */
+    for(long long ily = blly; ily <= elly; ++ily) {
+      for(long long ilx = bllx; ilx <= ellx; ++ilx) {
+        /* Imaging condition (should do this on ISPC) */
+        for(long long iy = begy; iy < endy; ++iy) {
+          for(long long ix = begx; ix < endx; ++ix) {
+						long long lz = static_cast<long long>(iz);
+            long long imgidx = lz*lnx*lny + iy*lnx + ix;
+            img[(ily+shfy)*lnx*lny*lnz*nhx + (ilx+shfx)*lnx*lny*lnz + imgidx]  +=
+                std::real(std::conj(sslc[(iy-ily)*lnx + (ix-ilx)])*rslc[(iy+ily)*lnx + (ix+ilx)]);
           } // x
         } // y
       } // lx

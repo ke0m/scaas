@@ -120,16 +120,20 @@ def phzshft(sig,ow,dw,dly):
   data. Corrects for any delay in source time function
 
   Parameters:
-    sig - input signal [ntr,nw]
+    sig - input signal (frequency is last/fastest axis)
     ow  - origin of frequency axis
     dw  - frequency sampling
     dly - time delay of wavelet (seconds)
 
   Return phase-shifted data [ntr,nw]
   """
-  [ntr,nw] = sig.shape
-  pshift = np.zeros(sig.shape,dtype='complex64')
-  ws      = np.linspace(ow,ow+(nw-1)*dw,nw)
+  # Get shape and flatten along spatial axes
+  ntr  = np.prod(sig.shape[:-1])
+  nw   = sig.shape[-1]
+  sigr = sig.reshape([ntr,nw])
+  # Construct phase shift operator
+  pshift = np.zeros(sigr.shape,dtype='complex64')
+  ws     = np.linspace(ow,ow+(nw-1)*dw,nw)
   phz    = np.zeros(nw) + 1j*2*np.pi*ws*dly
   pshift = np.exp(phz)
 
@@ -137,7 +141,10 @@ def phzshft(sig,ow,dw,dly):
   psop = np.repeat(pshift[np.newaxis],ntr,axis=0)
 
   # Apply the operator
-  sigshft = sig*psop
+  sigshft = sigr*psop
+
+  # Reshape
+  sigshft = np.ascontiguousarray(sigshft.reshape(sig.shape))
 
   return sigshft.astype('complex64')
 

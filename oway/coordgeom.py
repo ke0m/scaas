@@ -600,7 +600,7 @@ class coordgeom:
                      vmin=kwargs.get('vmin',vmin),vmax=kwargs.get('vmax',vmax),
                      cmap=kwargs.get('cmap','jet'))
       ax.set_xlabel('X (km)',fontsize=kwargs.get('labelsize',14))
-      ax.set_ylabel('Z (km)',fontsize=kwargs.get('labelsize',14))
+      ax.set_ylabel('Y (km)',fontsize=kwargs.get('labelsize',14))
       ax.set_title(kwargs.get('title',''),fontsize=kwargs.get('labelsize',14))
       ax.tick_params(labelsize=kwargs.get('labelsize',14))
       if(srcs):

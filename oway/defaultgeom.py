@@ -18,7 +18,8 @@ class defaultgeom:
   """
   def __init__(self,nx,dx,ny,dy,nz,dz,                             # Model size
                nsx,dsx,nsy,dsy,osx=0.0,osy=0.0,                    # Source geometry
-               nrx=None,drx=1.0,orx=0.0,nry=None,dry=1.0,ory=0.0): # Receiver geometry
+               nrx=None,drx=1.0,orx=0.0,nry=None,dry=1.0,ory=0.0,  # Receiver geometry
+               ox=0.0,oy=0.0,oz=0.0):
     """
     Creates a default geometry object for split-step fourier downward continuation
 
@@ -46,9 +47,9 @@ class defaultgeom:
       a default geom object
     """
     # Spatial axes
-    self.__nx = nx; self.__dx = dx
-    self.__ny = ny; self.__dy = dy
-    self.__nz = nz; self.__dz = dz
+    self.__nx, self.__ox, self.__dx = nx, ox, dx
+    self.__ny, self.__oy, self.__dy = ny, oy, dy
+    self.__nz, self.__oz, self.__dz = nz, oz, dz
     # Source gometry
     self.__nsx = nsx; self.__osx = osx; self.__dsx = dsx
     self.__nsy = nsy; self.__osy = osy; self.__dsy = dsy
@@ -642,6 +643,23 @@ class defaultgeom:
       # Plot geometry
       #plt.scatter(recx,rzros,c='tab:green',marker='v')
       plt.scatter(scoordsn,szros,c='yellow',marker='*')
-      if(show):
-        plt.show()
+    else:
+      # 3D acquisition
+      fig = plt.figure(figsize=(kwargs.get('wbox',14),kwargs.get('hbox',7)))
+      ax = fig.gca()
+      # Plot depth slice
+      im = ax.imshow(np.flipud(mod[kwargs.get('iz',self.__nz//2)]),
+                     extent=[0,self.__nx,0,self.__ny],
+                     vmin=kwargs.get('vmin',vmin),vmax=kwargs.get('vmax',vmax),
+                     cmap=kwargs.get('cmap','jet'))
+      ax.set_xlabel('X (gridpoints)',fontsize=kwargs.get('labelsize',14))
+      ax.set_ylabel('Y (gridpoints)',fontsize=kwargs.get('labelsize',14))
+      ax.tick_params(labelsize=kwargs.get('labelsize',14))
+      # Make source coordinates
+      scoordsy = np.asarray(self.__scoords)[:,0]
+      scoordsx = np.asarray(self.__scoords)[:,1]
+      ax.scatter(scoordsx,scoordsy,marker='*',color='tab:red')
+      # Make receiver coordinates
+      #ax.scatter(self.__recxs,self.__recys,marker='v',color='tab:green')
+    if(show): plt.show()
 

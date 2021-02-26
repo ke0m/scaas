@@ -355,6 +355,8 @@ class coordgeomchunk:
         oimg   = np.zeros([self.__rnhy,self.__rnhx,self.__nz,self.__ny,self.__nx],dtype='float32')
       # Allocate memory necessary for extension
       ssf.set_ext(nhy,nhx,sym,True)
+      #TODO: compute the amount of memory needed and based on that, determine the function
+      #      required
       #ssf.set_ext(nhy,nhx,sym,False)
 
     # Loop over sources

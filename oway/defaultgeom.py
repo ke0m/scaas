@@ -191,7 +191,7 @@ class defaultgeom:
       return datwr
 
   def image_data(self,dat,dt,minf,maxf,vel,jf=1,nhx=0,nhy=0,sym=True,nrmax=3,eps=0.0,dtmax=5e-05,wav=None,
-                 ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=False) -> np.ndarray:
+                 ntx=0,nty=0,px=0,py=0,nthrds=1,big=True,sverb=True,wverb=False) -> np.ndarray:
     """
     3D migration of shot profile data via the one-way wave equation (single-square
     root split-step fourier method). Input data are assumed to follow
@@ -216,6 +216,8 @@ class defaultgeom:
       px     - amount of padding in x direction (samples) [0]
       py     - amount of padding in y direction (samples) [0]
       nthrds - number of OpenMP threads for parallelizing over frequency [1]
+      big    - if true, does not allocate image on each thread for extended
+               (defaults to true for 3D extended)
       sverb  - verbosity flag for shot progress bar [True]
       wverb  - verbosity flag for frequency progress bar [False]
 
@@ -269,8 +271,11 @@ class defaultgeom:
         self.__rnhy = nhy+1; self.__ohy = 0; self.__dhy = self.__dy
         # Allocate image array
         imgar = np.zeros([self.__nexp,self.__rnhy,self.__rnhx,self.__nz,self.__ny,self.__nx],dtype='float32')
-      # Allocate memory necessary for extension
-      ssf.set_ext(nhy,nhx,sym)
+        # Allocate memory necessary for extension
+        if big:
+          ssf.set_ext(nhy,nhx,sym,False)
+        else:
+          ssf.set_ext(nhy,nhx,sym,True)
 
     # Allocate the source for one shot
     sou = np.zeros([self.__nwc,self.__ny,self.__nx],dtype='complex64')
@@ -288,7 +293,10 @@ class defaultgeom:
         ssf.migallw(datw[k],sou,imgar[k],wverb)
       else:
         # Extended imaging
-        ssf.migoffallw(datw[k],sou,imgar[k],wverb)
+        if big:
+          ssf.migoffallwbig(datw[k],sou,imgar[k],wverb)
+        else:
+          ssf.migoffallw(datw[k],sou,imgar[k],wverb)
       k += 1
 
     # Sum over all partial images

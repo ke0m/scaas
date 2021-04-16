@@ -1,5 +1,6 @@
 %.o: %.cpp
-	g++ -std=c++1y -O3 -fPIC -ffast-math -fopenmp -shared -Wall -I. -c -fPIC -o $@ $<
+	g++ -std=c++1y -O3 -fPIC -ffast-math -fopenmp -shared -Wall \
+		-I. -I../../external_cpp -c -fPIC -o $@ $<
 
 %.o: %.c
 	gcc -O3 -fPIC -ffast-math -fopenmp -shared -Wall -I. -c -fPIC -o $@ $<

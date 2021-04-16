@@ -6,7 +6,10 @@ and distributed evenly across the surface
 @version: 2020.11.12
 """
 import numpy as np
-from oway.ssr3 import ssr3, interp_slow
+try:
+  from ssr3 import ssr3, interp_slow
+except:
+  from .ssr3 import ssr3, interp_slow
 from scaas.off2ang import off2angssk
 from genutils.ptyprint import progressbar
 import matplotlib.pyplot as plt

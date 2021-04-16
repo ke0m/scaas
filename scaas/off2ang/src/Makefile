@@ -6,22 +6,11 @@
 
 INSTALL_DIR=..
 
-default: scaas2dpy halfint trismooth slantstk adcig adcigkzkx
-
-laplacian10.o: laplacian10.ispc
-	ispc --target=avx $< -o $@
-
-scaas2dpy: scaas2d.o laplacian10.o
-	g++ -O3 -fPIC -ffast-math -fopenmp -std=c++1y -shared -Wall `${CONDA_PREFIX}/bin/python3 -m pybind11 --includes` \
-		-g laplacian10.o scaas2d.o scaas2dpy.cpp -o $(INSTALL_DIR)/scaas2dpy`${CONDA_PREFIX}/bin/python3-config --extension-suffix`
+default: halfint slantstk adcig adcigkzkx
 
 halfint: halfint.o kiss_fft.o kiss_fftr.o
 	g++ -O3 -fPIC -ffast-math -fopenmp -std=c++1y -shared -Wall `${CONDA_PREFIX}/bin/python3 -m pybind11 --includes` \
 		-g kiss_fft.o kiss_fftr.o halfint.o halfintpy.cpp -o $(INSTALL_DIR)/halfint`${CONDA_PREFIX}/bin/python3-config --extension-suffix`
-
-trismooth: trismooth.o
-	g++ -O3 -fPIC -ffast-math -fopenmp -std=c++1y -shared -Wall `${CONDA_PREFIX}/bin/python3 -m pybind11 --includes` \
-		-g trismooth.o trismoothpy.cpp -o $(INSTALL_DIR)/trismoothkern`${CONDA_PREFIX}/bin/python3-config --extension-suffix`
 
 slantstk: slantstk.o halfint.o aainterp.o kiss_fft.o kiss_fftr.o
 	g++ -O3 -fPIC -ffast-math -fopenmp -std=c++1y -shared -Wall `${CONDA_PREFIX}/bin/python3 -m pybind11 --includes` \

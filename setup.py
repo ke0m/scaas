@@ -17,15 +17,26 @@ class Build(build_py):
   """Custom build for building PyBind11 modules"""
 
   def run(self):
-    # Modify Makefile to
-    cmdtway = "cd ./scaas/scaas/src && make INSTALL_DIR=%s" % (
+    # Two-way
+    cmdtway = "cd ./scaas/tway/src && make INSTALL_DIR=%s" % (
         site.getsitepackages()[0])
     print("Executing {}".format(cmdtway))
     subprocess.check_call(cmdtway, shell=True)
+    # One-way
     cmdoway = "cd ./scaas/oway/src && make INSTALL_DIR=%s" % (
         site.getsitepackages()[0])
     print("Executing {}".format(cmdoway))
     subprocess.check_call(cmdoway, shell=True)
+    # Filter
+    cmdfltr = "cd ./scaas/filter/src && make INSTALL_DIR=%s" % (
+        site.getsitepackages()[0])
+    print("Executing {}".format(cmdfltr))
+    subprocess.check_call(cmdfltr, shell=True)
+    # Off2ang
+    cmdof2an = "cd ./scaas/off2ang/src && make INSTALL_DIR=%s" % (
+        site.getsitepackages()[0])
+    print("Executing {}".format(cmdof2an))
+    subprocess.check_call(cmdof2an, shell=True)
     build_py.run(self)
 
 
@@ -33,12 +44,22 @@ class Develop(develop):
   """Custom build for building PyBind11 modules in development mode"""
 
   def run(self):
-    cmdtway = "cd ./scaas/scaas/src && make"
+    # Two-way
+    cmdtway = "cd ./scaas/tway/src && make"
     print("Executing {}".format(cmdtway))
     subprocess.check_call(cmdtway, shell=True)
+    # One-way
     cmdoway = "cd ./scaas/oway/src && make"
     print("Executing {}".format(cmdoway))
     subprocess.check_call(cmdoway, shell=True)
+    # Filter
+    cmdfltr = "cd ./scaas/filter/src && make"
+    print("Executing {}".format(cmdoway))
+    subprocess.check_call(cmdfltr, shell=True)
+    # Off2ang
+    cmdof2an = "cd ./scaas/off2ang/src && make"
+    print("Executing {}".format(cmdof2an))
+    subprocess.check_call(cmdof2an, shell=True)
     develop.run(self)
 
 

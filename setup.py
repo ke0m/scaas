@@ -17,6 +17,10 @@ class Build(build_py):
   """Custom build for building PyBind11 modules"""
 
   def run(self):
+    # Get the external libs
+    cmdsub = 'git submodule init && git submodule update'
+    print("Executing {}".format(cmdsub))
+    subprocess.check_call(cmdsub, shell=True)
     # Two-way
     cmdtway = "cd ./scaas/tway/src && make INSTALL_DIR=%s" % (
         site.getsitepackages()[0])

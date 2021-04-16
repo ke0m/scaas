@@ -4,7 +4,7 @@
 #include <cstring>
 #include <omp.h>
 #include "scaas2d.h"
-#include "progressbar.h"
+#include "progressbar/progressbar.h"
 
 scaas2d::scaas2d(int nt, int nx, int nz, float dt, float dx, float dz, float dtu, int bx, int bz, float alpha) {
   /* Lengths */

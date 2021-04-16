@@ -2,7 +2,7 @@
 #include <cstring>
 #include <omp.h>
 #include "adcigkzkx.h"
-#include "progressbar.h"
+#include "progressbar/progressbar.h"
 
 void convert2angkzkykx(int ngat,
                        int nz, float oz, float dz,

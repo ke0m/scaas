@@ -3,7 +3,7 @@
 #include "adcig.h"
 #include "slantstk.h"
 #include "tan2ang.h"
-#include "progressbar.h"
+#include "progressbar/progressbar.h"
 
 void convert2ang(int nx, int nh, float oh, float dh,
     int nta, float ota, float dta, int na, float oa, float da, int nz, float oz, float dz,

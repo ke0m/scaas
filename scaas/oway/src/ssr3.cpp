@@ -2,7 +2,7 @@
 #include <cstring>
 #include <omp.h>
 #include "ssr3.h"
-#include "progressbar.h"
+#include "progressbar/progressbar.h"
 
 ssr3::ssr3(int nx,   int ny,   int nz,
     float dx, float dy, float dz,

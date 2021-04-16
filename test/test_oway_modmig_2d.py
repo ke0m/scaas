@@ -71,7 +71,7 @@ def main(args):
   # Plot the data
   figd = plt.figure(figsize=(7, 5))
   axd = figd.gca()
-  axd.imshow(
+  imd = axd.imshow(
       dat[0, 0, 0].T,
       cmap='gray',
       interpolation='bilinear',
@@ -80,9 +80,12 @@ def main(args):
   axd.tick_params(labelsize=args.fsize)
   axd.set_xlabel('X (km)', fontsize=args.fsize)
   axd.set_ylabel('Time (s)', fontsize=args.fsize)
+  cbar_axd = figd.add_axes([0.78, 0.12, 0.02, 0.75])
+  cbard = figd.colorbar(imd, cbar_axd, format='%.3f')
+  cbard.ax.tick_params(labelsize=args.fsize)
   plt.savefig(args.output_dat_fig, bbox_inches='tight', dpi=150)
   # Plot the image
-  figi = plt.figure(figsize=(7, 5))
+  figi = plt.figure(figsize=(10, 5))
   axi = figi.gca()
   axi.imshow(
       img[:, 0, :],
@@ -93,6 +96,9 @@ def main(args):
   axi.tick_params(labelsize=args.fsize)
   axi.set_xlabel('X (km)', fontsize=args.fsize)
   axi.set_ylabel('Z (km)', fontsize=args.fsize)
+  cbar_axi = figi.add_axes([0.91, 0.29, 0.02, 0.41])
+  cbari = figi.colorbar(imd, cbar_axi, format='%.3f')
+  cbari.ax.tick_params(labelsize=args.fsize)
   plt.savefig(args.output_img_fig, bbox_inches='tight', dpi=150)
   if args.show:
     plt.show()

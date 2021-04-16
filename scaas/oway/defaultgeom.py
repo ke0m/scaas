@@ -10,7 +10,7 @@ try:
   from ssr3 import ssr3, interp_slow
 except:
   from .ssr3 import ssr3, interp_slow
-from scaas.off2ang import off2angssk
+from scaas.off2ang.off2ang import off2angssk
 from genutils.ptyprint import progressbar
 import matplotlib.pyplot as plt
 

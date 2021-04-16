@@ -2,7 +2,8 @@ import argparse
 import numpy as np
 from scaas.wavelet import ricker
 import scaas.oway.defaultgeom as geom
-from scaas.trismooth import smooth
+from scaas.filter.trismooth import smooth
+import matplotlib.pyplot as plt
 
 
 def main(args):
@@ -19,13 +20,7 @@ def main(args):
   refsm = smooth(smooth(smooth(ref, rect1=npts), rect1=npts), rect1=npts)
 
   # Create ricker wavelet
-  wav = ricker(
-      n1=args.nt,
-      d1=args.dt,
-      freq=args.freq,
-      amp=args.amp,
-      dly=args.dly,
-  )
+  wav = ricker(args.nt, args.dt, args.freq, args.amp, args.dly)
 
   # Wave equation object
   wei = geom.defaultgeom(
@@ -35,8 +30,8 @@ def main(args):
       dy=args.dx,
       nz=args.nz,
       dz=args.dz,
-      nsx=args.nsx,
-      dsx=args.dsx,
+      nsx=1,
+      dsx=10.0,
       osx=args.osx,
       nsy=1,
       dsy=1.0,
@@ -73,6 +68,35 @@ def main(args):
       wverb=True,
   )
 
+  # Plot the data
+  figd = plt.figure(figsize=(7, 5))
+  axd = figd.gca()
+  axd.imshow(
+      dat[0, 0, 0].T,
+      cmap='gray',
+      interpolation='bilinear',
+      extent=[0, args.nx * args.dx, args.nt * args.dt, 0],
+  )
+  axd.tick_params(labelsize=args.fsize)
+  axd.set_xlabel('X (km)', fontsize=args.fsize)
+  axd.set_ylabel('Time (s)', fontsize=args.fsize)
+  plt.savefig(args.output_dat_fig, bbox_inches='tight', dpi=150)
+  # Plot the image
+  figi = plt.figure(figsize=(7, 5))
+  axi = figi.gca()
+  axi.imshow(
+      img[:, 0, :],
+      cmap='gray',
+      interpolation='bilinear',
+      extent=[0, args.nx * args.dx, args.nz * args.dz, 0],
+  )
+  axi.tick_params(labelsize=args.fsize)
+  axi.set_xlabel('X (km)', fontsize=args.fsize)
+  axi.set_ylabel('Z (km)', fontsize=args.fsize)
+  plt.savefig(args.output_img_fig, bbox_inches='tight', dpi=150)
+  if args.show:
+    plt.show()
+
 
 def attach_args(parser=argparse.ArgumentParser()):
   # Spatial parameters
@@ -81,17 +105,21 @@ def attach_args(parser=argparse.ArgumentParser()):
   parser.add_argument("--nz", type=int, default=400)
   parser.add_argument("--dz", type=float, default=0.005)
   # Acquisition parameters
-  parser.add_argument("--nsx", type=int, default=1)
-  parser.add_argument("--dsx", type=float, default=10.0)
   parser.add_argument("--osx", type=float, default=250.0)
   # Wavelet parameters
   parser.add_argument("--nt", type=int, default=2000)
   parser.add_argument("--dt", type=float, default=0.004)
+  parser.add_argument("--amp", type=float, default=0.5)
   parser.add_argument("--freq", type=float, default=8.0)
   parser.add_argument("--minf", type=float, default=1.0)
   parser.add_argument("--maxf", type=float, default=31.0)
   parser.add_argument("--dly", type=float, default=0.2)
   parser.add_argument("--nthrds", type=int, default=40)
+  # Output figure names
+  parser.add_argument("--show", action='store_true', default=False)
+  parser.add_argument("--fsize", type=int, default=15)
+  parser.add_argument("--output-dat-fig", type=str, default='./dat_2d.png')
+  parser.add_argument("--output-img-fig", type=str, default='./img_2d.png')
   return parser
 
 

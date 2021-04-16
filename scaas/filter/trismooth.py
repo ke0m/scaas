@@ -4,8 +4,11 @@ Four-dimensional triangular smoother
 @version: 2020.06.16
 """
 import numpy as np
-from scaas.trismoothkern import smooth2
-from opt.linopt.opr8tr import operator
+try:
+  from trismoothkern import smooth2
+except:
+  from .trismoothkern import smooth2
+from scaas.opt.linopt.opr8tr import operator
 
 def smooth(data,rect1=1,rect2=1,rect3=1,rect4=1):
   """
@@ -56,7 +59,7 @@ class smoothop(operator):
   def __init__(self,nsin,rect1=1,rect2=1,rect3=1,rect4=1):
     """
     smoothop constructor
-    
+
     Parameters:
       nsin  - shape of input signal/image (arr.shape)
       rect1 - Number of points to smooth along fast axis [-1, no smoothing]
@@ -70,15 +73,15 @@ class smoothop(operator):
     self.__ns    = np.ones(4,dtype='int32')
     self.__rects = np.ones(4,dtype='int32')
     self.__s     = np.zeros(4,dtype='int32')
-    self.__rects[0] = rect1; self.__rects[1] = rect2; 
+    self.__rects[0] = rect1; self.__rects[1] = rect2;
     self.__rects[2] = rect3; self.__rects[3] = rect4
-    
+
     self.__dim1 = -1
     for i in range(dim):
       self.__ns[i] = nsin[dim-i-1]
-      if(self.__rects[i] > -1): self.__dim1 = i 
+      if(self.__rects[i] > -1): self.__dim1 = i
 
-    self.__n1 = self.__n2 = 1 
+    self.__n1 = self.__n2 = 1
     for i in range(dim):
       if(i <= self.__dim1):
         self.__s[i] = self.__n1
@@ -145,7 +148,7 @@ class smoothop(operator):
     if(add):
       self.forward(True,m ,dh)
       self.adjoint(True,mh,d )
-      dotm = np.dot(m.flatten(),mh.flatten()); 
+      dotm = np.dot(m.flatten(),mh.flatten());
       dotd = np.dot(d.flatten(),dh.flatten())
       print("Dot product test (add==True):")
       print("Dotm = %f Dotd = %f"%(dotm,dotd))
@@ -154,7 +157,7 @@ class smoothop(operator):
     else:
       self.forward(False,m ,dh)
       self.adjoint(False,mh,d )
-      dotm = np.dot(m.flatten(),mh.flatten()); 
+      dotm = np.dot(m.flatten(),mh.flatten());
       dotd = np.dot(d.flatten(),dh.flatten())
       print("Dot product test (add==False):")
       print("Dotm = %f Dotd = %f"%(dotm,dotd))

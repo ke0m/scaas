@@ -4,8 +4,12 @@ Functions for converting subsurface offset to angle gathers
 @version: 2020.08.09
 """
 import numpy as np
-from scaas.adcig import convert2ang
-from scaas.adcigkzkx import convert2angkzkykx
+try:
+  from adcig import convert2ang
+  from adcigkzkx import convert2angkzkykx
+except:
+  from .adcig import convert2ang
+  from .adcigkzkx import convert2angkzkykx
 from genutils.ptyprint import printprogress, progressbar
 
 def off2angssk(off,oh,dh,dz,oz=0.0,na=281,amax=70,oa=None,da=None,nta=601,ota=-3,dta=0.01,

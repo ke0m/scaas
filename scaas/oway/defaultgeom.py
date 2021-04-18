@@ -272,7 +272,7 @@ class defaultgeom:
         # Allocate image array
         imgar = np.zeros([self.__nexp,self.__rnhy,self.__rnhx,self.__nz,self.__ny,self.__nx],dtype='float32')
       # Allocate memory necessary for extension
-      ssf.set_ext(nhy,nhx,sym)
+      ssf.set_ext(nhy,nhx,sym,True)
 
     # Allocate the source for one shot
     sou = np.zeros([self.__nwc,self.__ny,self.__nx],dtype='complex64')

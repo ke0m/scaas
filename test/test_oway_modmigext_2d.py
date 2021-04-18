@@ -4,7 +4,7 @@ from scaas.wavelet import ricker
 import scaas.oway.defaultgeom as geom
 from scaas.filter.trismooth import smooth
 import time
-from plot import plot_2d
+from plot import plot_imgpoff
 
 
 def main(args):
@@ -38,8 +38,8 @@ def main(args):
       dsy=1.0,
   )
 
-  # Modeling
   beg = time.time()
+  # Modeling
   dat = wei.model_data(
       wav,
       args.dt,
@@ -65,37 +65,22 @@ def main(args):
       minf=args.minf,
       maxf=args.maxf,
       vel=vel,
+      nhx=args.nhx,
       nthrds=args.nthrds,
       sverb=False,
       wverb=True,
   )
   print("Time elapsed: %f" % (time.time() - beg))
 
-  # Plot the data
-  plot_2d(
-      dat[0, 0, 0].T,
-      d1=args.dx,
-      d2=args.dt,
-      labelsize=args.fsize,
-      barx=0.7,
-      barz=0.12,
-      hbar=0.72,
-      label1='X (km)',
-      label2='Time (s)',
-      show=args.show,
-      figname=args.output_dat_fig,
-  )
-  # Plot the image
-  plot_2d(
-      img[:, 0, :],
-      d1=args.dx,
-      d2=args.dz,
-      labelsize=args.fsize,
-      barx=0.91,
-      barz=0.29,
-      hbar=0.41,
-      label1='X (km)',
-      label2='Z (km)',
+  # Plot the result
+  plot_imgpoff(
+      img,
+      args.dx,
+      args.dz,
+      args.nhx,
+      args.xslice,
+      -args.nhx * args.dx,
+      args.dx,
       show=args.show,
       figname=args.output_img_fig,
   )
@@ -118,11 +103,12 @@ def attach_args(parser=argparse.ArgumentParser()):
   parser.add_argument("--maxf", type=float, default=31.0)
   parser.add_argument("--dly", type=float, default=0.2)
   parser.add_argument("--nthrds", type=int, default=40)
+  parser.add_argument("--nhx", type=int, default=20)
   # Output figure names
   parser.add_argument("--show", action='store_true', default=False)
   parser.add_argument("--fsize", type=int, default=15)
-  parser.add_argument("--output-dat-fig", type=str, default='./dat_2d.png')
-  parser.add_argument("--output-img-fig", type=str, default='./img_2d.png')
+  parser.add_argument("--xslice", type=int, default=250)
+  parser.add_argument("--output-img-fig", type=str, default='./eimg_2d.png')
   return parser
 
 

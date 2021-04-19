@@ -3,16 +3,17 @@ Default geometry for synthetics
 Sources and receivers on the surface
 and distributed evenly across the surface
 @author: Joseph Jennings
-@version: 2020.11.12
+@version: 2021.04.18
 """
 import numpy as np
 try:
   from ssr3 import ssr3, interp_slow
-except:
+except ImportError:
   from .ssr3 import ssr3, interp_slow
 from scaas.off2ang.off2ang import off2angssk
-from genutils.ptyprint import progressbar
+from tqdm import tqdm
 import matplotlib.pyplot as plt
+
 
 class defaultgeom:
   """
@@ -21,7 +22,8 @@ class defaultgeom:
   """
   def __init__(self,nx,dx,ny,dy,nz,dz,                             # Model size
                nsx,dsx,nsy,dsy,osx=0.0,osy=0.0,                    # Source geometry
-               nrx=None,drx=1.0,orx=0.0,nry=None,dry=1.0,ory=0.0): # Receiver geometry
+               nrx=None,drx=1.0,orx=0.0,nry=None,dry=1.0,ory=0.0,  # Receiver geometry
+               ox=0.0, oy=0.0, oz=0.0):
     """
     Creates a default geometry object for split-step fourier downward continuation
 
@@ -49,9 +51,9 @@ class defaultgeom:
       a default geom object
     """
     # Spatial axes
-    self.__nx = nx; self.__dx = dx
-    self.__ny = ny; self.__dy = dy
-    self.__nz = nz; self.__dz = dz
+    self.__nx, self.__ox, self.__dx = nx, ox, dx
+    self.__ny, self.__oy, self.__dy = ny, oy, dy
+    self.__nz, self.__oz, self.__dz = nz, oz, dz
     # Source gometry
     self.__nsx = nsx; self.__osx = osx; self.__dsx = dsx
     self.__nsy = nsy; self.__osy = osy; self.__dsy = dsy
@@ -172,7 +174,7 @@ class defaultgeom:
 
     # Loop over sources
     k = 0
-    for icrd in progressbar(self.__scoords,"nexp:",verb=sverb):
+    for icrd in tqdm(self.__scoords, desc="nexp:", disable=(not sverb)):
       # Get the source coordinates
       sy = icrd[0]; sx = icrd[1]
       # Create the source for this shot
@@ -193,7 +195,7 @@ class defaultgeom:
       return datwr
 
   def image_data(self,dat,dt,minf,maxf,vel,jf=1,nhx=0,nhy=0,sym=True,nrmax=3,eps=0.0,dtmax=5e-05,wav=None,
-                 ntx=0,nty=0,px=0,py=0,nthrds=1,sverb=True,wverb=False) -> np.ndarray:
+                 ntx=0,nty=0,px=0,py=0,nthrds=1,big=False,sverb=True,wverb=False) -> np.ndarray:
     """
     3D migration of shot profile data via the one-way wave equation (single-square
     root split-step fourier method). Input data are assumed to follow
@@ -218,6 +220,8 @@ class defaultgeom:
       px     - amount of padding in x direction (samples) [0]
       py     - amount of padding in y direction (samples) [0]
       nthrds - number of OpenMP threads for parallelizing over frequency [1]
+      big    - if True, does not allocate image on each thread for extended
+               (defaults to True for 3D extanded)
       sverb  - verbosity flag for shot progress bar [True]
       wverb  - verbosity flag for frequency progress bar [False]
 
@@ -259,6 +263,8 @@ class defaultgeom:
     if(nhx == 0 and nhy == 0):
       imgar = np.zeros([self.__nexp,self.__nz,self.__ny,self.__nx],dtype='float32')
     else:
+      if self.__ny > 1:
+        big = True
       if(sym):
         # Create axes
         self.__rnhx = 2*nhx+1; self.__ohx = -nhx*self.__dx; self.__dhx = self.__dx
@@ -272,14 +278,17 @@ class defaultgeom:
         # Allocate image array
         imgar = np.zeros([self.__nexp,self.__rnhy,self.__rnhx,self.__nz,self.__ny,self.__nx],dtype='float32')
       # Allocate memory necessary for extension
-      ssf.set_ext(nhy,nhx,sym,True)
+      if big:
+        ssf.set_ext(nhy, nhx, sym, False)
+      else:
+        ssf.set_ext(nhy,nhx,sym,True)
 
     # Allocate the source for one shot
     sou = np.zeros([self.__nwc,self.__ny,self.__nx],dtype='complex64')
 
     # Loop over sources
     k = 0
-    for icrd in progressbar(self.__scoords,"nexp:",verb=sverb):
+    for icrd in tqdm(self.__scoords, desc="nexp:", ascii=True, disable=(not sverb)):
       # Get the source coordinates
       sy = icrd[0]; sx = icrd[1]
       # Create the source for this shot
@@ -290,15 +299,18 @@ class defaultgeom:
         ssf.migallw(datw[k],sou,imgar[k],wverb)
       else:
         # Extended imaging
-        ssf.migoffallw(datw[k],sou,imgar[k],wverb)
+        if big:
+          ssf.migoffallwbig(datw[k],sou,imgar[k],wverb)
+        else:
+          ssf.migoffallw(datw[k],sou,imgar[k],wverb)
       k += 1
 
     # Sum over all partial images
     img = np.sum(imgar,axis=0)
 
     # Free memory for extension
-    if(nhx != 0 or nhy != 0):
-      ssf.del_ext()
+    if nhx != 0 or nhy != 0:
+      if not big: ssf.del_ext()
 
     return img
 
@@ -645,6 +657,23 @@ class defaultgeom:
       # Plot geometry
       #plt.scatter(recx,rzros,c='tab:green',marker='v')
       plt.scatter(scoordsn,szros,c='yellow',marker='*')
+    else:
+      # 3D acquisition
+      fig = plt.figure(figsize=(kwargs.get('wbox',14),kwargs.get('hbox',7)))
+      ax = fig.gca()
+      # Plot depth slice
+      im = ax.imshow(np.flipud(mod[kwargs.get('iz',self.__nz//2)]),
+                     extent=[0,self.__nx,0,self.__ny],
+                     vmin=kwargs.get('vmin',vmin),vmax=kwargs.get('vmax',vmax),
+                     cmap=kwargs.get('cmap','jet'))
+      ax.set_xlabel('X (gridpoints)',fontsize=kwargs.get('labelsize',14))
+      ax.set_ylabel('Y (gridpoints)',fontsize=kwargs.get('labelsize',14))
+      ax.tick_params(labelsize=kwargs.get('labelsize',14))
+      # Make source coordinates
+      scoordsy = np.asarray(self.__scoords)[:,0]
+      scoordsx = np.asarray(self.__scoords)[:,1]
+      ax.scatter(scoordsx,scoordsy,marker='*',color='tab:red')
+      # Make receiver coordinates
+      #ax.scatter(self.__recxs,self.__recys,marker='v',color='tab:green')
       if(show):
         plt.show()
-

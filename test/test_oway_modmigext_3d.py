@@ -3,7 +3,8 @@ import numpy as np
 from scaas.wavelet import ricker
 import scaas.oway.defaultgeom as geom
 from scaas.filter.trismooth import smooth
-from plot import plot_3d
+from regio import seppy
+from plot import plot_3d, plot_imgpoff
 import time
 
 
@@ -71,26 +72,15 @@ def main(args):
       maxf=args.maxf,
       vel=velin,
       nthrds=args.nthrds,
+      nhx=args.nhx,
+      big=True,
       sverb=False,
       wverb=True,
   )
   print("Time Elapsed=%f s" % (time.time() - beg))
 
-  # Save figures
   plot_3d(
-      dat[0, 0],
-      ds=[args.dt, args.dy, args.dx],
-      loc1=args.dat_xslice * args.dx,
-      loc2=args.dat_yslice * args.dy,
-      loc3=args.dat_tslice * args.dt,
-      label1='X (km)',
-      label2='Y (km)',
-      label3='Time (s)',
-      transp=True,
-      figname=args.output_dat_fig,
-  )
-  plot_3d(
-      img,
+      img[0, 20],
       ds=[args.dz, args.dy, args.dx],
       loc3=args.img_zslice * args.dz,
       loc2=args.img_xslice * args.dx,
@@ -100,6 +90,28 @@ def main(args):
       label3='Z (km)',
       pclip=0.5,
       figname=args.output_img_fig,
+  )
+  # Extended image and y slice
+  plot_imgpoff(
+      np.expand_dims(img[:, :, :, args.img_yslice, :], axis=3),
+      args.dx,
+      args.dz,
+      args.nhx,
+      args.img_yslice,
+      -args.nhx * args.dx,
+      args.dx,
+      figname=args.output_eimg_yslice_fig % (args.img_yslice),
+  )
+  # Extended image and x slice
+  plot_imgpoff(
+      np.expand_dims(img[:, :, :, :, args.img_xslice], axis=3),
+      args.dx,
+      args.dz,
+      args.nhx,
+      args.img_xslice,
+      -args.nhx * args.dx,
+      args.dx,
+      figname=args.output_eimg_xslice_fig % (args.img_xslice),
   )
 
 
@@ -123,16 +135,26 @@ def attach_args(parser=argparse.ArgumentParser()):
   parser.add_argument("--maxf", type=float, default=31.0)
   parser.add_argument("--dly", type=float, default=0.2)
   parser.add_argument("--nthrds", type=int, default=40)
+  parser.add_argument("--nhx", type=int, default=20)
   # Output data figures
   parser.add_argument("--dat-xslice", type=int, default=250)
   parser.add_argument("--dat-yslice", type=int, default=250)
   parser.add_argument("--dat-tslice", type=int, default=450)
-  parser.add_argument("--output-dat-fig", type=str, default="./dat_3d.png")
   # Output img figure
   parser.add_argument("--img-xslice", type=int, default=250)
   parser.add_argument("--img-yslice", type=int, default=250)
   parser.add_argument("--img-zslice", type=int, default=349)
-  parser.add_argument("--output-img-fig", type=str, default="./img_3d.png")
+  parser.add_argument("--output-img-fig", type=str, default="./eimg_3d.png")
+  parser.add_argument(
+      "--output-eimg-xslice-fig",
+      type=str,
+      default="./eimg_3d_xslc_%d.png",
+  )
+  parser.add_argument(
+      "--output-eimg-yslice-fig",
+      type=str,
+      default="./eimg_3d_yslc_%d.png",
+  )
   parser.add_argument("--show", action='store_true', default=False)
   parser.add_argument("--fsize", type=int, default=15)
   return parser

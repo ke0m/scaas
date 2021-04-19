@@ -54,7 +54,7 @@ def plot_imgpoff(oimg, dx, dz, zoff, xloc, oh, dh, show=False, **kwargs):
       gridspec_kw={'width_ratios': [12, 1]},
   )
   # Plot the image
-  ax[0].imshow(
+  im = ax[0].imshow(
       oimg[0, zoff, :, 0, :],
       extent=[0.0, nx * dx, nz * dz, 0.0],
       interpolation=kwargs.get('interp', 'sinc'),
@@ -79,6 +79,14 @@ def plot_imgpoff(oimg, dx, dz, zoff, xloc, oh, dh, show=False, **kwargs):
   ax[1].set_ylabel(' ', fontsize=kwargs.get('labelsize', 14))
   ax[1].tick_params(labelsize=kwargs.get('labelsize', 14))
   ax[1].set_yticks([])
+  cbar_ax = fig.add_axes([
+      kwargs.get('barx', 0.91),
+      kwargs.get('barz', 0.32),
+      kwargs.get('wbar', 0.02),
+      kwargs.get('hbar', 0.35)
+  ])
+  cbar = fig.colorbar(im, cbar_ax)
+  cbar.ax.tick_params(labelsize=kwargs.get('labelsize', 15))
   plt.subplots_adjust(wspace=0.05)
   if show:
     plt.show()

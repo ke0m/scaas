@@ -472,6 +472,7 @@ void ssr3::ssr3ssf_migoffonewbig(int iw, std::complex<float> *dat, std::complex<
     ssr3ssf(ws, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, sslc, ithrd);
     ssr3ssf(wr, iz, _slo+(iz)*_nx*_ny, _slo+(iz+1)*_nx*_ny, rslc, ithrd);
     /* Loops over lags */
+//#pragma omp critical
     for(long long ily = blly; ily <= elly; ++ily) {
       for(long long ilx = bllx; ilx <= ellx; ++ilx) {
         /* Imaging condition (should do this on ISPC) */

@@ -92,7 +92,7 @@ def plot_imgpoff(oimg, dx, dz, zoff, xloc, oh, dh, show=False, **kwargs):
     plt.show()
   figname = kwargs.get('figname', None)
   if figname is not None:
-    plt.savefig(figname, dpi=150, bbox_inches='tight')
+    plt.savefig(figname, dpi=150, bbox_inches='tight', transparent=True)
 
 
 def plot_3d(

@@ -3,7 +3,6 @@ import numpy as np
 from scaas.wavelet import ricker
 import scaas.oway.defaultgeom as geom
 from scaas.filter.trismooth import smooth
-from regio import seppy
 from plot import plot_3d, plot_imgpoff
 import time
 

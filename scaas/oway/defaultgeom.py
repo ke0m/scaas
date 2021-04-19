@@ -195,7 +195,7 @@ class defaultgeom:
       return datwr
 
   def image_data(self,dat,dt,minf,maxf,vel,jf=1,nhx=0,nhy=0,sym=True,nrmax=3,eps=0.0,dtmax=5e-05,wav=None,
-                 ntx=0,nty=0,px=0,py=0,nthrds=1,big=False,sverb=True,wverb=False) -> np.ndarray:
+                 ntx=0,nty=0,px=0,py=0,nthrds=1,big=None,sverb=True,wverb=False) -> np.ndarray:
     """
     3D migration of shot profile data via the one-way wave equation (single-square
     root split-step fourier method). Input data are assumed to follow
@@ -264,7 +264,12 @@ class defaultgeom:
       imgar = np.zeros([self.__nexp,self.__nz,self.__ny,self.__nx],dtype='float32')
     else:
       if self.__ny > 1:
-        big = True
+        if big is None:
+          big = True
+        elif big is False:
+          print("Warning: running in non-big mode for 3D extended imaging. Code will likely run out of memory.")
+      else:
+        big = False
       if(sym):
         # Create axes
         self.__rnhx = 2*nhx+1; self.__ohx = -nhx*self.__dx; self.__dhx = self.__dx
@@ -281,7 +286,7 @@ class defaultgeom:
       if big:
         ssf.set_ext(nhy, nhx, sym, False)
       else:
-        ssf.set_ext(nhy,nhx,sym,True)
+        ssf.set_ext(nhy, nhx, sym, True)
 
     # Allocate the source for one shot
     sou = np.zeros([self.__nwc,self.__ny,self.__nx],dtype='complex64')
